@@ -1,0 +1,13 @@
+services:
+  orbitnet-site:
+    image: nginx:alpine
+    container_name: orbitnet-site
+    restart: unless-stopped
+    volumes:
+      - ./site:/usr/share/nginx/html:ro
+    ports:
+      - "127.0.0.1:8081:80"
+
+networks:
+  caddy_net:
+    external: true
