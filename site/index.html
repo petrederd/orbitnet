@@ -1,186 +1,79 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Не нажимай</title>
-<style>
-  :root { --bg: #1a1a1f; --fg: #f2f2f2; }
-  * { box-sizing: border-box; }
-  html, body { height: 100%; margin: 0; }
-  body {
-    background: var(--bg); color: var(--fg);
-    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 28px; overflow: hidden; transition: background .3s, color .3s;
-    user-select: none; -webkit-user-select: none;
-  }
-  body.light { --bg: #fafafa; --fg: #111; }
-  body.shake { animation: shake .5s; }
-  @keyframes shake {
-    0%,100% { transform: translate(0,0) rotate(0); }
-    20% { transform: translate(-12px,6px) rotate(-1deg); }
-    40% { transform: translate(10px,-8px) rotate(1deg); }
-    60% { transform: translate(-8px,-6px) rotate(-1deg); }
-    80% { transform: translate(8px,8px) rotate(1deg); }
-  }
-
-  #btn {
-    width: 220px; height: 220px; border-radius: 50%; border: none; cursor: pointer;
-    background: radial-gradient(circle at 35% 30%, #ff6b6b, #d90429 70%);
-    color: #fff; font: 800 20px/1.2 system-ui, sans-serif; letter-spacing: .5px;
-    box-shadow: 0 10px 0 #8d0220, 0 18px 30px rgba(0,0,0,.45);
-    transition: transform .15s, box-shadow .15s, background .3s, width .4s, height .4s, font-size .4s;
-    padding: 20px; -webkit-tap-highlight-color: transparent;
-  }
-  #btn:active { transform: translateY(8px); box-shadow: 0 2px 0 #8d0220, 0 6px 12px rgba(0,0,0,.4); }
-  #btn.sulk { background: #666; box-shadow: 0 10px 0 #444, 0 18px 30px rgba(0,0,0,.45); cursor: not-allowed; }
-  #btn.runner { position: fixed; transition: left .25s, top .25s; z-index: 5; }
-
-  #msg { min-height: 2.4em; max-width: 90vw; text-align: center; font-size: 20px; padding: 0 16px; }
-  #count { position: fixed; bottom: 14px; left: 0; right: 0; text-align: center; opacity: .45; font-size: 14px; }
-
-  #toast {
-    position: fixed; top: 16px; left: 50%; transform: translate(-50%, -140%);
-    background: #2b2d42; color: #ffd166; padding: 12px 20px; border-radius: 12px;
-    box-shadow: 0 8px 24px rgba(0,0,0,.4); transition: transform .4s; z-index: 20; font-weight: 600;
-    max-width: 92vw; text-align: center;
-  }
-  #toast.show { transform: translate(-50%, 0); }
-
-  #overlay {
-    position: fixed; inset: 0; background: rgba(0,0,0,.88); color: #39ff14;
-    display: none; flex-direction: column; align-items: center; justify-content: center;
-    font-family: ui-monospace, Menlo, Consolas, monospace; padding: 24px; z-index: 30; text-align: center;
-  }
-  #overlay.show { display: flex; }
-  #overlay .bar { width: min(420px, 85vw); height: 18px; border: 2px solid #39ff14; margin-top: 18px; }
-  #overlay .bar i { display: block; height: 100%; width: 0; background: #39ff14; }
-  #overlay.plain { background: rgba(0,0,0,.6); color: #fff; font-family: system-ui, sans-serif; }
-  #overlay.plain .bar { border-color: #fff; }
-  #overlay.plain .bar i { background: #fff; }
-
-  #cookie {
-    position: fixed; bottom: 0; left: 0; right: 0; background: #fff; color: #111;
-    padding: 16px; display: none; flex-wrap: wrap; gap: 12px; align-items: center;
-    justify-content: center; z-index: 25; box-shadow: 0 -6px 20px rgba(0,0,0,.3);
-  }
-  #cookie.show { display: flex; }
-  #cookie button { padding: 10px 18px; border-radius: 8px; border: 1px solid #111; background: #111; color: #fff; cursor: pointer; font-size: 15px; }
-  #cookie button + button { background: #fff; color: #111; }
-</style>
+<meta name="description" content="A useless website. Whatever you do, don't press the button.">
+<meta name="theme-color" content="#1a1a1f">
+<title>Don't Press</title>
+<link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <div id="msg">Здесь ничего нет. Просто не нажимай на кнопку.</div>
-  <button id="btn">НЕ НАЖИМАЙ</button>
+  <button id="mute" type="button" aria-label="Toggle sound" title="Sound on/off">🔊</button>
+
+  <div id="msg" aria-live="polite">There is nothing here. Just don't press the button.</div>
+  <button id="btn" type="button">DON'T PRESS</button>
   <div id="count"></div>
-  <div id="toast"></div>
-  <div id="overlay"><div id="ovText"></div><div class="bar"><i id="ovBar"></i></div></div>
-  <div id="cookie">
-    <span>Мы используем cookies, чтобы ты не нажимал на кнопку.</span>
-    <button>Принять</button><button>Принять</button>
+
+  <div id="toast" role="status"></div>
+
+  <div id="overlay">
+    <div id="ovText"></div>
+    <div class="bar"><i id="ovBar"></i></div>
   </div>
 
-<script>
-const $ = id => document.getElementById(id);
-const btn = $('btn'), msg = $('msg'), toastEl = $('toast'), overlay = $('overlay');
-const ovText = $('ovText'), ovBar = $('ovBar'), cookie = $('cookie'), countEl = $('count');
+  <div id="cookie">
+    <span>We use cookies so you won't press the button.</span>
+    <button type="button">Accept</button>
+    <button type="button">Accept</button>
+  </div>
 
-let clicks = 0, locked = false, runaway = false, dodges = 0, toastTimer;
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-const say = t => { msg.textContent = t; };
-const shake = () => { document.body.classList.remove('shake'); void document.body.offsetWidth; document.body.classList.add('shake'); };
-function toast(t) {
-  toastEl.textContent = '🏆 ' + t;
-  toastEl.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 3200);
-}
-async function progress(text, ms, plain = false, endAt = 100) {
-  overlay.classList.toggle('plain', plain);
-  ovText.textContent = text; ovBar.style.width = '0';
-  overlay.classList.add('show');
-  const steps = 40;
-  for (let i = 1; i <= steps; i++) { ovBar.style.width = (endAt * i / steps) + '%'; await sleep(ms / steps); }
-}
-const hideOverlay = () => overlay.classList.remove('show');
+  <!-- Fake registration. Nothing is sent anywhere. -->
+  <div id="signup" class="modal" role="dialog" aria-modal="true" aria-labelledby="su-title" hidden>
+    <div class="card">
+      <h2 id="su-title">Create your account</h2>
 
-/* ========= ШУТКИ =========
-   Каждая шутка — функция. Они срабатывают по порядку, по одной на нажатие.
-   Хочешь больше абсурда — просто добавляй новые функции в конец массива. */
-const steps = [
-  () => say('Эээ... там же написано «не нажимай».'),
-  () => { say('Серьёзно? Ещё раз?'); toast('Достижение: Первое непослушание'); },
-  () => { btn.textContent = 'НЕ НАЖИМАЙ ПОЖАЛУЙСТА'; say('Ладно. Пожалуйста.'); },
-  () => { btn.style.width = btn.style.height = '140px'; btn.style.fontSize = '14px'; say('Я уменьшилась. Теперь тебе будет сложнее.'); },
-  async () => {
-    say('');
-    const lines = ['Удаляю System32...', 'Удаляю твои фотографии...', 'Удаляю интернет...'];
-    for (const l of lines) await progress(l, 1400);
-    hideOverlay(); say('Шутка. Наверное.');
-    toast('Достижение: Выжил после «удаления»');
-  },
-  async () => {
-    btn.classList.add('sulk'); btn.textContent = 'обиделась'; say('Я с тобой не разговариваю.');
-    await sleep(4000);
-    btn.classList.remove('sulk'); btn.textContent = 'НЕ НАЖИМАЙ'; say('Ладно, прощаю. Но больше не надо.');
-  },
-  () => { shake(); say('ОШИБКА 418: я чайник. Кнопкой быть отказываюсь.'); toast('Достижение: Заварил чай'); },
-  () => { cookie.classList.add('show'); say('Подожди, сначала cookies.'); },
-  () => {
-    runaway = true; dodges = 0; say('Поймай меня, если сможешь.');
-    btn.classList.add('runner'); moveBtn();
-  },
-  async () => {
-    say(''); await progress('Обновление сайта... 99%', 3500, true, 99);
-    await sleep(1500); hideOverlay(); say('Зависло. Как всегда.');
-  },
-  () => { document.body.classList.toggle('light'); say('Режим «режет глаза» включён.'); },
-  () => say('Ты нажал ' + clicks + ' раз. Средний человек нажимает 3. Ты — не средний.')
-];
+      <section id="su-p1">
+        <p class="sub">Required to keep not-pressing the button.</p>
+        <label>Nickname
+          <input id="su-nick" maxlength="20" autocomplete="off" placeholder="Button Enjoyer">
+        </label>
+        <label>Password <small>(please don't type a real one!)</small>
+          <input id="su-pass" type="password" autocomplete="new-password">
+        </label>
+        <ul id="su-rules"></ul>
+        <p id="su-error" class="err"></p>
+        <button id="su-submit" type="button" class="primary">Create account</button>
+      </section>
 
-const late = [
-  'Всё ещё жмёшь? Уважаю.', 'Кнопке уже щекотно.', 'Это не приведёт ни к чему. Совсем.',
-  'Где-то в мире загрустил один пиксель.', 'Твой палец, наверное, устал. Пожалей его.',
-  'Я бы на твоём месте занялась делом. Но я кнопка.', 'Ты ничего не выиграл. И не выиграешь.',
-  'Нажатие засчитано. Зачем? Неизвестно.'
-];
-const lateEvents = [
-  () => shake(),
-  () => toast('Достижение: Бессмысленное упорство (' + clicks + ')'),
-  () => { document.body.classList.toggle('light'); }
-];
+      <section id="su-p2" hidden>
+        <p class="sub">One more thing. We need to be sure you're not a button.</p>
+        <label class="cap">
+          <input type="checkbox" id="su-cap">
+          <span id="su-cap-label">I'm not a button</span>
+        </label>
+        <p id="su-cap-msg" class="err"></p>
+        <button id="su-cap-next" type="button" class="primary" hidden>Continue</button>
+      </section>
 
-function moveBtn() {
-  const w = btn.offsetWidth, h = btn.offsetHeight;
-  btn.style.left = Math.random() * (innerWidth - w - 20) + 10 + 'px';
-  btn.style.top = Math.random() * (innerHeight - h - 20) + 10 + 'px';
-}
-btn.addEventListener('pointerenter', () => {
-  if (!runaway) return;
-  if (dodges < 5) { dodges++; moveBtn(); }
-  else { runaway = false; btn.classList.remove('runner'); btn.style.left = btn.style.top = ''; say('Ладно, устала бегать. Нажимай.'); toast('Достижение: Охотник на кнопки'); }
-});
+      <section id="su-p3" hidden>
+        <p class="sub">Please read the Terms of Service.</p>
+        <div id="su-terms" tabindex="0"></div>
+        <p id="su-terms-msg" class="err"></p>
+        <div class="row">
+          <button id="su-decline" type="button">Decline</button>
+          <button id="su-accept" type="button" class="primary" disabled>I accept</button>
+        </div>
+      </section>
 
-btn.addEventListener('click', async () => {
-  if (locked) return;
-  clicks++;
-  countEl.textContent = 'Нажатий: ' + clicks;
-  const i = clicks - 1;
-  if (runaway) return; // поймали кнопку на бегу — просто засчитываем
-  locked = true;
-  try {
-    if (i < steps.length) await steps[i]();
-    else {
-      say(late[Math.floor(Math.random() * late.length)]);
-      if (Math.random() < 0.35) lateEvents[Math.floor(Math.random() * lateEvents.length)]();
-    }
-  } finally { locked = false; }
-});
+      <p class="fine">This is fake. Nothing is sent anywhere. Only your nickname is remembered, inside this browser.</p>
+    </div>
+  </div>
 
-cookie.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
-  cookie.classList.remove('show'); say('Спасибо. Мы всё равно ничего не собираем. Кроме твоего времени.');
-}));
-</script>
+  <script src="js/sound.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/signup.js"></script>
+  <script src="js/jokes.js"></script>
+  <script src="js/main.js"></script>
 </body>
 </html>
