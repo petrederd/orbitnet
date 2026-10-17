@@ -37,7 +37,7 @@
       card.hidden = !show;
       if (show) {
         visible++;
-        if (q) matchedCards.push(card.dataset.name);
+        matchedCards.push(card.dataset.name);
       }
     });
     

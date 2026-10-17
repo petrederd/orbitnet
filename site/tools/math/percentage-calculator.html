@@ -155,17 +155,17 @@
   </div>
 
   <div class="info-section">
-    <h3>Типы вычислений</h3>
-    <p><strong>X% от Y:</strong> Найти процент от числа. Например, 25% от 200 = 50</p>
-    <p><strong>Изменение в %:</strong> Процентное изменение между двумя числами. Например, от 100 до 150 = +50%</p>
-    <p><strong>Найти %:</strong> Какой процент составляет одно число от другого. Например, 50 это 25% от 200</p>
-    <p><strong>Увеличить/Уменьшить:</strong> Увеличить или уменьшить число на процент. Например, 100 + 20% = 120</p>
+    <h3>Calculation Types</h3>
+    <p><strong>X% of Y:</strong> Find percentage of a number. For example, 25% of 200 = 50</p>
+    <p><strong>% Change:</strong> Percentage change between two numbers. For example, from 100 to 150 = +50%</p>
+    <p><strong>Find %:</strong> What percentage is one number of another. For example, 50 is 25% of 200</p>
+    <p><strong>Increase/Decrease:</strong> Increase or decrease a number by percentage. For example, 100 + 20% = 120</p>
     
-    <h3 style="margin-top: 20px;">Формулы</h3>
-    <p><code>X% от Y = (X / 100) × Y</code></p>
-    <p><code>Изменение = ((Новое - Старое) / Старое) × 100%</code></p>
-    <p><code>X это какой % от Y = (X / Y) × 100%</code></p>
-    <p><code>Увеличение = Значение × (1 + Процент/100)</code></p>
+    <h3 style="margin-top: 20px;">Formulas</h3>
+    <p><code>X% of Y = (X / 100) × Y</code></p>
+    <p><code>Change = ((New - Old) / Old) × 100%</code></p>
+    <p><code>X is what % of Y = (X / Y) × 100%</code></p>
+    <p><code>Increase = Value × (1 + Percent/100)</code></p>
   </div>
 </main>
 
@@ -201,7 +201,7 @@ function calculate() {
     const value = parseFloat(document.getElementById('value1').value);
     
     if (isNaN(percent) || isNaN(value)) {
-      showError('Пожалуйста, введите все значения');
+      showError('Please enter all values');
       return;
     }
     
@@ -209,12 +209,12 @@ function calculate() {
     
     document.getElementById('results').innerHTML = `
       <div class="result-box highlight">
-        <div class="result-label">Результат</div>
+        <div class="result-label">Result</div>
         <div class="result-value large">${result.toFixed(2)}</div>
-        <div class="result-sub">${percent}% от ${value}</div>
+        <div class="result-sub">${percent}% of ${value}</div>
       </div>
       <div class="result-box">
-        <div class="result-label">Формула</div>
+        <div class="result-label">Formula</div>
         <div class="result-value" style="font-size: 1.1rem;">(${percent} ÷ 100) × ${value}</div>
       </div>
     `;
@@ -223,27 +223,27 @@ function calculate() {
     const newVal = parseFloat(document.getElementById('newValue').value);
     
     if (isNaN(oldVal) || isNaN(newVal)) {
-      showError('Пожалуйста, введите все значения');
+      showError('Please enter all values');
       return;
     }
     
     if (oldVal === 0) {
-      showError('Исходное значение не может быть нулём');
+      showError('Original value cannot be zero');
       return;
     }
     
     const change = ((newVal - oldVal) / oldVal) * 100;
     const diff = newVal - oldVal;
-    const type = change >= 0 ? 'Увеличение' : 'Уменьшение';
+    const type = change >= 0 ? 'Increase' : 'Decrease';
     
     document.getElementById('results').innerHTML = `
       <div class="result-box highlight">
-        <div class="result-label">Процентное изменение</div>
+        <div class="result-label">Percentage Change</div>
         <div class="result-value large">${change >= 0 ? '+' : ''}${change.toFixed(2)}%</div>
         <div class="result-sub">${type}</div>
       </div>
       <div class="result-box">
-        <div class="result-label">Абсолютное изменение</div>
+        <div class="result-label">Absolute Change</div>
         <div class="result-value">${diff >= 0 ? '+' : ''}${diff.toFixed(2)}</div>
         <div class="result-sub">${oldVal} → ${newVal}</div>
       </div>
@@ -253,12 +253,12 @@ function calculate() {
     const total = parseFloat(document.getElementById('totalValue').value);
     
     if (isNaN(part) || isNaN(total)) {
-      showError('Пожалуйста, введите все значения');
+      showError('Please enter all values');
       return;
     }
     
     if (total === 0) {
-      showError('Общее значение не может быть нулём');
+      showError('Total value cannot be zero');
       return;
     }
     
@@ -266,12 +266,12 @@ function calculate() {
     
     document.getElementById('results').innerHTML = `
       <div class="result-box highlight">
-        <div class="result-label">Процент</div>
+        <div class="result-label">Percentage</div>
         <div class="result-value large">${percent.toFixed(2)}%</div>
-        <div class="result-sub">${part} это ${percent.toFixed(2)}% от ${total}</div>
+        <div class="result-sub">${part} is ${percent.toFixed(2)}% of ${total}</div>
       </div>
       <div class="result-box">
-        <div class="result-label">Формула</div>
+        <div class="result-label">Formula</div>
         <div class="result-value" style="font-size: 1.1rem;">(${part} ÷ ${total}) × 100</div>
       </div>
     `;
@@ -280,7 +280,7 @@ function calculate() {
     const percent = parseFloat(document.getElementById('percent2').value);
     
     if (isNaN(base) || isNaN(percent)) {
-      showError('Пожалуйста, введите все значения');
+      showError('Please enter all values');
       return;
     }
     
@@ -289,12 +289,12 @@ function calculate() {
     
     document.getElementById('results').innerHTML = `
       <div class="result-box highlight">
-        <div class="result-label">Увеличение на ${percent}%</div>
+        <div class="result-label">Increase by ${percent}%</div>
         <div class="result-value large">${increased.toFixed(2)}</div>
         <div class="result-sub">${base} + ${percent}% = ${increased.toFixed(2)}</div>
       </div>
       <div class="result-box highlight">
-        <div class="result-label">Уменьшение на ${percent}%</div>
+        <div class="result-label">Decrease by ${percent}%</div>
         <div class="result-value large">${decreased.toFixed(2)}</div>
         <div class="result-sub">${base} - ${percent}% = ${decreased.toFixed(2)}</div>
       </div>
