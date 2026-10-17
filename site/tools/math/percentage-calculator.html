@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Percentage Calculator — calculate percentages, percentage change, and solve various percentage problems">
+<meta name="theme-color" content="#111110">
+<title>Percentage Calculator — OrbitNet</title>
+<link rel="stylesheet" href="../../assets/css/style.css">
+<style>
+.tool-page { padding: 40px 0; }
+.tool-header { margin-bottom: 40px; }
+.tool-header h1 { font-size: 2.5rem; margin: 10px 0; }
+.tool-header .breadcrumb { font-size: .85rem; color: var(--muted); margin-bottom: 10px; }
+.tool-header .breadcrumb a { text-decoration: none; }
+.tool-header .breadcrumb a:hover { text-decoration: underline; }
+.tool-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.tool-panel { background: var(--card); border: 1.5px solid var(--line); border-radius: 16px; padding: 24px; }
+.tool-panel h2 { font-size: 1.3rem; margin: 0 0 20px; }
+.mode-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 24px; }
+.mode-btn { padding: 12px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); font-weight: 700; cursor: pointer; text-align: center; transition: all .2s; font-size: .85rem; }
+.mode-btn:hover { border-color: var(--orange); }
+.mode-btn.active { background: var(--orange); color: #17110b; border-color: var(--orange); }
+.input-group { margin-bottom: 20px; }
+.input-group label { display: block; font-weight: 700; margin-bottom: 8px; font-size: .9rem; }
+.input-group input { width: 100%; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); font-size: 1rem; }
+.input-group input:focus { outline: none; border-color: var(--orange); }
+.input-group small { display: block; margin-top: 6px; color: var(--muted); font-size: .8rem; }
+.btn { display: inline-block; padding: 12px 24px; background: var(--orange); color: #17110b; border: 0; border-radius: 10px; font-weight: 800; cursor: pointer; font-size: .95rem; transition: background .2s; }
+.btn:hover { background: #ef8528; }
+.btn-secondary { background: var(--line); color: var(--ink); }
+.btn-secondary:hover { background: var(--muted); }
+.result-box { background: var(--paper); border: 1.5px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+.result-box.highlight { border-color: var(--orange); background: rgba(212,107,21,.05); }
+.result-label { font-size: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 700; margin-bottom: 6px; }
+.result-value { font-size: 1.4rem; font-weight: 800; color: var(--ink); }
+.result-value.large { font-size: 1.8rem; color: var(--orange); }
+.result-sub { font-size: .85rem; color: var(--muted); margin-top: 4px; }
+.error { color: #ff5555; background: rgba(255,85,85,.1); border: 1.5px solid #ff5555; padding: 12px 16px; border-radius: 10px; margin-bottom: 20px; font-size: .9rem; }
+.info-section { background: var(--paper-2); border-radius: 12px; padding: 20px; margin-top: 24px; }
+.info-section h3 { font-size: 1.1rem; margin: 0 0 12px; }
+.info-section p { margin: 0 0 10px; color: var(--muted); font-size: .9rem; line-height: 1.6; }
+.info-section code { background: var(--card); padding: 2px 6px; border-radius: 4px; font-family: monospace; color: var(--orange); }
+@media (max-width: 768px) {
+  .tool-layout { grid-template-columns: 1fr; }
+  .tool-header h1 { font-size: 2rem; }
+  .mode-selector { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../index.html#about">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> / 
+      <a href="../../index.html#tools">Tools</a> / 
+      <span>Percentage Calculator</span>
+    </div>
+    <h1>Percentage Calculator</h1>
+    <p style="color: var(--muted); max-width: 700px;">Calculate percentages, find percentage of a number, percentage change, and solve various percentage-related problems.</p>
+  </div>
+
+  <div class="tool-layout">
+    <div class="tool-panel">
+      <h2>Calculation Type</h2>
+      
+      <div class="mode-selector">
+        <button class="mode-btn active" onclick="setMode('basic')">X% of Y</button>
+        <button class="mode-btn" onclick="setMode('change')">% Change</button>
+        <button class="mode-btn" onclick="setMode('reverse')">Find %</button>
+        <button class="mode-btn" onclick="setMode('increase')">Increase/Decrease</button>
+      </div>
+      
+      <div id="errorMsg"></div>
+      
+      <!-- Basic Mode -->
+      <div id="basicInputs">
+        <div class="input-group">
+          <label for="percent1">Percentage (%)</label>
+          <input type="number" id="percent1" placeholder="e.g., 25" value="25" step="any">
+          <small>The percentage you want to calculate</small>
+        </div>
+        <div class="input-group">
+          <label for="value1">Of Value</label>
+          <input type="number" id="value1" placeholder="e.g., 200" value="200" step="any">
+          <small>The total value</small>
+        </div>
+      </div>
+
+      <!-- Change Mode -->
+      <div id="changeInputs" style="display:none;">
+        <div class="input-group">
+          <label for="oldValue">Original Value</label>
+          <input type="number" id="oldValue" placeholder="e.g., 100" value="100" step="any">
+          <small>Starting value</small>
+        </div>
+        <div class="input-group">
+          <label for="newValue">New Value</label>
+          <input type="number" id="newValue" placeholder="e.g., 150" value="150" step="any">
+          <small>Ending value</small>
+        </div>
+      </div>
+
+      <!-- Reverse Mode -->
+      <div id="reverseInputs" style="display:none;">
+        <div class="input-group">
+          <label for="partValue">Part Value</label>
+          <input type="number" id="partValue" placeholder="e.g., 50" value="50" step="any">
+          <small>The part</small>
+        </div>
+        <div class="input-group">
+          <label for="totalValue">Total Value</label>
+          <input type="number" id="totalValue" placeholder="e.g., 200" value="200" step="any">
+          <small>The whole</small>
+        </div>
+      </div>
+
+      <!-- Increase/Decrease Mode -->
+      <div id="increaseInputs" style="display:none;">
+        <div class="input-group">
+          <label for="baseValue">Base Value</label>
+          <input type="number" id="baseValue" placeholder="e.g., 100" value="100" step="any">
+          <small>Starting value</small>
+        </div>
+        <div class="input-group">
+          <label for="percent2">Percentage (%)</label>
+          <input type="number" id="percent2" placeholder="e.g., 20" value="20" step="any">
+          <small>Amount to increase/decrease by</small>
+        </div>
+      </div>
+
+      <button class="btn" onclick="calculate()">Calculate ↗</button>
+      <button class="btn btn-secondary" onclick="reset()" style="margin-left: 10px;">Reset</button>
+    </div>
+
+    <div class="tool-panel">
+      <h2>Result</h2>
+      <div id="results">
+        <div style="text-align: center; padding: 40px 20px; color: var(--muted);">
+          Select calculation type and enter values
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="info-section">
+    <h3>Типы вычислений</h3>
+    <p><strong>X% от Y:</strong> Найти процент от числа. Например, 25% от 200 = 50</p>
+    <p><strong>Изменение в %:</strong> Процентное изменение между двумя числами. Например, от 100 до 150 = +50%</p>
+    <p><strong>Найти %:</strong> Какой процент составляет одно число от другого. Например, 50 это 25% от 200</p>
+    <p><strong>Увеличить/Уменьшить:</strong> Увеличить или уменьшить число на процент. Например, 100 + 20% = 120</p>
+    
+    <h3 style="margin-top: 20px;">Формулы</h3>
+    <p><code>X% от Y = (X / 100) × Y</code></p>
+    <p><code>Изменение = ((Новое - Старое) / Старое) × 100%</code></p>
+    <p><code>X это какой % от Y = (X / Y) × 100%</code></p>
+    <p><code>Увеличение = Значение × (1 + Процент/100)</code></p>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../index.html#about">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+let currentMode = 'basic';
+
+function setMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+  event.target.classList.add('active');
+  
+  document.getElementById('basicInputs').style.display = mode === 'basic' ? 'block' : 'none';
+  document.getElementById('changeInputs').style.display = mode === 'change' ? 'block' : 'none';
+  document.getElementById('reverseInputs').style.display = mode === 'reverse' ? 'block' : 'none';
+  document.getElementById('increaseInputs').style.display = mode === 'increase' ? 'block' : 'none';
+  
+  clearError();
+  document.getElementById('results').innerHTML = '<div style="text-align: center; padding: 40px 20px; color: var(--muted);">Select calculation type and enter values</div>';
+}
+
+function calculate() {
+  clearError();
+  
+  if (currentMode === 'basic') {
+    const percent = parseFloat(document.getElementById('percent1').value);
+    const value = parseFloat(document.getElementById('value1').value);
+    
+    if (isNaN(percent) || isNaN(value)) {
+      showError('Пожалуйста, введите все значения');
+      return;
+    }
+    
+    const result = (percent / 100) * value;
+    
+    document.getElementById('results').innerHTML = `
+      <div class="result-box highlight">
+        <div class="result-label">Результат</div>
+        <div class="result-value large">${result.toFixed(2)}</div>
+        <div class="result-sub">${percent}% от ${value}</div>
+      </div>
+      <div class="result-box">
+        <div class="result-label">Формула</div>
+        <div class="result-value" style="font-size: 1.1rem;">(${percent} ÷ 100) × ${value}</div>
+      </div>
+    `;
+  } else if (currentMode === 'change') {
+    const oldVal = parseFloat(document.getElementById('oldValue').value);
+    const newVal = parseFloat(document.getElementById('newValue').value);
+    
+    if (isNaN(oldVal) || isNaN(newVal)) {
+      showError('Пожалуйста, введите все значения');
+      return;
+    }
+    
+    if (oldVal === 0) {
+      showError('Исходное значение не может быть нулём');
+      return;
+    }
+    
+    const change = ((newVal - oldVal) / oldVal) * 100;
+    const diff = newVal - oldVal;
+    const type = change >= 0 ? 'Увеличение' : 'Уменьшение';
+    
+    document.getElementById('results').innerHTML = `
+      <div class="result-box highlight">
+        <div class="result-label">Процентное изменение</div>
+        <div class="result-value large">${change >= 0 ? '+' : ''}${change.toFixed(2)}%</div>
+        <div class="result-sub">${type}</div>
+      </div>
+      <div class="result-box">
+        <div class="result-label">Абсолютное изменение</div>
+        <div class="result-value">${diff >= 0 ? '+' : ''}${diff.toFixed(2)}</div>
+        <div class="result-sub">${oldVal} → ${newVal}</div>
+      </div>
+    `;
+  } else if (currentMode === 'reverse') {
+    const part = parseFloat(document.getElementById('partValue').value);
+    const total = parseFloat(document.getElementById('totalValue').value);
+    
+    if (isNaN(part) || isNaN(total)) {
+      showError('Пожалуйста, введите все значения');
+      return;
+    }
+    
+    if (total === 0) {
+      showError('Общее значение не может быть нулём');
+      return;
+    }
+    
+    const percent = (part / total) * 100;
+    
+    document.getElementById('results').innerHTML = `
+      <div class="result-box highlight">
+        <div class="result-label">Процент</div>
+        <div class="result-value large">${percent.toFixed(2)}%</div>
+        <div class="result-sub">${part} это ${percent.toFixed(2)}% от ${total}</div>
+      </div>
+      <div class="result-box">
+        <div class="result-label">Формула</div>
+        <div class="result-value" style="font-size: 1.1rem;">(${part} ÷ ${total}) × 100</div>
+      </div>
+    `;
+  } else if (currentMode === 'increase') {
+    const base = parseFloat(document.getElementById('baseValue').value);
+    const percent = parseFloat(document.getElementById('percent2').value);
+    
+    if (isNaN(base) || isNaN(percent)) {
+      showError('Пожалуйста, введите все значения');
+      return;
+    }
+    
+    const increased = base * (1 + percent / 100);
+    const decreased = base * (1 - percent / 100);
+    
+    document.getElementById('results').innerHTML = `
+      <div class="result-box highlight">
+        <div class="result-label">Увеличение на ${percent}%</div>
+        <div class="result-value large">${increased.toFixed(2)}</div>
+        <div class="result-sub">${base} + ${percent}% = ${increased.toFixed(2)}</div>
+      </div>
+      <div class="result-box highlight">
+        <div class="result-label">Уменьшение на ${percent}%</div>
+        <div class="result-value large">${decreased.toFixed(2)}</div>
+        <div class="result-sub">${base} - ${percent}% = ${decreased.toFixed(2)}</div>
+      </div>
+    `;
+  }
+}
+
+function showError(message) {
+  document.getElementById('errorMsg').innerHTML = `<div class="error">✗ ${message}</div>`;
+}
+
+function clearError() {
+  document.getElementById('errorMsg').innerHTML = '';
+}
+
+function reset() {
+  if (currentMode === 'basic') {
+    document.getElementById('percent1').value = '25';
+    document.getElementById('value1').value = '200';
+  } else if (currentMode === 'change') {
+    document.getElementById('oldValue').value = '100';
+    document.getElementById('newValue').value = '150';
+  } else if (currentMode === 'reverse') {
+    document.getElementById('partValue').value = '50';
+    document.getElementById('totalValue').value = '200';
+  } else if (currentMode === 'increase') {
+    document.getElementById('baseValue').value = '100';
+    document.getElementById('percent2').value = '20';
+  }
+  clearError();
+  document.getElementById('results').innerHTML = '<div style="text-align: center; padding: 40px 20px; color: var(--muted);">Select calculation type and enter values</div>';
+}
+</script>
+</body>
+</html>

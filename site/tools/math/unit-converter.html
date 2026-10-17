@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Unit Converter — convert between different units of length, weight, temperature, area, volume, and more">
+<meta name="theme-color" content="#111110">
+<title>Unit Converter — OrbitNet</title>
+<link rel="stylesheet" href="../../assets/css/style.css">
+<style>
+.tool-page { padding: 40px 0; }
+.tool-header { margin-bottom: 40px; }
+.tool-header h1 { font-size: 2.5rem; margin: 10px 0; }
+.tool-header .breadcrumb { font-size: .85rem; color: var(--muted); margin-bottom: 10px; }
+.tool-header .breadcrumb a { text-decoration: none; }
+.tool-header .breadcrumb a:hover { text-decoration: underline; }
+.tool-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.tool-panel { background: var(--card); border: 1.5px solid var(--line); border-radius: 16px; padding: 24px; }
+.tool-panel h2 { font-size: 1.3rem; margin: 0 0 20px; }
+.category-selector { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 20px; }
+.cat-btn { padding: 10px; border: 1.5px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); font-weight: 600; cursor: pointer; text-align: center; transition: all .2s; font-size: .8rem; }
+.cat-btn:hover { border-color: var(--orange); }
+.cat-btn.active { background: var(--orange); color: #17110b; border-color: var(--orange); }
+.input-group { margin-bottom: 20px; }
+.input-group label { display: block; font-weight: 700; margin-bottom: 8px; font-size: .9rem; }
+.input-group input, .input-group select { width: 100%; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); font-size: 1rem; }
+.input-group input:focus, .input-group select:focus { outline: none; border-color: var(--orange); }
+.input-group small { display: block; margin-top: 6px; color: var(--muted); font-size: .8rem; }
+.result-box { background: var(--paper); border: 1.5px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+.result-box.highlight { border-color: var(--orange); background: rgba(212,107,21,.05); }
+.result-label { font-size: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 700; margin-bottom: 6px; }
+.result-value { font-size: 1.8rem; font-weight: 800; color: var(--orange); font-family: 'Monaco', 'Courier New', monospace; }
+.result-sub { font-size: .85rem; color: var(--muted); margin-top: 4px; }
+.error { color: #ff5555; background: rgba(255,85,85,.1); border: 1.5px solid #ff5555; padding: 12px 16px; border-radius: 10px; margin-bottom: 20px; font-size: .9rem; }
+.conversion-arrow { text-align: center; font-size: 1.5rem; color: var(--orange); margin: 10px 0; }
+@media (max-width: 768px) {
+  .tool-layout { grid-template-columns: 1fr; }
+  .tool-header h1 { font-size: 2rem; }
+  .category-selector { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../index.html#about">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> / 
+      <a href="../../index.html#tools">Tools</a> / 
+      <span>Unit Converter</span>
+    </div>
+    <h1>Unit Converter</h1>
+    <p style="color: var(--muted); max-width: 700px;">Convert between different units of measurement for length, weight, temperature, area, volume, speed, and time.</p>
+  </div>
+
+  <div class="tool-layout">
+    <div class="tool-panel">
+      <h2>Select Category</h2>
+      
+      <div class="category-selector">
+        <button class="cat-btn active" onclick="setCategory('length')">Length</button>
+        <button class="cat-btn" onclick="setCategory('weight')">Weight</button>
+        <button class="cat-btn" onclick="setCategory('temperature')">Temperature</button>
+        <button class="cat-btn" onclick="setCategory('area')">Area</button>
+        <button class="cat-btn" onclick="setCategory('volume')">Volume</button>
+        <button class="cat-btn" onclick="setCategory('speed')">Speed</button>
+      </div>
+      
+      <div id="errorMsg"></div>
+      
+      <div class="input-group">
+        <label for="inputValue">Value</label>
+        <input type="number" id="inputValue" placeholder="Enter value" value="1" step="any" oninput="convert()">
+      </div>
+
+      <div class="input-group">
+        <label for="fromUnit">From</label>
+        <select id="fromUnit" onchange="convert()">
+          <!-- Populated by JavaScript -->
+        </select>
+      </div>
+
+      <div class="conversion-arrow">↓</div>
+
+      <div class="input-group">
+        <label for="toUnit">To</label>
+        <select id="toUnit" onchange="convert()">
+          <!-- Populated by JavaScript -->
+        </select>
+      </div>
+    </div>
+
+    <div class="tool-panel">
+      <h2>Result</h2>
+      <div id="results">
+        <div style="text-align: center; padding: 40px 20px; color: var(--muted);">
+          Enter a value to convert
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../index.html#about">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+const units = {
+  length: {
+    'Millimeters (mm)': 0.001,
+    'Centimeters (cm)': 0.01,
+    'Meters (m)': 1,
+    'Kilometers (km)': 1000,
+    'Inches (in)': 0.0254,
+    'Feet (ft)': 0.3048,
+    'Yards (yd)': 0.9144,
+    'Miles (mi)': 1609.344
+  },
+  weight: {
+    'Milligrams (mg)': 0.001,
+    'Grams (g)': 1,
+    'Kilograms (kg)': 1000,
+    'Metric Tons (t)': 1000000,
+    'Ounces (oz)': 28.34952,
+    'Pounds (lb)': 453.59237,
+    'Tons (US)': 907184.74
+  },
+  temperature: {
+    'Celsius (°C)': 'C',
+    'Fahrenheit (°F)': 'F',
+    'Kelvin (K)': 'K'
+  },
+  area: {
+    'Square mm (mm²)': 0.000001,
+    'Square cm (cm²)': 0.0001,
+    'Square meters (m²)': 1,
+    'Hectares (ha)': 10000,
+    'Square km (km²)': 1000000,
+    'Square inches (in²)': 0.00064516,
+    'Square feet (ft²)': 0.09290304,
+    'Square yards (yd²)': 0.83612736,
+    'Acres': 4046.8564224,
+    'Square miles (mi²)': 2589988.110336
+  },
+  volume: {
+    'Milliliters (ml)': 0.001,
+    'Liters (L)': 1,
+    'Cubic meters (m³)': 1000,
+    'Teaspoons (tsp)': 0.00492892,
+    'Tablespoons (tbsp)': 0.0147868,
+    'Fluid ounces (fl oz)': 0.0295735,
+    'Cups': 0.236588,
+    'Pints (pt)': 0.473176,
+    'Quarts (qt)': 0.946353,
+    'Gallons (gal)': 3.78541
+  },
+  speed: {
+    'Meters/second (m/s)': 1,
+    'Kilometers/hour (km/h)': 0.277778,
+    'Miles/hour (mph)': 0.44704,
+    'Feet/second (ft/s)': 0.3048,
+    'Knots (kn)': 0.514444
+  }
+};
+
+let currentCategory = 'length';
+
+function setCategory(category) {
+  currentCategory = category;
+  document.querySelectorAll('.cat-btn').forEach(btn => btn.classList.remove('active'));
+  event.target.classList.add('active');
+  
+  populateUnits();
+  convert();
+}
+
+function populateUnits() {
+  const fromSelect = document.getElementById('fromUnit');
+  const toSelect = document.getElementById('toUnit');
+  
+  fromSelect.innerHTML = '';
+  toSelect.innerHTML = '';
+  
+  const unitList = Object.keys(units[currentCategory]);
+  
+  unitList.forEach(unit => {
+    fromSelect.add(new Option(unit, unit));
+    toSelect.add(new Option(unit, unit));
+  });
+  
+  if (unitList.length > 1) {
+    toSelect.selectedIndex = 1;
+  }
+}
+
+function convertTemperature(value, from, to) {
+  let celsius;
+  
+  if (from === 'C') celsius = value;
+  else if (from === 'F') celsius = (value - 32) * 5/9;
+  else if (from === 'K') celsius = value - 273.15;
+  
+  if (to === 'C') return celsius;
+  else if (to === 'F') return celsius * 9/5 + 32;
+  else if (to === 'K') return celsius + 273.15;
+}
+
+function convert() {
+  const value = parseFloat(document.getElementById('inputValue').value);
+  const fromUnit = document.getElementById('fromUnit').value;
+  const toUnit = document.getElementById('toUnit').value;
+  
+  if (isNaN(value)) {
+    document.getElementById('results').innerHTML = '<div style="text-align: center; padding: 40px 20px; color: var(--muted);">Enter a valid number</div>';
+    return;
+  }
+  
+  let result;
+  
+  if (currentCategory === 'temperature') {
+    const fromCode = units.temperature[fromUnit];
+    const toCode = units.temperature[toUnit];
+    result = convertTemperature(value, fromCode, toCode);
+  } else {
+    const fromFactor = units[currentCategory][fromUnit];
+    const toFactor = units[currentCategory][toUnit];
+    result = value * fromFactor / toFactor;
+  }
+  
+  document.getElementById('results').innerHTML = `
+    <div class="result-box highlight">
+      <div class="result-label">Result</div>
+      <div class="result-value">${result.toFixed(6)}</div>
+      <div class="result-sub">${toUnit}</div>
+    </div>
+    <div class="result-box">
+      <div class="result-label">Conversion</div>
+      <div style="font-size: 1.1rem; font-weight: 600; color: var(--ink);">${value} ${fromUnit}</div>
+      <div style="text-align: center; font-size: 1.3rem; color: var(--orange); margin: 8px 0;">↓</div>
+      <div style="font-size: 1.1rem; font-weight: 600; color: var(--ink);">${result.toFixed(6)} ${toUnit}</div>
+    </div>
+  `;
+}
+
+populateUnits();
+convert();
+</script>
+</body>
+</html>

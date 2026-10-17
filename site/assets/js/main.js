@@ -21,6 +21,7 @@
   function update() {
     const q = input.value.trim().toLowerCase();
     let visible = 0;
+    let matchedCards = [];
     
     cards.forEach(card => {
       const haystack = (
@@ -34,10 +35,21 @@
       const show = matchesQuery && matchesFilter;
       
       card.hidden = !show;
-      if (show) visible++;
+      if (show) {
+        visible++;
+        if (q) matchedCards.push(card.dataset.name);
+      }
     });
     
-    results.textContent = `Showing ${visible} of ${cards.length} tools`;
+    // Show different messages based on search state
+    if (q && visible > 0) {
+      results.innerHTML = `<strong>Found ${visible} tool${visible > 1 ? 's' : ''}:</strong> ${matchedCards.join(', ')}`;
+    } else if (q && visible === 0) {
+      results.textContent = `No tools found for "${q}"`;
+    } else {
+      results.textContent = `Showing ${visible} of ${cards.length} tools`;
+    }
+    
     empty.style.display = visible ? 'none' : 'block';
     grid.style.display = visible ? 'grid' : 'none';
   }
