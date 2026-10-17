@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="JSON Formatter & Validator — format, validate and beautify JSON data instantly">
+<meta name="theme-color" content="#111110">
+<title>JSON Formatter & Validator — OrbitNet</title>
+<link rel="stylesheet" href="../../assets/css/style.css">
+<style>
+.tool-page { padding: 40px 0; }
+.tool-header { margin-bottom: 40px; }
+.tool-header h1 { font-size: 2.5rem; margin: 10px 0; }
+.tool-header .breadcrumb { font-size: .85rem; color: var(--muted); margin-bottom: 10px; }
+.tool-header .breadcrumb a { text-decoration: none; }
+.tool-header .breadcrumb a:hover { text-decoration: underline; }
+.tool-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.tool-panel { background: var(--card); border: 1.5px solid var(--line); border-radius: 16px; padding: 24px; min-height: 500px; display: flex; flex-direction: column; }
+.tool-panel h2 { font-size: 1.3rem; margin: 0 0 16px; }
+.textarea-wrapper { flex: 1; display: flex; flex-direction: column; }
+.json-textarea { flex: 1; width: 100%; padding: 14px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); font-family: 'Monaco', 'Courier New', monospace; font-size: .9rem; resize: vertical; min-height: 350px; line-height: 1.5; }
+.json-textarea:focus { outline: none; border-color: var(--orange); }
+.toolbar { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+.btn { padding: 11px 20px; background: var(--orange); color: #17110b; border: 0; border-radius: 9px; font-weight: 800; cursor: pointer; font-size: .88rem; transition: background .2s; }
+.btn:hover { background: #ef8528; }
+.btn-secondary { background: var(--line); color: var(--ink); }
+.btn-secondary:hover { background: var(--muted); }
+.btn-success { background: #4ade80; color: #0a3818; }
+.btn-success:hover { background: #22c55e; }
+.status-box { margin-top: 16px; padding: 12px 16px; border-radius: 10px; font-size: .88rem; }
+.status-box.success { background: rgba(74,222,128,.1); border: 1.5px solid #4ade80; color: #4ade80; }
+.status-box.error { background: rgba(255,85,85,.1); border: 1.5px solid #ff5555; color: #ff5555; }
+.status-box.info { background: rgba(158,201,255,.1); border: 1.5px solid #9ec9ff; color: #9ec9ff; }
+.error-detail { font-family: monospace; margin-top: 8px; font-size: .8rem; opacity: .9; }
+.controls { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+.controls label { font-size: .85rem; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.controls select, .controls input[type="number"] { padding: 6px 10px; border: 1.5px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); font-size: .85rem; }
+.info-section { background: var(--paper-2); border-radius: 12px; padding: 20px; margin-top: 24px; }
+.info-section h3 { font-size: 1.1rem; margin: 0 0 12px; }
+.info-section p { margin: 0 0 10px; color: var(--muted); font-size: .9rem; line-height: 1.6; }
+.info-section ul { margin: 10px 0; padding-left: 20px; color: var(--muted); font-size: .9rem; }
+.stats { display: flex; gap: 20px; margin-top: 14px; font-size: .82rem; color: var(--muted); }
+.stats span { font-weight: 700; color: var(--ink); }
+@media (max-width: 768px) {
+  .tool-layout { grid-template-columns: 1fr; }
+  .tool-header h1 { font-size: 2rem; }
+}
+</style>
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../index.html#about">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> / 
+      <a href="../../index.html#tools">Tools</a> / 
+      <span>JSON Formatter & Validator</span>
+    </div>
+    <h1>JSON Formatter & Validator</h1>
+    <p style="color: var(--muted); max-width: 700px;">Format messy JSON, validate syntax, and make nested data easier to read. All processing happens in your browser — your data never leaves your device.</p>
+  </div>
+
+  <div class="tool-layout">
+    <div class="tool-panel">
+      <h2>Input JSON</h2>
+      <div class="controls">
+        <label>
+          <input type="checkbox" id="autoFormat" checked> Auto-format
+        </label>
+      </div>
+      <div class="textarea-wrapper">
+        <textarea class="json-textarea" id="inputJSON" placeholder='Paste your JSON here... e.g. {"name":"John","age":30}'></textarea>
+      </div>
+      <div class="toolbar">
+        <button class="btn" onclick="formatJSON()">Format & Validate ✓</button>
+        <button class="btn btn-secondary" onclick="minifyJSON()">Minify</button>
+        <button class="btn btn-secondary" onclick="clearAll()">Clear</button>
+      </div>
+      <div id="inputStatus"></div>
+    </div>
+
+    <div class="tool-panel">
+      <h2>Formatted Output</h2>
+      <div class="controls">
+        <label>
+          Indent:
+          <select id="indentSize" onchange="formatJSON()">
+            <option value="2" selected>2 spaces</option>
+            <option value="4">4 spaces</option>
+            <option value="tab">Tab</option>
+          </select>
+        </label>
+      </div>
+      <div class="textarea-wrapper">
+        <textarea class="json-textarea" id="outputJSON" placeholder="Formatted JSON will appear here..." readonly></textarea>
+      </div>
+      <div class="toolbar">
+        <button class="btn btn-success" onclick="copyToClipboard()">Copy to Clipboard 📋</button>
+        <button class="btn btn-secondary" onclick="downloadJSON()">Download ↓</button>
+      </div>
+      <div id="outputStats" class="stats"></div>
+      <div id="outputStatus"></div>
+    </div>
+  </div>
+
+  <div class="info-section">
+    <h3>How to use this tool</h3>
+    <p><strong>JSON Formatter & Validator</strong> helps you work with JSON data:</p>
+    <ul>
+      <li><strong>Validate:</strong> Check if your JSON syntax is correct</li>
+      <li><strong>Format:</strong> Pretty-print JSON with proper indentation for readability</li>
+      <li><strong>Minify:</strong> Remove whitespace to reduce size for APIs and storage</li>
+      <li><strong>Copy/Download:</strong> Use the formatted JSON in your projects</li>
+    </ul>
+    
+    <h3 style="margin-top: 20px;">Privacy & Security</h3>
+    <p>All JSON processing happens entirely in your browser using JavaScript. Your data is never sent to any server, uploaded, or stored. This tool works completely offline once loaded.</p>
+
+    <h3 style="margin-top: 20px;">Example JSON</h3>
+    <p>Try pasting this example to test the formatter:</p>
+    <pre style="background: var(--card); padding: 12px; border-radius: 8px; overflow-x: auto; margin: 10px 0;"><code>{"users":[{"id":1,"name":"Alice","email":"alice@example.com","active":true},{"id":2,"name":"Bob","email":"bob@example.com","active":false}],"timestamp":"2026-10-17T12:00:00Z","meta":{"version":"1.0","count":2}}</code></pre>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../index.html#about">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+const inputTextarea = document.getElementById('inputJSON');
+const outputTextarea = document.getElementById('outputJSON');
+const autoFormat = document.getElementById('autoFormat');
+
+// Auto-format on input if enabled
+inputTextarea.addEventListener('input', () => {
+  if (autoFormat.checked) {
+    formatJSON();
+  }
+});
+
+function getIndent() {
+  const size = document.getElementById('indentSize').value;
+  return size === 'tab' ? '\t' : parseInt(size);
+}
+
+function showStatus(elementId, type, message, detail = '') {
+  const statusDiv = document.getElementById(elementId);
+  let icon = '';
+  if (type === 'success') icon = '✓';
+  if (type === 'error') icon = '✗';
+  if (type === 'info') icon = 'ℹ';
+  
+  let html = `<div class="status-box ${type}">${icon} ${message}`;
+  if (detail) {
+    html += `<div class="error-detail">${detail}</div>`;
+  }
+  html += '</div>';
+  statusDiv.innerHTML = html;
+}
+
+function clearStatus(elementId) {
+  document.getElementById(elementId).innerHTML = '';
+}
+
+function updateStats(jsonObj) {
+  const jsonStr = JSON.stringify(jsonObj);
+  const lines = JSON.stringify(jsonObj, null, getIndent()).split('\n').length;
+  const chars = jsonStr.length;
+  const bytes = new Blob([jsonStr]).size;
+  
+  let objectCount = 0;
+  let arrayCount = 0;
+  
+  function countTypes(obj) {
+    if (Array.isArray(obj)) {
+      arrayCount++;
+      obj.forEach(item => {
+        if (typeof item === 'object' && item !== null) countTypes(item);
+      });
+    } else if (typeof obj === 'object' && obj !== null) {
+      objectCount++;
+      Object.values(obj).forEach(val => {
+        if (typeof val === 'object' && val !== null) countTypes(val);
+      });
+    }
+  }
+  
+  countTypes(jsonObj);
+  
+  document.getElementById('outputStats').innerHTML = `
+    <div><span>${lines}</span> lines</div>
+    <div><span>${chars.toLocaleString()}</span> characters</div>
+    <div><span>${bytes.toLocaleString()}</span> bytes</div>
+    <div><span>${objectCount}</span> objects</div>
+    <div><span>${arrayCount}</span> arrays</div>
+  `;
+}
+
+function formatJSON() {
+  clearStatus('inputStatus');
+  clearStatus('outputStatus');
+  
+  const input = inputTextarea.value.trim();
+  
+  if (!input) {
+    outputTextarea.value = '';
+    document.getElementById('outputStats').innerHTML = '';
+    return;
+  }
+  
+  try {
+    const parsed = JSON.parse(input);
+    const formatted = JSON.stringify(parsed, null, getIndent());
+    outputTextarea.value = formatted;
+    
+    showStatus('inputStatus', 'success', 'Valid JSON');
+    updateStats(parsed);
+  } catch (error) {
+    outputTextarea.value = '';
+    document.getElementById('outputStats').innerHTML = '';
+    showStatus('inputStatus', 'error', 'Invalid JSON', error.message);
+  }
+}
+
+function minifyJSON() {
+  clearStatus('inputStatus');
+  clearStatus('outputStatus');
+  
+  const input = inputTextarea.value.trim();
+  
+  if (!input) {
+    showStatus('inputStatus', 'error', 'No input to minify');
+    return;
+  }
+  
+  try {
+    const parsed = JSON.parse(input);
+    const minified = JSON.stringify(parsed);
+    outputTextarea.value = minified;
+    
+    showStatus('inputStatus', 'success', 'Valid JSON — minified');
+    showStatus('outputStatus', 'info', `Reduced to ${minified.length} characters`);
+    updateStats(parsed);
+  } catch (error) {
+    outputTextarea.value = '';
+    showStatus('inputStatus', 'error', 'Invalid JSON', error.message);
+  }
+}
+
+function copyToClipboard() {
+  const output = outputTextarea.value;
+  
+  if (!output) {
+    showStatus('outputStatus', 'error', 'Nothing to copy');
+    return;
+  }
+  
+  navigator.clipboard.writeText(output).then(() => {
+    showStatus('outputStatus', 'success', 'Copied to clipboard!');
+    setTimeout(() => clearStatus('outputStatus'), 3000);
+  }).catch(() => {
+    showStatus('outputStatus', 'error', 'Failed to copy to clipboard');
+  });
+}
+
+function downloadJSON() {
+  const output = outputTextarea.value;
+  
+  if (!output) {
+    showStatus('outputStatus', 'error', 'Nothing to download');
+    return;
+  }
+  
+  const blob = new Blob([output], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `formatted-${Date.now()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  
+  showStatus('outputStatus', 'success', 'File downloaded');
+  setTimeout(() => clearStatus('outputStatus'), 3000);
+}
+
+function clearAll() {
+  inputTextarea.value = '';
+  outputTextarea.value = '';
+  clearStatus('inputStatus');
+  clearStatus('outputStatus');
+  document.getElementById('outputStats').innerHTML = '';
+}
+
+// Example data for testing
+const exampleJSON = '{"users":[{"id":1,"name":"Alice","email":"alice@example.com","active":true},{"id":2,"name":"Bob","email":"bob@example.com","active":false}],"timestamp":"2026-10-17T12:00:00Z","meta":{"version":"1.0","count":2}}';
+
+// Load example on first visit (optional)
+if (!sessionStorage.getItem('jsonFormatterVisited')) {
+  inputTextarea.value = exampleJSON;
+  formatJSON();
+  sessionStorage.setItem('jsonFormatterVisited', 'true');
+}
+</script>
+</body>
+</html>

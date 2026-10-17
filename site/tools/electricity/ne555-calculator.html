@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="NE555 Timer Calculator — calculate resistor and capacitor values for astable and monostable modes">
+<meta name="theme-color" content="#111110">
+<title>NE555 Timer Calculator — OrbitNet</title>
+<link rel="stylesheet" href="../../assets/css/style.css">
+<style>
+.tool-page { padding: 40px 0; }
+.tool-header { margin-bottom: 40px; }
+.tool-header h1 { font-size: 2.5rem; margin: 10px 0; }
+.tool-header .breadcrumb { font-size: .85rem; color: var(--muted); margin-bottom: 10px; }
+.tool-header .breadcrumb a { text-decoration: none; }
+.tool-header .breadcrumb a:hover { text-decoration: underline; }
+.tool-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.tool-panel { background: var(--card); border: 1.5px solid var(--line); border-radius: 16px; padding: 24px; }
+.tool-panel h2 { font-size: 1.3rem; margin: 0 0 20px; }
+.mode-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 24px; }
+.mode-btn { padding: 12px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); font-weight: 700; cursor: pointer; text-align: center; transition: all .2s; }
+.mode-btn:hover { border-color: var(--orange); }
+.mode-btn.active { background: var(--orange); color: #17110b; border-color: var(--orange); }
+.input-group { margin-bottom: 20px; }
+.input-group label { display: block; font-weight: 700; margin-bottom: 8px; font-size: .9rem; }
+.input-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; }
+.input-group input, .input-group select { width: 100%; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); font-size: 1rem; }
+.input-group input:focus, .input-group select:focus { outline: none; border-color: var(--orange); }
+.input-group small { display: block; margin-top: 6px; color: var(--muted); font-size: .8rem; }
+.btn { display: inline-block; padding: 12px 24px; background: var(--orange); color: #17110b; border: 0; border-radius: 10px; font-weight: 800; cursor: pointer; font-size: .95rem; transition: background .2s; }
+.btn:hover { background: #ef8528; }
+.btn-secondary { background: var(--line); color: var(--ink); }
+.btn-secondary:hover { background: var(--muted); }
+.result-box { background: var(--paper); border: 1.5px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+.result-box.highlight { border-color: var(--orange); background: rgba(212,107,21,.05); }
+.result-label { font-size: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 700; margin-bottom: 6px; }
+.result-value { font-size: 1.4rem; font-weight: 800; font-family: 'Monaco', 'Courier New', monospace; color: var(--ink); }
+.result-value.large { font-size: 1.8rem; color: var(--orange); }
+.result-sub { font-size: .85rem; color: var(--muted); margin-top: 4px; }
+.error { color: #ff5555; background: rgba(255,85,85,.1); border: 1.5px solid #ff5555; padding: 12px 16px; border-radius: 10px; margin-bottom: 20px; font-size: .9rem; }
+.diagram { background: var(--paper-2); border-radius: 10px; padding: 20px; margin: 20px 0; text-align: center; font-family: monospace; font-size: .85rem; line-height: 1.8; color: var(--muted); }
+.info-section { background: var(--paper-2); border-radius: 12px; padding: 20px; margin-top: 24px; }
+.info-section h3 { font-size: 1.1rem; margin: 0 0 12px; }
+.info-section p { margin: 0 0 10px; color: var(--muted); font-size: .9rem; line-height: 1.6; }
+.info-section ul { margin: 10px 0; padding-left: 20px; color: var(--muted); font-size: .9rem; }
+.info-section code { background: var(--card); padding: 2px 6px; border-radius: 4px; font-family: monospace; color: var(--orange); }
+@media (max-width: 768px) {
+  .tool-layout { grid-template-columns: 1fr; }
+  .tool-header h1 { font-size: 2rem; }
+}
+</style>
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../index.html#about">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> / 
+      <a href="../../index.html#tools">Tools</a> / 
+      <span>NE555 Timer Calculator</span>
+    </div>
+    <h1>NE555 Timer Calculator</h1>
+    <p style="color: var(--muted); max-width: 700px;">Calculate resistor and capacitor values for 555 timer circuits in astable (oscillator) and monostable (one-shot) modes.</p>
+  </div>
+
+  <div class="tool-layout">
+    <div class="tool-panel">
+      <h2>Configuration</h2>
+      
+      <div class="mode-selector">
+        <button class="mode-btn active" onclick="setMode('astable')">Astable Mode</button>
+        <button class="mode-btn" onclick="setMode('monostable')">Monostable Mode</button>
+      </div>
+      
+      <div id="errorMsg"></div>
+      
+      <!-- Astable Mode Inputs -->
+      <div id="astableInputs">
+        <div class="input-group">
+          <label for="frequency">Target Frequency</label>
+          <div class="input-row">
+            <input type="number" id="frequency" placeholder="e.g., 1000" value="1000" step="any">
+            <select id="freqUnit">
+              <option value="1">Hz</option>
+              <option value="1000">kHz</option>
+              <option value="1000000">MHz</option>
+            </select>
+          </div>
+          <small>Desired oscillation frequency</small>
+        </div>
+
+        <div class="input-group">
+          <label for="dutyCycle">Duty Cycle (%)</label>
+          <input type="number" id="dutyCycle" placeholder="50-99" value="50" min="50" max="99" step="1">
+          <small>Percentage of time output is HIGH (50-99%)</small>
+        </div>
+
+        <div class="input-group">
+          <label for="capacitor">Capacitor (C)</label>
+          <div class="input-row">
+            <input type="number" id="capacitor" placeholder="e.g., 10" value="10" step="any">
+            <select id="capUnit">
+              <option value="0.000000000001">pF</option>
+              <option value="0.000000001">nF</option>
+              <option value="0.000001" selected>µF</option>
+              <option value="0.001">mF</option>
+            </select>
+          </div>
+          <small>Choose a standard capacitor value</small>
+        </div>
+      </div>
+
+      <!-- Monostable Mode Inputs -->
+      <div id="monostableInputs" style="display:none;">
+        <div class="input-group">
+          <label for="pulseWidth">Pulse Width</label>
+          <div class="input-row">
+            <input type="number" id="pulseWidth" placeholder="e.g., 100" value="100" step="any">
+            <select id="pulseUnit">
+              <option value="0.000001">µs</option>
+              <option value="0.001" selected>ms</option>
+              <option value="1">s</option>
+            </select>
+          </div>
+          <small>Duration of output pulse</small>
+        </div>
+
+        <div class="input-group">
+          <label for="capacitorMono">Capacitor (C)</label>
+          <div class="input-row">
+            <input type="number" id="capacitorMono" placeholder="e.g., 10" value="10" step="any">
+            <select id="capUnitMono">
+              <option value="0.000000000001">pF</option>
+              <option value="0.000000001">nF</option>
+              <option value="0.000001" selected>µF</option>
+              <option value="0.001">mF</option>
+            </select>
+          </div>
+          <small>Choose a standard capacitor value</small>
+        </div>
+      </div>
+
+      <button class="btn" onclick="calculate()">Calculate ↗</button>
+      <button class="btn btn-secondary" onclick="reset()" style="margin-left: 10px;">Reset</button>
+    </div>
+
+    <div class="tool-panel">
+      <h2>Results</h2>
+      <div id="results">
+        <div style="text-align: center; padding: 40px 20px; color: var(--muted);">
+          Enter values and click Calculate
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="info-section">
+    <h3>About the 555 Timer</h3>
+    <p>The <strong>NE555</strong> is one of the most popular integrated circuits ever made. It can operate in two main modes:</p>
+    
+    <h3 style="margin-top: 20px;">Astable Mode (Oscillator)</h3>
+    <p>Generates a continuous square wave output. Perfect for:</p>
+    <ul>
+      <li>LED blinkers and flashers</li>
+      <li>Clock signal generators</li>
+      <li>Tone generators and buzzers</li>
+      <li>PWM signal generation</li>
+    </ul>
+    <p><strong>Formulas:</strong></p>
+    <p><code>Frequency = 1.44 / ((R1 + 2×R2) × C)</code></p>
+    <p><code>Duty Cycle = (R1 + R2) / (R1 + 2×R2) × 100%</code></p>
+
+    <h3 style="margin-top: 20px;">Monostable Mode (One-Shot)</h3>
+    <p>Produces a single output pulse when triggered. Used for:</p>
+    <ul>
+      <li>Debouncing switches</li>
+      <li>Timed delays</li>
+      <li>Pulse stretching</li>
+      <li>Missing pulse detection</li>
+    </ul>
+    <p><strong>Formula:</strong></p>
+    <p><code>Pulse Width = 1.1 × R × C</code></p>
+
+    <h3 style="margin-top: 20px;">Component selection tips</h3>
+    <ul>
+      <li><strong>Resistors:</strong> Use values between 1kΩ and 1MΩ. Higher values = lower current consumption</li>
+      <li><strong>Capacitors:</strong> Ceramic for high frequencies (&gt;10kHz), electrolytic for low frequencies (&lt;10Hz)</li>
+      <li><strong>Duty cycle:</strong> For 50% duty cycle in astable mode, use R1 = 1kΩ and make R2 much larger</li>
+      <li><strong>Accuracy:</strong> Use 1% resistors and quality capacitors for precise timing</li>
+    </ul>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../index.html#about">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+let currentMode = 'astable';
+
+function setMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+  event.target.classList.add('active');
+  
+  if (mode === 'astable') {
+    document.getElementById('astableInputs').style.display = 'block';
+    document.getElementById('monostableInputs').style.display = 'none';
+  } else {
+    document.getElementById('astableInputs').style.display = 'none';
+    document.getElementById('monostableInputs').style.display = 'block';
+  }
+  
+  clearError();
+  document.getElementById('results').innerHTML = '<div style="text-align: center; padding: 40px 20px; color: var(--muted);">Enter values and click Calculate</div>';
+}
+
+function clearError() {
+  document.getElementById('errorMsg').innerHTML = '';
+}
+
+function showError(message) {
+  document.getElementById('errorMsg').innerHTML = `<div class="error">✗ ${message}</div>`;
+}
+
+function formatResistor(ohms) {
+  if (ohms >= 1000000) return `${(ohms / 1000000).toFixed(2)} MΩ`;
+  if (ohms >= 1000) return `${(ohms / 1000).toFixed(2)} kΩ`;
+  return `${ohms.toFixed(2)} Ω`;
+}
+
+function findStandardResistor(value) {
+  // E12 series (10% tolerance) - common values
+  const e12 = [1.0, 1.2, 1.5, 1.8, 2.2, 2.7, 3.3, 3.9, 4.7, 5.6, 6.8, 8.2];
+  
+  let bestValue = value;
+  let bestDiff = Infinity;
+  
+  // Check across different decades
+  for (let decade = 1; decade <= 1000000; decade *= 10) {
+    for (let base of e12) {
+      const stdValue = base * decade;
+      const diff = Math.abs(stdValue - value);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        bestValue = stdValue;
+      }
+    }
+  }
+  
+  return bestValue;
+}
+
+function calculate() {
+  clearError();
+  
+  if (currentMode === 'astable') {
+    calculateAstable();
+  } else {
+    calculateMonostable();
+  }
+}
+
+function calculateAstable() {
+  const freq = parseFloat(document.getElementById('frequency').value) * parseFloat(document.getElementById('freqUnit').value);
+  const duty = parseFloat(document.getElementById('dutyCycle').value);
+  const C = parseFloat(document.getElementById('capacitor').value) * parseFloat(document.getElementById('capUnit').value);
+  
+  if (isNaN(freq) || freq <= 0) {
+    showError('Please enter a valid frequency');
+    return;
+  }
+  
+  if (isNaN(duty) || duty < 50 || duty > 99) {
+    showError('Duty cycle must be between 50% and 99%');
+    return;
+  }
+  
+  if (isNaN(C) || C <= 0) {
+    showError('Please enter a valid capacitor value');
+    return;
+  }
+  
+  // Formulas for 555 astable mode:
+  // f = 1.44 / ((R1 + 2*R2) * C)
+  // Duty = (R1 + R2) / (R1 + 2*R2)
+  
+  const dutyDecimal = duty / 100;
+  
+  // Solve for R1 and R2
+  // From duty cycle: R1 = R2 * (2*duty - 1) / (1 - duty)
+  // From frequency: R1 + 2*R2 = 1.44 / (f * C)
+  
+  const sum = 1.44 / (freq * C);  // R1 + 2*R2
+  
+  // For duty cycle D: R1 = R2 * (2D - 1) / (1 - D)
+  // Substituting into sum: R2 * (2D - 1)/(1 - D) + 2*R2 = sum
+  // R2 * [(2D - 1)/(1 - D) + 2] = sum
+  // R2 = sum / [(2D - 1)/(1 - D) + 2]
+  
+  const R2 = sum / ((2 * dutyDecimal - 1) / (1 - dutyDecimal) + 2);
+  const R1 = sum - 2 * R2;
+  
+  if (R1 < 1000 || R2 < 1000) {
+    showError('Calculated resistor values too small. Try a smaller capacitor or lower frequency.');
+    return;
+  }
+  
+  if (R1 > 10000000 || R2 > 10000000) {
+    showError('Calculated resistor values too large. Try a larger capacitor or higher frequency.');
+    return;
+  }
+  
+  // Find standard resistor values
+  const R1_std = findStandardResistor(R1);
+  const R2_std = findStandardResistor(R2);
+  
+  // Recalculate actual frequency and duty cycle with standard values
+  const actualFreq = 1.44 / ((R1_std + 2 * R2_std) * C);
+  const actualDuty = ((R1_std + R2_std) / (R1_std + 2 * R2_std)) * 100;
+  const tHigh = 0.693 * (R1_std + R2_std) * C;
+  const tLow = 0.693 * R2_std * C;
+  const period = 1 / actualFreq;
+  
+  const html = `
+    <div class="result-box highlight">
+      <div class="result-label">R1 (Resistor 1)</div>
+      <div class="result-value large">${formatResistor(R1_std)}</div>
+      <div class="result-sub">Calculated: ${formatResistor(R1)}</div>
+    </div>
+    
+    <div class="result-box highlight">
+      <div class="result-label">R2 (Resistor 2)</div>
+      <div class="result-value large">${formatResistor(R2_std)}</div>
+      <div class="result-sub">Calculated: ${formatResistor(R2)}</div>
+    </div>
+    
+    <div class="result-box">
+      <div class="result-label">Actual Frequency</div>
+      <div class="result-value">${actualFreq >= 1000 ? (actualFreq/1000).toFixed(2) + ' kHz' : actualFreq.toFixed(2) + ' Hz'}</div>
+      <div class="result-sub">Target: ${freq >= 1000 ? (freq/1000).toFixed(2) + ' kHz' : freq.toFixed(2) + ' Hz'}</div>
+    </div>
+    
+    <div class="result-box">
+      <div class="result-label">Actual Duty Cycle</div>
+      <div class="result-value">${actualDuty.toFixed(2)}%</div>
+      <div class="result-sub">Target: ${duty}%</div>
+    </div>
+    
+    <div class="result-box">
+      <div class="result-label">Period</div>
+      <div class="result-value">${(period * 1000).toFixed(3)} ms</div>
+      <div class="result-sub">Time for one complete cycle</div>
+    </div>
+    
+    <div class="result-box">
+      <div class="result-label">Time High / Time Low</div>
+      <div class="result-value" style="font-size: 1.1rem;">${(tHigh * 1000).toFixed(3)} ms / ${(tLow * 1000).toFixed(3)} ms</div>
+      <div class="result-sub">Output pulse timing</div>
+    </div>
+    
+    <div class="diagram">
+      <strong>555 Astable Circuit</strong><br><br>
+      Vcc ----[R1=${formatResistor(R1_std)}]---+--- Pin 7 (Discharge)<br>
+                                  |<br>
+                          [R2=${formatResistor(R2_std)}]<br>
+                                  |<br>
+      Pin 2,6 (Trig/Thresh) ------+<br>
+                                  |<br>
+                              [C=${C*1000000}µF]<br>
+                                  |<br>
+      GND ---------------------+---+<br><br>
+      Output: Pin 3 • Vcc: Pin 8 • GND: Pin 1
+    </div>
+  `;
+  
+  document.getElementById('results').innerHTML = html;
+}
+
+function calculateMonostable() {
+  const pulseWidth = parseFloat(document.getElementById('pulseWidth').value) * parseFloat(document.getElementById('pulseUnit').value);
+  const C = parseFloat(document.getElementById('capacitorMono').value) * parseFloat(document.getElementById('capUnitMono').value);
+  
+  if (isNaN(pulseWidth) || pulseWidth <= 0) {
+    showError('Please enter a valid pulse width');
+    return;
+  }
+  
+  if (isNaN(C) || C <= 0) {
+    showError('Please enter a valid capacitor value');
+    return;
+  }
+  
+  // Formula: T = 1.1 × R × C
+  const R = pulseWidth / (1.1 * C);
+  
+  if (R < 1000) {
+    showError('Calculated resistor too small. Try a smaller capacitor.');
+    return;
+  }
+  
+  if (R > 10000000) {
+    showError('Calculated resistor too large. Try a larger capacitor.');
+    return;
+  }
+  
+  const R_std = findStandardResistor(R);
+  const actualPulse = 1.1 * R_std * C;
+  
+  const html = `
+    <div class="result-box highlight">
+      <div class="result-label">R (Timing Resistor)</div>
+      <div class="result-value large">${formatResistor(R_std)}</div>
+      <div class="result-sub">Calculated: ${formatResistor(R)}</div>
+    </div>
+    
+    <div class="result-box">
+      <div class="result-label">Actual Pulse Width</div>
+      <div class="result-value">${(actualPulse * 1000).toFixed(3)} ms</div>
+      <div class="result-sub">Target: ${(pulseWidth * 1000).toFixed(3)} ms</div>
+    </div>
+    
+    <div class="result-box">
+      <div class="result-label">Trigger Required</div>
+      <div class="result-value" style="font-size: 1.1rem;">LOW pulse</div>
+      <div class="result-sub">Momentary connection to ground</div>
+    </div>
+    
+    <div class="diagram">
+      <strong>555 Monostable Circuit</strong><br><br>
+      Vcc -----[R=${formatResistor(R_std)}]---+--- Pin 7 (Discharge)<br>
+                                |<br>
+      Pin 6 (Threshold) --------+<br>
+                                |<br>
+                            [C=${C*1000000}µF]<br>
+                                |<br>
+      GND -----------------+----+<br>
+                          |<br>
+      Trigger (Pin 2) ----o (momentary to GND)<br><br>
+      Output: Pin 3 • Vcc: Pin 8 • GND: Pin 1<br>
+      Pin 2 via 10kΩ to Vcc • Pin 4 to Vcc
+    </div>
+  `;
+  
+  document.getElementById('results').innerHTML = html;
+}
+
+function reset() {
+  if (currentMode === 'astable') {
+    document.getElementById('frequency').value = '1000';
+    document.getElementById('dutyCycle').value = '50';
+    document.getElementById('capacitor').value = '10';
+  } else {
+    document.getElementById('pulseWidth').value = '100';
+    document.getElementById('capacitorMono').value = '10';
+  }
+  clearError();
+  document.getElementById('results').innerHTML = '<div style="text-align: center; padding: 40px 20px; color: var(--muted);">Enter values and click Calculate</div>';
+}
+</script>
+</body>
+</html>

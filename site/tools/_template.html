@@ -1,0 +1,256 @@
+<!-- Template for new tools - copy this file to create new tools -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="[Tool Name] — [brief description]">
+<meta name="theme-color" content="#111110">
+<title>[Tool Name] — OrbitNet</title>
+<link rel="stylesheet" href="../../assets/css/style.css">
+<style>
+/* Tool-specific styles */
+.tool-page { padding: 40px 0; }
+.tool-header { margin-bottom: 40px; }
+.tool-header h1 { font-size: 2.5rem; margin: 10px 0; }
+.tool-header .breadcrumb { font-size: .85rem; color: var(--muted); margin-bottom: 10px; }
+.tool-header .breadcrumb a { text-decoration: none; }
+.tool-header .breadcrumb a:hover { text-decoration: underline; }
+
+/* Tool panels */
+.tool-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.tool-panel { background: var(--card); border: 1.5px solid var(--line); border-radius: 16px; padding: 24px; }
+.tool-panel h2 { font-size: 1.3rem; margin: 0 0 20px; }
+
+/* Form elements */
+.input-group { margin-bottom: 20px; }
+.input-group label { display: block; font-weight: 700; margin-bottom: 8px; font-size: .9rem; }
+.input-group input, .input-group select, .input-group textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 1rem;
+}
+.input-group input:focus, .input-group select:focus, .input-group textarea:focus {
+  outline: none;
+  border-color: var(--orange);
+}
+.input-group small { display: block; margin-top: 6px; color: var(--muted); font-size: .8rem; }
+
+/* Buttons */
+.btn {
+  display: inline-block;
+  padding: 12px 24px;
+  background: var(--orange);
+  color: #17110b;
+  border: 0;
+  border-radius: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  font-size: .95rem;
+  transition: background .2s;
+}
+.btn:hover { background: #ef8528; }
+.btn-secondary { background: var(--line); color: var(--ink); }
+.btn-secondary:hover { background: var(--muted); }
+
+/* Results */
+.result-box {
+  background: var(--paper);
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.result-box.highlight { border-color: var(--orange); background: rgba(212,107,21,.05); }
+.result-label {
+  font-size: .8rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.result-value {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--ink);
+  word-break: break-all;
+}
+.result-value.large { font-size: 1.8rem; color: var(--orange); }
+
+/* Status messages */
+.error, .success, .info {
+  padding: 12px 16px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  font-size: .9rem;
+}
+.error { color: #ff5555; background: rgba(255,85,85,.1); border: 1.5px solid #ff5555; }
+.success { color: #4ade80; background: rgba(74,222,128,.1); border: 1.5px solid #4ade80; }
+.info { color: #9ec9ff; background: rgba(158,201,255,.1); border: 1.5px solid #9ec9ff; }
+
+/* Info section */
+.info-section {
+  background: var(--paper-2);
+  border-radius: 12px;
+  padding: 20px;
+  margin-top: 24px;
+}
+.info-section h3 { font-size: 1.1rem; margin: 0 0 12px; }
+.info-section p { margin: 0 0 10px; color: var(--muted); font-size: .9rem; line-height: 1.6; }
+.info-section ul { margin: 10px 0; padding-left: 20px; color: var(--muted); font-size: .9rem; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .tool-layout { grid-template-columns: 1fr; }
+  .tool-header h1 { font-size: 2rem; }
+}
+</style>
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../index.html#about">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> / 
+      <a href="../../index.html#tools">Tools</a> / 
+      <span>[Tool Name]</span>
+    </div>
+    <h1>[Tool Name]</h1>
+    <p style="color: var(--muted); max-width: 700px;">[Tool description — what it does and why it's useful]</p>
+  </div>
+
+  <div class="tool-layout">
+    <!-- Input Panel -->
+    <div class="tool-panel">
+      <h2>Input</h2>
+      <div id="errorMsg"></div>
+      
+      <div class="input-group">
+        <label for="input1">Input Label</label>
+        <input type="text" id="input1" placeholder="Enter value...">
+        <small>Helper text or example</small>
+      </div>
+
+      <button class="btn" onclick="calculate()">Calculate ↗</button>
+      <button class="btn btn-secondary" onclick="reset()" style="margin-left: 10px;">Reset</button>
+    </div>
+
+    <!-- Results Panel -->
+    <div class="tool-panel">
+      <h2>Results</h2>
+      <div id="results">
+        <div style="text-align: center; padding: 40px 20px; color: var(--muted);">
+          Enter values to see results
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Info Section -->
+  <div class="info-section">
+    <h3>How to use this tool</h3>
+    <p>Explain what the tool does and how to use it:</p>
+    <ul>
+      <li><strong>Step 1:</strong> Description</li>
+      <li><strong>Step 2:</strong> Description</li>
+      <li><strong>Step 3:</strong> Description</li>
+    </ul>
+    
+    <h3 style="margin-top: 20px;">Additional information</h3>
+    <p>Add formulas, examples, or educational content here.</p>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../index.html#about">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+/**
+ * Main calculation function
+ */
+function calculate() {
+  // Clear previous errors
+  document.getElementById('errorMsg').innerHTML = '';
+  
+  // Get input values
+  const input1 = document.getElementById('input1').value.trim();
+  
+  // Validation
+  if (!input1) {
+    showError('Please enter a value');
+    return;
+  }
+  
+  try {
+    // Perform calculations
+    const result = processInput(input1);
+    
+    // Display results
+    displayResults(result);
+  } catch (error) {
+    showError(error.message);
+  }
+}
+
+/**
+ * Process input and return results
+ */
+function processInput(input) {
+  // TODO: Implement tool logic here
+  return {
+    value: input,
+    // Add calculated values
+  };
+}
+
+/**
+ * Display results in the results panel
+ */
+function displayResults(result) {
+  const html = `
+    <div class="result-box highlight">
+      <div class="result-label">Result Label</div>
+      <div class="result-value large">${result.value}</div>
+    </div>
+  `;
+  document.getElementById('results').innerHTML = html;
+}
+
+/**
+ * Show error message
+ */
+function showError(message) {
+  document.getElementById('errorMsg').innerHTML = `<div class="error">✗ ${message}</div>`;
+}
+
+/**
+ * Reset the tool
+ */
+function reset() {
+  document.getElementById('input1').value = '';
+  document.getElementById('errorMsg').innerHTML = '';
+  document.getElementById('results').innerHTML = 
+    '<div style="text-align: center; padding: 40px 20px; color: var(--muted);">Enter values to see results</div>';
+}
+</script>
+</body>
+</html>

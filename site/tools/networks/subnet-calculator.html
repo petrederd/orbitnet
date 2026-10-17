@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="IPv4 Subnet Calculator — calculate network address, broadcast, usable hosts and subnet mask">
+<meta name="theme-color" content="#111110">
+<title>IPv4 Subnet Calculator — OrbitNet</title>
+<link rel="stylesheet" href="../../assets/css/style.css">
+<style>
+.tool-page { padding: 40px 0; }
+.tool-header { margin-bottom: 40px; }
+.tool-header h1 { font-size: 2.5rem; margin: 10px 0; }
+.tool-header .breadcrumb { font-size: .85rem; color: var(--muted); margin-bottom: 10px; }
+.tool-header .breadcrumb a { text-decoration: none; }
+.tool-header .breadcrumb a:hover { text-decoration: underline; }
+.tool-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.tool-panel { background: var(--card); border: 1.5px solid var(--line); border-radius: 16px; padding: 24px; }
+.tool-panel h2 { font-size: 1.3rem; margin: 0 0 20px; }
+.input-group { margin-bottom: 20px; }
+.input-group label { display: block; font-weight: 700; margin-bottom: 8px; font-size: .9rem; }
+.input-group input, .input-group select { width: 100%; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); font-size: 1rem; }
+.input-group input:focus, .input-group select:focus { outline: none; border-color: var(--orange); }
+.input-group small { display: block; margin-top: 6px; color: var(--muted); font-size: .8rem; }
+.btn { display: inline-block; padding: 12px 24px; background: var(--orange); color: #17110b; border: 0; border-radius: 10px; font-weight: 800; cursor: pointer; font-size: .95rem; transition: background .2s; }
+.btn:hover { background: #ef8528; }
+.btn-secondary { background: var(--line); color: var(--ink); }
+.btn-secondary:hover { background: var(--muted); }
+.result-box { background: var(--paper); border: 1.5px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+.result-box.highlight { border-color: var(--orange); background: rgba(212,107,21,.05); }
+.result-label { font-size: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 700; margin-bottom: 6px; }
+.result-value { font-size: 1.4rem; font-weight: 800; font-family: 'Monaco', 'Courier New', monospace; color: var(--ink); word-break: break-all; }
+.result-value.large { font-size: 1.8rem; color: var(--orange); }
+.result-sub { font-size: .85rem; color: var(--muted); margin-top: 4px; }
+.error { color: #ff5555; background: rgba(255,85,85,.1); border: 1.5px solid #ff5555; padding: 12px 16px; border-radius: 10px; margin-bottom: 20px; font-size: .9rem; }
+.info-section { background: var(--paper-2); border-radius: 12px; padding: 20px; margin-top: 24px; }
+.info-section h3 { font-size: 1.1rem; margin: 0 0 12px; }
+.info-section p { margin: 0 0 10px; color: var(--muted); font-size: .9rem; line-height: 1.6; }
+.info-section ul { margin: 10px 0; padding-left: 20px; color: var(--muted); font-size: .9rem; }
+.info-section code { background: var(--card); padding: 2px 6px; border-radius: 4px; font-family: monospace; color: var(--orange); }
+@media (max-width: 768px) {
+  .tool-layout { grid-template-columns: 1fr; }
+  .tool-header h1 { font-size: 2rem; }
+}
+</style>
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../index.html#about">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> / 
+      <a href="../../index.html#tools">Tools</a> / 
+      <span>IPv4 Subnet Calculator</span>
+    </div>
+    <h1>IPv4 Subnet Calculator</h1>
+    <p style="color: var(--muted); max-width: 700px;">Calculate network details from an IP address and subnet mask. Understand your network structure, available hosts, and address ranges instantly.</p>
+  </div>
+
+  <div class="tool-layout">
+    <div class="tool-panel">
+      <h2>Input</h2>
+      <div id="errorMsg"></div>
+      
+      <div class="input-group">
+        <label for="ipAddress">IP Address</label>
+        <input type="text" id="ipAddress" placeholder="192.168.1.100" value="192.168.1.100">
+        <small>Enter any valid IPv4 address (e.g., 10.0.0.1)</small>
+      </div>
+
+      <div class="input-group">
+        <label for="subnetInput">Subnet Mask or CIDR</label>
+        <select id="subnetType">
+          <option value="cidr">CIDR Notation (/24)</option>
+          <option value="mask">Subnet Mask (255.255.255.0)</option>
+        </select>
+      </div>
+
+      <div class="input-group" id="cidrGroup">
+        <label for="cidr">CIDR Prefix</label>
+        <input type="number" id="cidr" min="0" max="32" value="24">
+        <small>Range: /0 to /32 (common: /8, /16, /24, /30)</small>
+      </div>
+
+      <div class="input-group" id="maskGroup" style="display:none;">
+        <label for="subnetMask">Subnet Mask</label>
+        <input type="text" id="subnetMask" placeholder="255.255.255.0" value="255.255.255.0">
+        <small>e.g., 255.255.255.0 or 255.255.0.0</small>
+      </div>
+
+      <button class="btn" onclick="calculate()">Calculate Network ↗</button>
+      <button class="btn btn-secondary" onclick="reset()" style="margin-left: 10px;">Reset</button>
+    </div>
+
+    <div class="tool-panel">
+      <h2>Results</h2>
+      <div id="results">
+        <div style="text-align: center; padding: 40px 20px; color: var(--muted);">
+          Enter an IP address and subnet to see the results
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="info-section">
+    <h3>How to use this calculator</h3>
+    <p>This subnet calculator helps you understand IPv4 network structure and addressing:</p>
+    <ul>
+      <li><strong>IP Address:</strong> Enter any IPv4 address from your network (e.g., 192.168.1.100)</li>
+      <li><strong>CIDR Notation:</strong> Use /24, /16, etc. Common values: /8 (16M hosts), /16 (65K hosts), /24 (254 hosts), /30 (2 hosts)</li>
+      <li><strong>Subnet Mask:</strong> Alternative to CIDR, like 255.255.255.0 for /24</li>
+    </ul>
+    
+    <h3 style="margin-top: 20px;">Understanding the results</h3>
+    <ul>
+      <li><strong>Network Address:</strong> The first address in the subnet (not usable for hosts)</li>
+      <li><strong>Broadcast Address:</strong> The last address in the subnet (used to send to all hosts)</li>
+      <li><strong>First/Last Usable Host:</strong> The range of IPs you can assign to devices</li>
+      <li><strong>Total Hosts:</strong> All addresses in the subnet, including network and broadcast</li>
+      <li><strong>Usable Hosts:</strong> Addresses available for devices (Total - 2)</li>
+    </ul>
+
+    <h3 style="margin-top: 20px;">Common subnet examples</h3>
+    <p><code>/8</code> = 16,777,216 hosts (Class A) • <code>/16</code> = 65,536 hosts (Class B) • <code>/24</code> = 256 hosts (Class C) • <code>/30</code> = 4 hosts (point-to-point links)</p>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../index.html#about">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+// Toggle between CIDR and Subnet Mask input
+document.getElementById('subnetType').addEventListener('change', function() {
+  const isCIDR = this.value === 'cidr';
+  document.getElementById('cidrGroup').style.display = isCIDR ? 'block' : 'none';
+  document.getElementById('maskGroup').style.display = isCIDR ? 'none' : 'block';
+});
+
+function ipToInt(ip) {
+  const parts = ip.split('.').map(Number);
+  return (parts[0] << 24) + (parts[1] << 16) + (parts[2] << 8) + parts[3];
+}
+
+function intToIp(int) {
+  return [
+    (int >>> 24) & 0xFF,
+    (int >>> 16) & 0xFF,
+    (int >>> 8) & 0xFF,
+    int & 0xFF
+  ].join('.');
+}
+
+function cidrToMask(cidr) {
+  const mask = -1 << (32 - cidr);
+  return intToIp(mask >>> 0);
+}
+
+function maskToCidr(mask) {
+  const parts = mask.split('.').map(Number);
+  const binary = (parts[0] << 24) + (parts[1] << 16) + (parts[2] << 8) + parts[3];
+  return binary.toString(2).split('1').length - 1;
+}
+
+function validateIP(ip) {
+  const parts = ip.split('.');
+  if (parts.length !== 4) return false;
+  return parts.every(part => {
+    const num = parseInt(part, 10);
+    return num >= 0 && num <= 255 && part === num.toString();
+  });
+}
+
+function validateMask(mask) {
+  if (!validateIP(mask)) return false;
+  const binary = ipToInt(mask).toString(2).padStart(32, '0');
+  return /^1*0*$/.test(binary); // Must be consecutive 1s followed by 0s
+}
+
+function showError(message) {
+  const errorDiv = document.getElementById('errorMsg');
+  errorDiv.innerHTML = `<div class="error">${message}</div>`;
+}
+
+function clearError() {
+  document.getElementById('errorMsg').innerHTML = '';
+}
+
+function calculate() {
+  clearError();
+  
+  const ipAddress = document.getElementById('ipAddress').value.trim();
+  const subnetType = document.getElementById('subnetType').value;
+  
+  // Validate IP
+  if (!validateIP(ipAddress)) {
+    showError('Invalid IP address. Please enter a valid IPv4 address (e.g., 192.168.1.1)');
+    return;
+  }
+  
+  let cidr;
+  let subnetMask;
+  
+  if (subnetType === 'cidr') {
+    cidr = parseInt(document.getElementById('cidr').value);
+    if (cidr < 0 || cidr > 32) {
+      showError('CIDR must be between 0 and 32');
+      return;
+    }
+    subnetMask = cidrToMask(cidr);
+  } else {
+    subnetMask = document.getElementById('subnetMask').value.trim();
+    if (!validateMask(subnetMask)) {
+      showError('Invalid subnet mask. Please enter a valid mask (e.g., 255.255.255.0)');
+      return;
+    }
+    cidr = maskToCidr(subnetMask);
+  }
+  
+  // Calculate network details
+  const ipInt = ipToInt(ipAddress);
+  const maskInt = ipToInt(subnetMask);
+  const networkInt = ipInt & maskInt;
+  const broadcastInt = networkInt | (~maskInt >>> 0);
+  const firstHostInt = networkInt + 1;
+  const lastHostInt = broadcastInt - 1;
+  
+  const totalHosts = Math.pow(2, 32 - cidr);
+  const usableHosts = cidr === 32 ? 1 : (cidr === 31 ? 2 : totalHosts - 2);
+  
+  const networkAddr = intToIp(networkInt);
+  const broadcastAddr = intToIp(broadcastInt);
+  const firstHost = cidr === 32 ? networkAddr : intToIp(firstHostInt);
+  const lastHost = cidr === 32 ? networkAddr : intToIp(lastHostInt);
+  
+  // Display results
+  const resultsHTML = `
+    <div class="result-box highlight">
+      <div class="result-label">Network Address</div>
+      <div class="result-value large">${networkAddr}/${cidr}</div>
+      <div class="result-sub">Network ID for this subnet</div>
+    </div>
+    
+    <div class="result-box">
+      <div class="result-label">Subnet Mask</div>
+      <div class="result-value">${subnetMask}</div>
+      <div class="result-sub">Decimal notation</div>
+    </div>
+    
+    <div class="result-box">
+      <div class="result-label">Broadcast Address</div>
+      <div class="result-value">${broadcastAddr}</div>
+      <div class="result-sub">Used to send packets to all hosts</div>
+    </div>
+    
+    <div class="result-box">
+      <div class="result-label">First Usable Host</div>
+      <div class="result-value">${firstHost}</div>
+      <div class="result-sub">Lowest assignable IP</div>
+    </div>
+    
+    <div class="result-box">
+      <div class="result-label">Last Usable Host</div>
+      <div class="result-value">${lastHost}</div>
+      <div class="result-sub">Highest assignable IP</div>
+    </div>
+    
+    <div class="result-box highlight">
+      <div class="result-label">Total Hosts</div>
+      <div class="result-value">${totalHosts.toLocaleString()}</div>
+      <div class="result-sub">Including network and broadcast</div>
+    </div>
+    
+    <div class="result-box highlight">
+      <div class="result-label">Usable Hosts</div>
+      <div class="result-value large">${usableHosts.toLocaleString()}</div>
+      <div class="result-sub">Available for devices</div>
+    </div>
+  `;
+  
+  document.getElementById('results').innerHTML = resultsHTML;
+}
+
+function reset() {
+  document.getElementById('ipAddress').value = '192.168.1.100';
+  document.getElementById('cidr').value = '24';
+  document.getElementById('subnetMask').value = '255.255.255.0';
+  document.getElementById('subnetType').value = 'cidr';
+  document.getElementById('cidrGroup').style.display = 'block';
+  document.getElementById('maskGroup').style.display = 'none';
+  clearError();
+  document.getElementById('results').innerHTML = '<div style="text-align: center; padding: 40px 20px; color: var(--muted);">Enter an IP address and subnet to see the results</div>';
+}
+
+// Calculate on load with default values
+calculate();
+</script>
+</body>
+</html>
