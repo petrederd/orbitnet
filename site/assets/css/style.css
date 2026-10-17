@@ -1,13 +1,13 @@
 /* OrbitNet — Modern utility toolbox styles */
 
 :root {
-  --paper: #f3f0e8;
-  --paper-2: #e8e4d9;
+  --paper: #e8e4de;
+  --paper-2: #e8e4de;
   --ink: #20231f;
   --muted: #666b62;
   --line: #c9c7bb;
   --lime: #d6f36a;
-  --orange: #ff744d;
+  --orange: #833a1d;
   --blue: #9ec9ff;
   --lavender: #c4b5fd;
   --card: #fffdf6;
@@ -943,20 +943,20 @@ h1 .outline {
   --ink: #f0eee9;
   --muted: #a7a39c;
   --line: #393631;
-  --lime: #d46b15;
-  --orange: #d46b15;
+  --lime: #d6f36a;
+  --orange: #833a1d;
   --blue: #292724;
   --lavender: #34302b;
   --card: #1a1917;
   --dark: #171615;
   --radius: 14px;
-  --shadow: 4px 4px 0 rgba(212,107,21,.17);
+  --shadow: 4px 4px 0 rgba(131,58,29,.17);
 }
 
 body {
   background:
-    radial-gradient(circle at 92% 5%, rgba(212,107,21,.11) 0 100px, transparent 101px),
-    radial-gradient(circle at 4% 34%, rgba(212,107,21,.055) 0 130px, transparent 131px),
+    radial-gradient(circle at 92% 5%, rgba(131,58,29,.11) 0 100px, transparent 101px),
+    radial-gradient(circle at 4% 34%, rgba(131,58,29,.055) 0 130px, transparent 131px),
     linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px),
     var(--paper);
@@ -980,8 +980,8 @@ body {
 
 .status {
   border-color: var(--orange);
-  background: rgba(212,107,21,.12);
-  color: #f4b477;
+  background: rgba(131,58,29,.12);
+  color: #d4876a;
 }
 
 h1 .outline {
@@ -1000,11 +1000,11 @@ h1 .outline {
 
 .searchbox button {
   background: var(--orange);
-  color: #17110b;
+  color: #f5ebe2;
 }
 
 .searchbox button:hover {
-  background: #ef8528;
+  background: #a04a26;
 }
 
 .key {
@@ -1018,14 +1018,14 @@ h1 .outline {
 
 .core {
   background: var(--orange);
-  color: #18110b;
+  color: #f5ebe2;
   border-color: var(--orange);
-  box-shadow: 7px 7px 0 #3b2413;
+  box-shadow: 7px 7px 0 #5a2717;
 }
 
 .p1 {
   background: var(--orange);
-  color: #17110b;
+  color: #f5ebe2;
   border-color: var(--orange);
 }
 
@@ -1061,7 +1061,7 @@ h1 .outline {
 
 .filter-btn.active {
   background: var(--orange);
-  color: #17110b;
+  color: #f5ebe2;
 }
 
 .filter-icon {
@@ -1084,8 +1084,8 @@ h1 .outline {
 }
 
 .feature-card {
-  border-color: #8c4a15;
-  background: #241a12;
+  border-color: #b8663f;
+  background: #2d1f14;
 }
 
 .feature-card p {
@@ -1093,13 +1093,13 @@ h1 .outline {
 }
 
 .feature-badge {
-  border-color: #8c4a15;
-  color: #f4b477;
-  background: rgba(212,107,21,.1);
+  border-color: #b8663f;
+  color: #d4876a;
+  background: rgba(131,58,29,.1);
 }
 
 .feature-shape, .feature-shape:before {
-  border-color: rgba(212,107,21,.7);
+  border-color: rgba(131,58,29,.7);
 }
 
 .feature-side {
@@ -1114,7 +1114,7 @@ h1 .outline {
 
 .tool-card:hover {
   border-color: var(--orange);
-  box-shadow: 3px 4px 0 rgba(212,107,21,.12);
+  box-shadow: 3px 4px 0 rgba(131,58,29,.12);
 }
 
 .tool-icon {
@@ -1128,7 +1128,7 @@ h1 .outline {
 .tool-card[data-category="text"] .tool-icon,
 .tool-card[data-category="time"] .tool-icon {
   background: #2a2119;
-  color: #f4a45b;
+  color: #d4876a;
 }
 
 .pill {
@@ -1141,7 +1141,7 @@ h1 .outline {
 }
 
 .tool-bottom .status-label {
-  color: #d99a60;
+  color: #c9765a;
 }
 
 .empty {
@@ -1170,10 +1170,10 @@ h1 .outline {
 }
 
 .footer a:hover, .nav a:hover {
-  color: #f4a45b;
+  color: #d4876a;
 }
 
 ::selection {
-  background: rgba(212,107,21,.35);
+  background: rgba(131,58,29,.35);
   color: #fff;
 }
