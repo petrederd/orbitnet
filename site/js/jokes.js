@@ -76,7 +76,55 @@
 
     () => say('You pressed ' + st.clicks + ' times. The average human presses 3. You are not average.'),
 
-    () => say('Fine, ' + who() + '. Press as much as you like. Nothing matters.')
+    () => say('Fine, ' + who() + '. Press as much as you like. Nothing matters.'),
+
+    // ---- press 15: the background wakes up (see fx.js) ----
+    () => {
+      DPB.fx.rain(30); DPB.fx.peek();
+      say('Nothing matters. But the background just woke up, and it is hungry for attention.');
+      toast('Achievement: Woke the Background');
+      S.play('whoosh');
+    },
+
+    // ---- press 16: a fake pop-up ad ----
+    () => {
+      DPB.fx.popup();
+      say('Oh no. Ads. This is what happens when you press too much.');
+    },
+
+    // ---- press 17: the jump scare. Calm first, then boo. Can be switched off with the ghost button ----
+    async () => {
+      say('Look at this calm, peaceful screen. Stare at the middle of it.');
+      await sleep(2500 + Math.random() * 2500);
+      const scared = await DPB.fx.scare();
+      say(scared ? 'BOO! Sorry. (Not sorry.)' : 'Imagine a really scary face here. Boo.');
+      if (scared) toast('Achievement: Heart Rate +40');
+    },
+
+    // ---- press 18: the challenge ----
+    () => {
+      say("Okay, you're persistent. The next press starts a level. Beat it and I'll let you press the button. (Click, tap or Space to jump. On a phone, landscape is better.)");
+      toast('Achievement: Challenge Accepted?');
+      S.play('whoosh');
+    },
+
+    // ---- press 19: the level (see game.js). The finale of the level is pressing the button ----
+    async () => {
+      say('Good luck.');
+      await sleep(700);
+      const r = await DPB.game.play();
+      say(r.attempts === 1
+        ? 'First try?! Suspicious. Very suspicious.'
+        : 'Level complete in ' + r.attempts + ' attempts. And nothing happened. Obviously.');
+      toast('Achievement: Cube Runner');
+      S.play('win');
+    },
+
+    // ---- press 20 ----
+    () => {
+      DPB.fx.rain(40);
+      say('Now press ME as much as you like. I have nothing left to show you. (Probably.)');
+    }
   ];
 
   const late = [

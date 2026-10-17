@@ -22,6 +22,17 @@
   drawMute();
   muteBtn.addEventListener('click', () => { S.toggle(); drawMute(); S.play('click', 5); });
 
+  /* ----- jump scares on/off (the ghost button) ----- */
+  const scareBtn = document.getElementById('scares');
+  function drawScares() {
+    const on = DPB.fx.scaresOn();
+    scareBtn.textContent = on ? '👻' : '🙈';
+    scareBtn.title = on ? 'Jump scares: on (click to turn off)' : 'Jump scares: off (click to turn on)';
+    scareBtn.setAttribute('aria-label', scareBtn.title);
+  }
+  drawScares();
+  scareBtn.addEventListener('click', () => { DPB.fx.toggleScares(); drawScares(); S.play('click', 5); });
+
   /* ----- cookie banner ----- */
   cookie.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     U.hideCookie();
@@ -36,6 +47,7 @@
     DPB.store.set('dpb_total', String(st.total));
     countEl.textContent = 'Presses: ' + st.clicks;
     S.play('click', st.clicks);
+    DPB.fx.onPress(st.clicks);   // background reaction: ripple, falling buttons, peeking eyes, ads
 
     if (U.isRunaway()) return; // caught it mid-run: count it, but no new joke
 
@@ -46,6 +58,7 @@
       } else {
         U.say(pick(J.late).replace('{name}', st.name || 'friend'));
         if (Math.random() < 0.35) pick(J.lateEvents)();
+        else if (Math.random() < 0.05) DPB.fx.scare();   // rare surprise (never twice within 20 s)
       }
     } catch (e) {
       console.error(e);

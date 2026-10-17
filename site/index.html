@@ -9,7 +9,10 @@
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+  <canvas id="fx" aria-hidden="true"></canvas>
+
   <button id="mute" type="button" aria-label="Toggle sound" title="Sound on/off">🔊</button>
+  <button id="scares" type="button" aria-label="Jump scares on/off" title="Jump scares on/off">👻</button>
 
   <div id="msg" aria-live="polite">There is nothing here. Just don't press the button.</div>
   <button id="btn" type="button">DON'T PRESS</button>
@@ -70,9 +73,33 @@
     </div>
   </div>
 
+  <!-- fake pop-up ads (filled by fx.js) -->
+  <div id="popups"></div>
+
+  <!-- the jump scare: one cartoon face. Click it to close. -->
+  <div id="scare" hidden aria-hidden="true">
+    <div class="face">
+      <i class="eye l"></i><i class="eye r"></i>
+      <i class="brow l"></i><i class="brow r"></i>
+      <i class="mouth"></i>
+    </div>
+  </div>
+
+  <!-- the level (game.js). The finale is pressing the button. -->
+  <div id="game" hidden>
+    <canvas id="gd"></canvas>
+    <div id="gd-bar"><i id="gd-fill"></i></div>
+    <div id="gd-msg" aria-live="polite"></div>
+    <div id="gd-help">Click, tap or Space to jump. Hold to keep jumping.</div>
+    <button id="gd-skip" type="button" hidden>Skip level</button>
+    <button id="gd-final" type="button" hidden>PRESS</button>
+  </div>
+
   <script src="js/sound.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/fx.js"></script>
   <script src="js/signup.js"></script>
+  <script src="js/game.js"></script>
   <script src="js/jokes.js"></script>
   <script src="js/main.js"></script>
 </body>
