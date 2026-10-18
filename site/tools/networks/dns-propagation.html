@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="DNS Propagation Checker — compare answers from several public resolvers">
+<meta name="theme-color" content="#16161a">
+<title>DNS Propagation Checker — OrbitNet</title>
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2">
+<link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../index.html#about">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> /
+      <a href="../../index.html#tools">Tools</a> /
+      <span>DNS Propagation Checker</span>
+    </div>
+    <h1>DNS Propagation Checker</h1>
+    <p>Compare the answers of several public DNS resolvers for one record. Useful after changing an A, MX or NS record.</p>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Check</h2>
+    <div id="errorMsg"></div>
+    <div class="grid-2">
+      <div class="input-group">
+        <label for="host">Name</label>
+        <input type="text" id="host" value="example.com">
+      </div>
+      <div class="input-group">
+        <label for="type">Record type</label>
+        <select id="type" class="mode-selector" style="width:100%;padding:10px;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:var(--radius);">
+          <option>A</option><option>AAAA</option><option>MX</option>
+          <option>TXT</option><option>NS</option><option>CNAME</option>
+          <option>SOA</option><option>CAA</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn" onclick="check()">Check propagation</button>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Result</h2>
+    <div id="summary"></div>
+    <div id="results"><div style="text-align:center;padding:40px 20px;color:var(--muted);">Enter a name and click Check</div></div>
+  </div>
+
+  <div class="info-section">
+    <h3>How to read it</h3>
+    <p>Each resolver is queried independently. If every resolver returns the same set of records, the change has propagated to the resolvers used here. Differences usually mean caches have not expired yet — wait for the previous record's TTL.</p>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../index.html#about">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function showError(m) {
+  const el = document.getElementById('errorMsg');
+  el.innerHTML = '';
+  const div = document.createElement('div');
+  div.className = 'error';
+  div.textContent = String(m == null ? '' : m);
+  el.appendChild(div);
+}
+function clearError() { document.getElementById('errorMsg').innerHTML = ''; }
+
+function check() {
+  clearError();
+  const host = document.getElementById('host').value.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+  const type = document.getElementById('type').value;
+  if (!host) { showError('Please enter a name'); return; }
+
+  document.getElementById('results').innerHTML = '<div class="loading">Querying ' + esc(type) + ' across resolvers...</div>';
+  document.getElementById('summary').innerHTML = '';
+
+  fetch('/api/propagation?host=' + encodeURIComponent(host) + '&type=' + encodeURIComponent(type))
+    .then(r => r.json())
+    .then(d => { if (d.error) { showError(d.error); document.getElementById('results').innerHTML = ''; return; } render(d); })
+    .catch(e => { showError(e.message); document.getElementById('results').innerHTML = ''; });
+}
+
+function render(d) {
+  const list = d.resolvers || [];
+  const unique = new Set();
+  list.forEach(r => unique.add(r.error ? 'ERR:' + r.error : (r.records || []).join('|')));
+
+  let html = '';
+  list.forEach(r => {
+    let body;
+    if (r.error) {
+      body = '<div class="result-value" style="color:var(--danger);font-size:.9rem;">' + esc(r.error) + '</div>';
+    } else if (!r.records || !r.records.length) {
+      body = '<div class="result-value" style="color:var(--muted);font-size:.9rem;">No records</div>';
+    } else {
+      body = '<div class="result-value" style="font-family:monospace;font-size:.85rem;line-height:1.7;word-break:break-word;">' +
+        r.records.map(esc).join('<br>') + '</div>';
+    }
+    html += '<div class="result-box"><div class="result-label">' + esc(r.server) + '</div>' + body + '</div>';
+  });
+
+  let summary;
+  if (unique.size === 1) {
+    const only = [...unique][0];
+    if (only.startsWith('ERR:')) {
+      summary = '<div class="status-box error">All resolvers failed (' + esc(only.slice(4)) + ').</div>';
+    } else {
+      summary = '<div class="status-box success">All ' + list.length + ' resolvers returned identical answers.</div>';
+    }
+  } else {
+    summary = '<div class="status-box info">Resolvers disagree (' + unique.size + ' distinct answers) — propagation may be in progress.</div>';
+  }
+  document.getElementById('summary').innerHTML = summary;
+  document.getElementById('results').innerHTML = html;
+}
+
+check();
+</script>
+</body>
+</html>

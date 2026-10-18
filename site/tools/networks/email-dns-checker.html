@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Email DNS Checker — MX, SPF, DMARC, DKIM and PTR records for a domain">
+<meta name="theme-color" content="#16161a">
+<title>Email DNS Checker — OrbitNet</title>
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2">
+<link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../index.html#about">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> /
+      <a href="../../index.html#tools">Tools</a> /
+      <span>Email DNS Checker</span>
+    </div>
+    <h1>Email DNS Checker</h1>
+    <p>Check the DNS records that make email work for a domain: MX, SPF, DMARC, DKIM and the PTR of the primary mail server.</p>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Check</h2>
+    <div id="errorMsg"></div>
+    <div class="input-group">
+      <label for="host">Domain</label>
+      <input type="text" id="host" placeholder="example.com" value="gmail.com">
+    </div>
+    <div class="input-group">
+      <label for="selector">DKIM selector (optional)</label>
+      <input type="text" id="selector" placeholder="google">
+      <small>Looked up as &lt;selector&gt;._domainkey.&lt;domain&gt;.</small>
+    </div>
+    <button class="btn" onclick="check()">Check email DNS</button>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Result</h2>
+    <div id="results"><div style="text-align:center;padding:40px 20px;color:var(--muted);">Enter a domain and click Check</div></div>
+  </div>
+
+  <div class="info-section">
+    <h3>The records</h3>
+    <ul>
+      <li><strong>MX</strong> — where incoming mail for the domain should be delivered.</li>
+      <li><strong>SPF</strong> — a TXT record listing servers allowed to send mail for the domain.</li>
+      <li><strong>DMARC</strong> — a TXT record at <code>_dmarc</code> telling receivers how to handle failures.</li>
+      <li><strong>DKIM</strong> — a public key at <code>&lt;selector&gt;._domainkey</code> used to verify signed mail.</li>
+      <li><strong>PTR</strong> — reverse DNS for the mail server, used in reputation checks.</li>
+    </ul>
+    <p>These records describe configuration only. They do not by themselves guarantee that mail is delivered.</p>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../index.html#about">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function showError(m) {
+  const el = document.getElementById('errorMsg');
+  el.innerHTML = '';
+  const div = document.createElement('div');
+  div.className = 'error';
+  div.textContent = String(m == null ? '' : m);
+  el.appendChild(div);
+}
+function clearError() { document.getElementById('errorMsg').innerHTML = ''; }
+function block(label, body) {
+  return '<div class="result-box"><div class="result-label">' + esc(label) + '</div>' + body + '</div>';
+}
+function mono(lines) {
+  return '<div class="result-value" style="font-family:monospace;font-size:.85rem;line-height:1.7;word-break:break-word;">' + lines + '</div>';
+}
+
+function check() {
+  clearError();
+  const host = document.getElementById('host').value.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+  const selector = document.getElementById('selector').value.trim();
+  if (!host) { showError('Please enter a domain'); return; }
+
+  document.getElementById('results').innerHTML = '<div class="loading">Querying DNS...</div>';
+
+  const url = '/api/email?host=' + encodeURIComponent(host) + (selector ? '&selector=' + encodeURIComponent(selector) : '');
+  fetch(url).then(r => r.json()).then(d => {
+    if (d.error) { showError(d.error); document.getElementById('results').innerHTML = ''; return; }
+    render(host, d);
+  }).catch(e => { showError(e.message); document.getElementById('results').innerHTML = ''; });
+}
+
+function render(host, d) {
+  let html = '';
+  const errors = d.errors || {};
+
+  if (d.mx && d.mx.length) {
+    html += block('MX — mail servers (' + d.mx.length + ')', mono(
+      d.mx.map(m => esc(m.priority + '  ' + m.host)).join('<br>')));
+  } else {
+    html += block('MX — mail servers', '<div class="result-value" style="color:var(--danger)">Not found' +
+      (errors.mx ? ' (' + esc(errors.mx) + ')' : '') + ' — the domain cannot receive email.</div>');
+  }
+
+  if (d.mxPtr) {
+    html += block('PTR — reverse DNS of primary MX', mono(
+      esc(d.mxPtr.ip) + ' → ' + d.mxPtr.hostnames.map(esc).join(', ')));
+  }
+
+  html += block('SPF', d.spf
+    ? mono(esc(d.spf))
+    : '<div class="result-value" style="color:var(--warning)">Not found' + (errors.spf ? ' (' + esc(errors.spf) + ')' : '') + '</div>');
+
+  html += block('DMARC', d.dmarc
+    ? mono(esc(d.dmarc))
+    : '<div class="result-value" style="color:var(--warning)">Not found' + (errors.dmarc ? ' (' + esc(errors.dmarc) + ')' : '') + '</div>');
+
+  const sel = document.getElementById('selector').value.trim();
+  if (sel) {
+    html += block('DKIM — selector "' + sel + '"', (d.dkim && d.dkim.length)
+      ? mono(d.dkim.map(esc).join('<br>'))
+      : '<div class="result-value" style="color:var(--warning)">Not found' + (errors.dkim ? ' (' + esc(errors.dkim) + ')' : '') + '</div>');
+  } else {
+    html += block('DKIM', '<div class="result-value" style="color:var(--muted)">Enter a selector to look up a DKIM key.</div>');
+  }
+
+  document.getElementById('results').innerHTML = html;
+}
+
+check();
+</script>
+</body>
+</html>

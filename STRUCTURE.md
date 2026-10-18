@@ -70,7 +70,7 @@ orbitnet/
 │           └── lorem-ipsum-generator.html   Готов
 │
 ├── backend/                       # Node.js API-бэкенд (без внешних зависимостей)
-│   ├── server.js                  # HTTP-сервер: /api/ip, /api/dns, /api/port, /api/whois, /api/site
+│   ├── server.js                  # HTTP-сервер: 11 эндпоинтов (ip, dns, port, whois, site, headers, tls, email, propagation, redirect, health)
 │   ├── package.json
 │   └── Dockerfile                 # node:20-alpine
 │
@@ -187,6 +187,14 @@ orbitnet/
 - **IP / Binary Converter** (`ip-binary-converter.html`) — IPv4 ↔ binary/decimal/hex (клиентский)
 - **MAC Address Converter** (`mac-converter.html`) — форматы MAC, I/G и U/L биты, OUI (клиентский)
 - **Reverse IP Lookup** (`reverse-ip.html`) — PTR-запись для IP/домена (через `/api/dns?type=PTR`)
+- **SSL/TLS Checker** (`ssl-checker.html`) — срок, издатель, SAN, цепочка, совпадение имени (через `/api/tls`)
+- **HTTP Headers Inspector** (`http-headers.html`) — заголовки ответа и предупреждения по security-заголовкам (через `/api/headers`)
+- **Email DNS Checker** (`email-dns-checker.html`) — MX, SPF, DMARC, DKIM и PTR (через `/api/email`)
+- **DNS Propagation Checker** (`dns-propagation.html`) — ответы нескольких публичных резолверов (через `/api/propagation`)
+- **Redirect Checker** (`redirect-checker.html`) — цепочка перенаправлений и конечный адрес (через `/api/redirect`)
+- **Website Health Check** (`website-health.html`) — объединённый отчёт DNS/TLS/доступность/заголовки (через `/api/dns`, `/api/site`, `/api/tls`, `/api/headers`)
+- **Network Diagnostics** (`network-diagnostics.html`) — прямой/обратный DNS и TCP-порт (через `/api/ip`, `/api/dns`, `/api/port`)
+- **Email Deliverability Check** (`email-deliverability.html`) — разбор почтовых DNS-настроек с пояснениями (через `/api/email`)
 
 ---
 
@@ -201,6 +209,7 @@ orbitnet/
 - **Timestamp Converter** (`timestamp-converter.html`) — Unix ↔ ISO 8601 ↔ локальное время, live-часы
 - **Regex Tester** (`regex-tester.html`) — тест регулярок с флагами, подсветкой и группами
 - **Color Converter** (`color-converter.html`) — HEX ↔ RGB ↔ HSL
+- **JWT Decoder** (`jwt-decoder.html`) — разбор header/payload/claims JWT локально в браузере (клиентский, без отправки токена)
 
 ---
 
@@ -217,13 +226,13 @@ orbitnet/
 
 **Возможности**:
 - HTTP-сервер только на встроенных модулях Node (`http`, `https`, `tls`, `dns`, `net`)
-- Эндпоинты: `/health`, `/api/ip`, `/api/dns` (A, AAAA, MX, TXT, NS, CNAME, SOA, CAA, PTR для IP), `/api/port`, `/api/whois`, `/api/site`
-- Защита от SSRF: разрешены только валидные домены и публичные IP; отклоняются loopback, RFC 1918, link-local, CGNAT, multicast, Teredo, 6to4, NAT64, IPv4-mapped/-compatible и другие непубличные диапазоны IPv4/IPv6 через `net.BlockList`; проверяются все адреса из DNS; соединение идёт на проверенный IP (защита от DNS-rebinding)
-- Редиректы в `/api/site` не следуются, небезопасные схемы отбрасываются
-- TLS-сертификаты проверяются штатно (без `rejectUnauthorized: false`)
-- Таймауты, ограничение числа одновременных исходящих проверок с ограниченной очередью (503) и лимит частоты запросов (429), включая `/api/ip`; `MAX_CONCURRENT`/`MAX_QUEUE` валидируются при старте
-- Строгая валидация порта (1-65535, только цифры)
-- PTR-запросы работают для IPv4 и IPv6
+- Эндпоинты: `/health`, `/api/ip`, `/api/dns` (A, AAAA, MX, TXT, NS, CNAME, SOA, CAA, PTR для IP), `/api/port`, `/api/whois`, `/api/site`, `/api/headers`, `/api/tls`, `/api/email`, `/api/propagation`, `/api/redirect`
+- Защита от SSRF: разрешены только валидные домены и публичные IP; отклоняются loopback, RFC 1918, link-local, CGNAT, multicast, Teredo, 6to4, NAT64, IPv4-mapped/-compatible и другие непубличные диапазоны IPv4/IPv6 через `net.BlockList`; проверяются все адреса из DNS; соединение идёт на проверенный IP (защита от DNS-rebinding); в `/api/redirect` каждый переход проверяется отдельно и приватный адрес прерывает цепочку
+- Редиректы в `/api/site` и `/api/headers` не следуются, небезопасные схемы отбрасываются
+- TLS-сертификаты проверяются штатно (без `rejectUnauthorized: false`) для `/api/site` и `/api/headers`; `/api/tls` намеренно подключается без проверки, чтобы показать просроченные/самоподписанные сертификаты, и явно сообщает результат (`authorized`, `authorizationError`, совпадение имени, срок)
+- Таймауты (включая DNS-запросы `/api/email`), ограничение числа одновременных исходящих проверок с ограниченной очередью (503) и лимит частоты запросов (429), включая `/api/ip`; `MAX_CONCURRENT`/`MAX_QUEUE` валидируются при старте
+- Строгая валидация порта (1-65535, только цифры) и DKIM-селектора
+- `/api/propagation` опрашивает фиксированный список публичных резолверов (не пользовательский)
 - IPv4-mapped IPv6 нормализуется в IPv4 в любой нотации (защита от обхода блок-листа)
 - Определение IP клиента по `X-Real-IP` (выставляет nginx после разбора цепочки доверенных прокси); `X-Forwarded-For` — только как запасной вариант с пропуском приватных хопов
 - Валидация хостов, ограничение размера ответа whois
@@ -327,18 +336,18 @@ cp site/tools/_template.html site/tools/[category]/[tool-name].html
 
 ### Статистика кода (оценка)
 ```
-HTML:  ~4500 строк (главная + 31 инструмент + шаблон)
+HTML:  ~6000 строк (главная + 40 инструментов + шаблон)
 CSS:   ~600 строк  (темная тема, компоненты)
-JS:    ~2200 строк (главная + инструменты)
-Node:  ~300 строк  (бэкенд)
+JS:    ~3000 строк (главная + инструменты)
+Node:  ~600 строк  (бэкенд)
 ───────────────────
-Всего: ~7600 строк кода
+Всего: ~10200 строк кода
 ```
 
 ### Готовность инструментов
--  **31 готовый** (10 networks, 8 developer, 2 electricity, 7 math, 4 text)
+-  **40 готовых** (18 networks, 9 developer, 2 electricity, 7 math, 4 text)
 -  **Запланированы**: electronics-инструменты (resistor, LED, voltage divider) и др.
--  **Цель**: 40+ к концу 2026 года
+-  **Цель**: 40+ к концу 2026 года (достигнута)
 
 ### Производительность
 - Главная страница: ~100KB (HTML + CSS + JS)
@@ -381,6 +390,15 @@ Node:  ~300 строк  (бэкенд)
 ---
 
 ## 🔄 История изменений
+
+### v0.4.0 (18 октября 2026)
+- Добавлены 9 инструментов: SSL/TLS Checker, HTTP Headers Inspector, Email DNS Checker, DNS Propagation Checker, Redirect Checker, Website Health Check, Network Diagnostics, Email Deliverability Check (Networks) и JWT Decoder (Developer)
+- Новые эндпоинты: `/api/headers`, `/api/tls`, `/api/email`, `/api/propagation`, `/api/redirect`; все под SSRF-защитой, таймаутами и rate-limit
+- `/api/tls` намеренно подключается без проверки сертификата, чтобы показывать проблемные сертификаты, и явно сообщает результат проверки
+- `/api/redirect` проверяет каждую точку перенаправления отдельно (до 10 хопов), приватные адреса прерывают цепочку
+- `/api/propagation` опрашивает 7 фиксированных публичных резолверов параллельно
+- DNS-запросы `/api/email` ограничены таймаутом
+- Главная страница: 40 карточек, счётчики all=40, networks=18, developer=9
 
 ### v0.3.3 (18 октября 2026)
 - `normalizeIp` схлопывает IPv4-mapped IPv6 в любой нотации (включая полную форму `0:0:0:0:0:ffff:c0a8:0101`)

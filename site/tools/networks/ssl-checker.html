@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="SSL/TLS Checker — certificate validity, issuer, SANs, chain and hostname match">
+<meta name="theme-color" content="#16161a">
+<title>SSL/TLS Checker — OrbitNet</title>
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2">
+<link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../index.html#about">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> /
+      <a href="../../index.html#tools">Tools</a> /
+      <span>SSL/TLS Checker</span>
+    </div>
+    <h1>SSL/TLS Checker</h1>
+    <p>Inspect a server's TLS certificate: validity period, issuer, subject alternative names, certificate chain and hostname match.</p>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Check</h2>
+    <div id="errorMsg"></div>
+    <div class="input-group">
+      <label for="host">Host</label>
+      <input type="text" id="host" placeholder="example.com" value="example.com">
+    </div>
+    <div class="input-group">
+      <label for="port">Port</label>
+      <input type="text" id="port" value="443" inputmode="numeric">
+      <small>Default 443. Use another port for services on e.g. 8443.</small>
+    </div>
+    <button class="btn" onclick="check()">Check certificate</button>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Result</h2>
+    <div id="results">
+      <div style="text-align:center;padding:40px 20px;color:var(--muted);">Enter a host and click Check</div>
+    </div>
+  </div>
+
+  <div class="info-section">
+    <h3>What is checked</h3>
+    <ul>
+      <li><strong>Validity:</strong> certificate not-before / not-after dates and days remaining.</li>
+      <li><strong>Trust:</strong> whether the certificate chains to a trusted root.</li>
+      <li><strong>Hostname match:</strong> the certificate must cover the requested host (CN or SAN).</li>
+      <li><strong>Chain:</strong> the certificates sent by the server, up to the root.</li>
+    </ul>
+    <p>The TLS handshake is performed by our server so the connection only ever goes to the resolved public IP of the host you entered.</p>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../index.html#about">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function showError(m) {
+  const el = document.getElementById('errorMsg');
+  el.innerHTML = '';
+  const div = document.createElement('div');
+  div.className = 'error';
+  div.textContent = String(m == null ? '' : m);
+  el.appendChild(div);
+}
+function clearError() { document.getElementById('errorMsg').innerHTML = ''; }
+
+function fmtDate(v) {
+  if (!v) return '—';
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? String(v) : d.toISOString().replace('T', ' ').replace(/\..+/, ' UTC');
+}
+function name(obj) {
+  if (!obj) return '—';
+  const parts = [obj.CN, obj.O].filter(Boolean);
+  return parts.length ? parts.join(' — ') : '—';
+}
+function box(label, value, cls) {
+  return '<div class="result-box"><div class="result-label">' + esc(label) + '</div>' +
+    '<div class="result-value" style="font-size:1rem;' + (cls ? 'color:' + cls + ';' : '') + '">' + esc(value) + '</div></div>';
+}
+function listSans(s) {
+  if (!s) return [];
+  return s.split(',').map(x => x.trim()).filter(Boolean).map(x => x.replace(/^DNS:/i, ''));
+}
+
+function check() {
+  clearError();
+  const host = document.getElementById('host').value.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+  const port = document.getElementById('port').value.trim() || '443';
+  if (!host) { showError('Please enter a host'); return; }
+  if (!/^\d{1,5}$/.test(port)) { showError('Port must be a number 1-65535'); return; }
+
+  const res = document.getElementById('results');
+  res.innerHTML = '<div class="loading">Connecting to ' + esc(host) + ':' + esc(port) + '...</div>';
+
+  fetch('/api/tls?host=' + encodeURIComponent(host) + '&port=' + port)
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { showError(data.error); res.innerHTML = ''; return; }
+      render(host, port, data);
+    })
+    .catch(e => { showError(e.message); res.innerHTML = ''; });
+}
+
+function render(host, port, d) {
+  const expired = d.daysRemaining != null && d.daysRemaining < 0;
+  const expiringSoon = d.daysRemaining != null && d.daysRemaining >= 0 && d.daysRemaining < 30;
+  const ok = d.authorized && d.hostnameMatch && !expired;
+
+  let statusCls = 'error';
+  let statusText = 'Certificate is not trusted or invalid';
+  if (ok && expiringSoon) { statusCls = 'info'; statusText = 'Valid, but expires soon'; }
+  else if (ok) { statusCls = 'success'; statusText = 'Certificate is valid and trusted'; }
+
+  let html = '<div class="status-box ' + statusCls + '">' + esc(statusText) + '</div>';
+
+  html += '<div class="grid-2" style="margin-top:14px;">';
+  html += box('Trust', d.authorized ? 'Trusted chain' : 'Not trusted' + (d.authorizationError ? ' (' + d.authorizationError + ')' : ''), d.authorized ? 'var(--accent)' : 'var(--danger)');
+  html += box('Hostname match', d.hostnameMatch ? 'Yes' : 'No — ' + (d.hostnameError || 'mismatch'), d.hostnameMatch ? 'var(--accent)' : 'var(--danger)');
+  html += box('Days remaining', d.daysRemaining == null ? '—' : String(d.daysRemaining), expired ? 'var(--danger)' : (expiringSoon ? 'var(--warning)' : 'var(--accent)'));
+  html += box('Protocol / cipher', (d.protocol || '—') + ' / ' + (d.cipher || '—'));
+  html += '</div>';
+
+  html += '<div class="grid-2">';
+  html += box('Issued to', name(d.subject));
+  html += box('Issued by', name(d.issuer));
+  html += box('Valid from', fmtDate(d.valid_from));
+  html += box('Valid to', fmtDate(d.valid_to));
+  html += '</div>';
+
+  const sans = listSans(d.subjectaltname);
+  if (sans.length) {
+    html += '<div class="result-box"><div class="result-label">Subject alternative names (' + sans.length + ')</div>' +
+      '<div class="result-value" style="font-size:.9rem;line-height:1.7;">' + sans.map(esc).join('<br>') + '</div></div>';
+  }
+
+  if (Array.isArray(d.chain) && d.chain.length) {
+    let chain = '<div class="result-box"><div class="result-label">Certificate chain (' + d.chain.length + ')</div>' +
+      '<div class="result-value" style="font-size:.9rem;line-height:1.8;">';
+    d.chain.forEach((c, i) => {
+      chain += '<div>' + (i + 1) + '. ' + esc(name(c.subject)) + (c.selfSigned ? ' <span class="result-sub">(self-signed)</span>' : '') + '</div>';
+    });
+    chain += '</div></div>';
+    html += chain;
+  }
+
+  document.getElementById('results').innerHTML = html;
+}
+
+check();
+</script>
+</body>
+</html>

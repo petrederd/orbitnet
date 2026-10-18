@@ -51,10 +51,10 @@
       <aside class="filters" aria-label="Filter tools by category">
         <h3>Toolboxes</h3>
         <div class="filter-list" id="filterList">
-          <button class="filter-btn active" data-filter="all"><span class="filter-icon">◈</span> All tools <span class="filter-count">31</span></button>
-          <button class="filter-btn" data-filter="networks"><span class="filter-icon">⌘</span> Networks <span class="filter-count">10</span></button>
+          <button class="filter-btn active" data-filter="all"><span class="filter-icon">◈</span> All tools <span class="filter-count">40</span></button>
+          <button class="filter-btn" data-filter="networks"><span class="filter-icon">⌘</span> Networks <span class="filter-count">18</span></button>
           <button class="filter-btn" data-filter="electricity"><span class="filter-icon">ϟ</span> Electricity <span class="filter-count">2</span></button>
-          <button class="filter-btn" data-filter="developer"><span class="filter-icon">{ }</span> Developer <span class="filter-count">8</span></button>
+          <button class="filter-btn" data-filter="developer"><span class="filter-icon">{ }</span> Developer <span class="filter-count">9</span></button>
           <button class="filter-btn" data-filter="math"><span class="filter-icon">∑</span> Math <span class="filter-count">7</span></button>
           <button class="filter-btn" data-filter="text"><span class="filter-icon">Aa</span> Text <span class="filter-count">4</span></button>
         </div>
@@ -62,7 +62,7 @@
 
       <div class="tools-area">
         <div class="tools-toolbar">
-          <div class="results-count" id="resultsCount" aria-live="polite">Showing all 31 tools</div>
+          <div class="results-count" id="resultsCount" aria-live="polite">Showing all 40 tools</div>
           <select class="sort" id="sortSelect" aria-label="Sort tools">
             <option value="featured">Sort: Default</option>
             <option value="az">Name: A to Z</option>
@@ -225,6 +225,51 @@
             <div class="tool-top"><span class="tool-icon">◐</span><span class="pill">Developer</span></div>
             <h3>Color Converter</h3><p>Convert colors between HEX, RGB and HSL, with a live picker and preview.</p>
             <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/developer/color-converter.html">Open</a></div>
+          </article>
+          <article class="tool-card" data-category="networks" data-name="SSL/TLS Checker" data-order="32">
+            <div class="tool-top"><span class="tool-icon">⌘</span><span class="pill">Networks</span></div>
+            <h3>SSL/TLS Checker</h3><p>Inspect certificate validity, issuer, SANs, chain and hostname match for a server.</p>
+            <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/networks/ssl-checker.html">Open</a></div>
+          </article>
+          <article class="tool-card" data-category="networks" data-name="HTTP Headers Inspector" data-order="33">
+            <div class="tool-top"><span class="tool-icon">⌘</span><span class="pill">Networks</span></div>
+            <h3>HTTP Headers Inspector</h3><p>Response status and headers, including HSTS, CSP and other security headers, with warnings.</p>
+            <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/networks/http-headers.html">Open</a></div>
+          </article>
+          <article class="tool-card" data-category="networks" data-name="Email DNS Checker" data-order="34">
+            <div class="tool-top"><span class="tool-icon">⌘</span><span class="pill">Networks</span></div>
+            <h3>Email DNS Checker</h3><p>Check MX, SPF, DMARC, DKIM and PTR records for a domain.</p>
+            <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/networks/email-dns-checker.html">Open</a></div>
+          </article>
+          <article class="tool-card" data-category="networks" data-name="DNS Propagation Checker" data-order="35">
+            <div class="tool-top"><span class="tool-icon">⌘</span><span class="pill">Networks</span></div>
+            <h3>DNS Propagation Checker</h3><p>Compare answers from several public resolvers to see whether a record change has propagated.</p>
+            <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/networks/dns-propagation.html">Open</a></div>
+          </article>
+          <article class="tool-card" data-category="networks" data-name="Redirect Checker" data-order="36">
+            <div class="tool-top"><span class="tool-icon">⌘</span><span class="pill">Networks</span></div>
+            <h3>Redirect Checker</h3><p>Follow the redirect chain, showing every HTTP status code and the final URL.</p>
+            <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/networks/redirect-checker.html">Open</a></div>
+          </article>
+          <article class="tool-card" data-category="networks" data-name="Website Health Check" data-order="37">
+            <div class="tool-top"><span class="tool-icon">⌘</span><span class="pill">Networks</span></div>
+            <h3>Website Health Check</h3><p>One report combining DNS, TLS, reachability and HTTP security headers.</p>
+            <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/networks/website-health.html">Open</a></div>
+          </article>
+          <article class="tool-card" data-category="networks" data-name="Network Diagnostics" data-order="38">
+            <div class="tool-top"><span class="tool-icon">⌘</span><span class="pill">Networks</span></div>
+            <h3>Network Diagnostics</h3><p>Forward and reverse DNS plus a TCP port check in a single page.</p>
+            <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/networks/network-diagnostics.html">Open</a></div>
+          </article>
+          <article class="tool-card" data-category="networks" data-name="Email Deliverability Check" data-order="39">
+            <div class="tool-top"><span class="tool-icon">⌘</span><span class="pill">Networks</span></div>
+            <h3>Email Deliverability Check</h3><p>Analyse MX, SPF, DMARC and DKIM and explain common email configuration mistakes.</p>
+            <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/networks/email-deliverability.html">Open</a></div>
+          </article>
+          <article class="tool-card" data-category="developer" data-name="JWT Decoder" data-order="40">
+            <div class="tool-top"><span class="tool-icon">{ }</span><span class="pill">Developer</span></div>
+            <h3>JWT Decoder</h3><p>Decode a JWT header and payload locally in your browser and inspect its claims.</p>
+            <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/developer/jwt-decoder.html">Open</a></div>
           </article>
         </div>
         <div class="empty" id="emptyState"><strong>No tools found.</strong>Try another search term or choose a different category.</div>

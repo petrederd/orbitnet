@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Redirect Checker — follow the HTTP redirect chain and show status codes and the final URL">
+<meta name="theme-color" content="#16161a">
+<title>Redirect Checker — OrbitNet</title>
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2">
+<link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../index.html#about">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> /
+      <a href="../../index.html#tools">Tools</a> /
+      <span>Redirect Checker</span>
+    </div>
+    <h1>Redirect Checker</h1>
+    <p>Follow an HTTP redirect chain, showing every status code and the final destination. Handy when configuring redirects in Caddy or nginx.</p>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Check</h2>
+    <div id="errorMsg"></div>
+    <div class="input-group">
+      <label for="host">Host</label>
+      <input type="text" id="host" placeholder="example.com" value="google.com">
+    </div>
+    <button class="btn" onclick="check()">Trace redirects</button>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Result</h2>
+    <div id="results"><div style="text-align:center;padding:40px 20px;color:var(--muted);">Enter a host and click Trace</div></div>
+  </div>
+
+  <div class="info-section">
+    <h3>Notes</h3>
+    <ul>
+      <li>Only up to 10 hops are followed; a longer chain is reported as unsafe.</li>
+      <li>Redirects to private or non-public addresses are refused.</li>
+      <li>Prefer a single permanent redirect (301) to HTTPS instead of long chains — each hop adds latency.</li>
+    </ul>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../index.html#about">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function showError(m) {
+  const el = document.getElementById('errorMsg');
+  el.innerHTML = '';
+  const div = document.createElement('div');
+  div.className = 'error';
+  div.textContent = String(m == null ? '' : m);
+  el.appendChild(div);
+}
+function clearError() { document.getElementById('errorMsg').innerHTML = ''; }
+
+function codeColor(s) {
+  if (s == null) return 'var(--danger)';
+  if (s >= 200 && s < 300) return 'var(--accent)';
+  if (s >= 300 && s < 400) return 'var(--warning)';
+  return 'var(--danger)';
+}
+
+function check() {
+  clearError();
+  const host = document.getElementById('host').value.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+  if (!host) { showError('Please enter a host'); return; }
+
+  document.getElementById('results').innerHTML = '<div class="loading">Tracing redirects...</div>';
+
+  fetch('/api/redirect?host=' + encodeURIComponent(host))
+    .then(r => r.json())
+    .then(d => { if (d.error) { showError(d.error); document.getElementById('results').innerHTML = ''; return; } render(d); })
+    .catch(e => { showError(e.message); document.getElementById('results').innerHTML = ''; });
+}
+
+function render(d) {
+  const chain = d.chain || [];
+  const httpsIssue = chain.some(c => /^http:\/\//i.test(c.url));
+  const tooLong = chain.length >= 10;
+
+  let status = '<div class="status-box success">Reached ' + esc(d.finalUrl) + ' in ' + chain.length + ' request(s).</div>';
+  if (tooLong) status = '<div class="status-box error">Redirect chain is too long (10+ hops).</div>';
+  else if (chain.some(c => c.blocked)) status = '<div class="status-box error">Chain stopped: a redirect points to a private address.</div>';
+  else if (chain.some(c => c.error)) status = '<div class="status-box error">A hop failed.</div>';
+  else if (httpsIssue) status = '<div class="status-box info">Chain reaches ' + esc(d.finalUrl) + ', but some hops use plain HTTP.</div>';
+
+  let html = status + '<div class="result-box" style="margin-top:14px;"><div class="result-label">Final URL</div>' +
+    '<div class="result-value" style="font-size:.95rem;word-break:break-all;">' + esc(d.finalUrl) + '</div></div>';
+
+  html += '<div class="result-box"><div class="result-label">Chain</div><div style="margin-top:8px;">';
+  chain.forEach((c, i) => {
+    html += '<div style="display:flex;gap:10px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--line);">' +
+      '<span style="font-weight:700;color:' + codeColor(c.status) + ';min-width:42px;">' + esc(c.status == null ? 'ERR' : c.status) + '</span>' +
+      '<span style="font-family:monospace;font-size:.82rem;word-break:break-all;flex:1;">' + esc(c.url) +
+      (c.location ? '<br><span style="color:var(--muted)">→ ' + esc(c.location) + '</span>' : '') +
+      (c.error ? '<br><span style="color:var(--danger)">' + esc(c.error) + '</span>' : '') +
+      (c.blocked ? '<br><span style="color:var(--danger)">blocked</span>' : '') +
+      (c.ms != null ? '<br><span style="color:var(--muted)">' + esc(c.ms) + ' ms</span>' : '') +
+      '</span></div>';
+  });
+  html += '</div></div>';
+
+  document.getElementById('results').innerHTML = html;
+}
+
+check();
+</script>
+</body>
+</html>

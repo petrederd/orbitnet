@@ -6,10 +6,10 @@
 
 | Параметр | Значение |
 |----------|----------|
-| **Версия** | 0.3.0 (октябрь 2026) |
+| **Версия** | 0.4.0 (октябрь 2026) |
 | **Статус** | Активная разработка |
-| **Инструментов готово** | 31 |
-| **Реализовано** | Главная страница (тёмная тема), 31 инструмент, Node.js API-бэкенд |
+| **Инструментов готово** | 40 |
+| **Реализовано** | Главная страница (тёмная тема), 40 инструментов, Node.js API-бэкенд |
 
 ---
 
@@ -23,7 +23,7 @@
 - [x] Модульная структура проекта (HTML/CSS/JS)
 
 ### Фаза 1: Первые инструменты ✓ (завершена)
-**Статус**: 31 инструмент готов и работает
+**Статус**: 40 инструментов готовы и работают
 
 #### ✓ Базовые инструменты
 - [x] **IPv4 Subnet Calculator**, **JSON Formatter**, **IP Lookup**, **Ohm's Law**, **NE555 Timer**
@@ -32,9 +32,12 @@
 #### ✓ Сетевые инструменты (через API-бэкенд и клиентские)
 - [x] **DNS Lookup**, **Port Checker**, **IP & Domain Info**, **Site Info**
 - [x] **CIDR / Netmask Converter**, **IP / Binary Converter**, **MAC Address Converter**, **Reverse IP Lookup**
+- [x] **SSL/TLS Checker**, **HTTP Headers Inspector**, **Email DNS Checker**, **DNS Propagation Checker**
+- [x] **Redirect Checker**, **Website Health Check**, **Network Diagnostics**, **Email Deliverability Check**
 
 #### ✓ Developer
 - [x] **Password Generator**, **Hash Generator**, **Timestamp Converter**, **Regex Tester**, **Color Converter**
+- [x] **JWT Decoder**
 
 #### ✓ Math
 - [x] **Number Base Converter**, **Scientific Notation**, **Statistics Calculator**, **Prime Checker**
@@ -198,8 +201,8 @@ orbitnet/
 - [ ] Поддержка браузеров: Chrome 90+, Firefox 88+, Safari 14+, Edge 90+
 
 ### Пользовательские метрики
-- [x] 31 работающий инструмент (октябрь 2026)
-- [ ] 40+ инструментов к концу 2026
+- [x] 40 работающих инструментов (октябрь 2026)
+- [x] 40+ инструментов к концу 2026 (достигнута)
 - [ ] Документация для каждого инструмента
 - [ ] Примеры использования для всех инструментов
 - [ ] 95%+ положительных отзывов

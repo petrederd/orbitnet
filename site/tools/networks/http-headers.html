@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="HTTP Headers Inspector — response status, content type, caching and security headers with explanations">
+<meta name="theme-color" content="#16161a">
+<title>HTTP Headers Inspector — OrbitNet</title>
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2">
+<link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../index.html#about">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> /
+      <a href="../../index.html#tools">Tools</a> /
+      <span>HTTP Headers Inspector</span>
+    </div>
+    <h1>HTTP Headers Inspector</h1>
+    <p>Fetch the response headers of a URL — status, content type, caching and security headers — with explanations of what is missing.</p>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Inspect</h2>
+    <div id="errorMsg"></div>
+    <div class="input-group">
+      <label for="host">Host</label>
+      <input type="text" id="host" placeholder="example.com" value="github.com">
+    </div>
+    <button class="btn" onclick="check()">Fetch headers</button>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Warnings</h2>
+    <div id="audit"><div style="text-align:center;padding:20px;color:var(--muted);">No check run yet</div></div>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Response headers</h2>
+    <div id="results"><div style="text-align:center;padding:20px;color:var(--muted);">—</div></div>
+  </div>
+
+  <div class="info-section">
+    <h3>About security headers</h3>
+    <ul>
+      <li><strong>Strict-Transport-Security</strong> — forces browsers to use HTTPS.</li>
+      <li><strong>Content-Security-Policy</strong> — limits which scripts and resources the page may load.</li>
+      <li><strong>X-Content-Type-Options: nosniff</strong> — blocks MIME-type sniffing.</li>
+      <li><strong>X-Frame-Options</strong> — controls whether the page may be embedded in frames.</li>
+      <li><strong>Referrer-Policy</strong> — limits how much referrer information is sent.</li>
+      <li><strong>Permissions-Policy</strong> — restricts browser features such as camera and geolocation.</li>
+    </ul>
+    <p>Redirects are not followed: the status and headers of the first response are shown as-is.</p>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../index.html#about">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function showError(m) {
+  const el = document.getElementById('errorMsg');
+  el.innerHTML = '';
+  const div = document.createElement('div');
+  div.className = 'error';
+  div.textContent = String(m == null ? '' : m);
+  el.appendChild(div);
+}
+function clearError() { document.getElementById('errorMsg').innerHTML = ''; }
+
+const AUDIT = [
+  { name: 'strict-transport-security', label: 'HSTS', hint: 'Add Strict-Transport-Security: max-age=31536000; includeSubDomains (HTTPS only).' },
+  { name: 'content-security-policy', label: 'CSP', hint: 'Define a Content-Security-Policy to reduce XSS risk.' },
+  { name: 'x-content-type-options', label: 'nosniff', expect: 'nosniff', hint: 'Set X-Content-Type-Options: nosniff.' },
+  { name: 'x-frame-options', label: 'X-Frame-Options', hint: 'Set X-Frame-Options: DENY or SAMEORIGIN (or use CSP frame-ancestors).' },
+  { name: 'referrer-policy', label: 'Referrer-Policy', hint: 'Set Referrer-Policy: strict-origin-when-cross-origin.' },
+  { name: 'permissions-policy', label: 'Permissions-Policy', hint: 'Consider a Permissions-Policy to disable unused features.' }
+];
+
+function check() {
+  clearError();
+  const host = document.getElementById('host').value.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+  if (!host) { showError('Please enter a host'); return; }
+
+  document.getElementById('results').innerHTML = '<div class="loading">Fetching headers...</div>';
+  document.getElementById('audit').innerHTML = '<div class="loading">Checking...</div>';
+
+  fetch('/api/headers?host=' + encodeURIComponent(host))
+    .then(r => r.json())
+    .then(d => { if (d.error) { showError(d.error); } render(d); })
+    .catch(e => { showError(e.message); });
+}
+
+function render(d) {
+  const map = {};
+  (d.headers || []).forEach(h => { map[h.name.toLowerCase()] = h.value; });
+
+  let html = '<div class="grid-2">' +
+    '<div class="result-box"><div class="result-label">Status</div><div class="result-value" style="font-size:1.4rem;color:' + (d.status && d.status < 400 ? 'var(--accent)' : 'var(--danger)') + '">' + esc(d.status == null ? '—' : d.status) + '</div></div>' +
+    '<div class="result-box"><div class="result-label">Protocol</div><div class="result-value" style="font-size:1.4rem;">' + esc(d.protocol || '—') + '</div></div>' +
+    '<div class="result-box"><div class="result-label">Resolved IP</div><div class="result-value">' + esc(d.ip || '—') + '</div></div>' +
+    '<div class="result-box"><div class="result-label">Response time</div><div class="result-value">' + esc(d.responseMs == null ? '—' : d.responseMs + ' ms') + '</div></div>' +
+    '</div>';
+
+  if (d.redirect) {
+    html += '<div class="result-box"><div class="result-label">Location</div><div class="result-value" style="font-size:.9rem;">' + esc(d.redirect) + '</div></div>';
+  }
+
+  if (d.headers && d.headers.length) {
+    let rows = '<div class="result-box"><div class="result-label">All headers (' + d.headers.length + ')</div>' +
+      '<div style="margin-top:8px;font-family:monospace;font-size:.82rem;line-height:1.7;word-break:break-word;">';
+    d.headers.forEach(h => {
+      rows += '<div><span style="color:var(--accent)">' + esc(h.name) + '</span>: ' + esc(h.value) + '</div>';
+    });
+    rows += '</div></div>';
+    html += rows;
+  } else {
+    html += '<div class="result-box"><div class="result-label">Headers</div><div class="result-value">No headers received</div></div>';
+  }
+
+  document.getElementById('results').innerHTML = html;
+
+  let audit = '';
+  AUDIT.forEach(a => {
+    if (d.protocol !== 'https' && a.name === 'strict-transport-security') {
+      audit += '<div class="status-box info">HSTS skipped — the site is served over plain HTTP.</div>';
+      return;
+    }
+    const val = map[a.name];
+    if (val && (!a.expect || val.toLowerCase().includes(a.expect))) {
+      audit += '<div class="status-box success">' + esc(a.label) + ' present</div>';
+    } else {
+      audit += '<div class="status-box error">' + esc(a.label) + ' missing — ' + esc(a.hint) + '</div>';
+    }
+  });
+  if (map['cache-control']) {
+    audit += '<div class="status-box info">Cache-Control: ' + esc(map['cache-control']) + '</div>';
+  } else {
+    audit += '<div class="status-box info">No Cache-Control header — caching behaviour is left to defaults.</div>';
+  }
+  document.getElementById('audit').innerHTML = audit;
+}
+
+check();
+</script>
+</body>
+</html>

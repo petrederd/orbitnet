@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="JWT Decoder — decode a JSON Web Token header and payload locally in your browser">
+<meta name="theme-color" content="#16161a">
+<title>JWT Decoder — OrbitNet</title>
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2">
+<link rel="stylesheet" href="../../assets/css/style.css">
+<style>
+  .jwt-part { font-family: monospace; word-break: break-all; font-size: .82rem; line-height: 1.6; }
+  pre.jwt-json { margin: 8px 0 0; padding: 12px; background: var(--paper); border: 1px solid var(--line); border-radius: 6px; overflow: auto; font-size: .82rem; line-height: 1.6; }
+</style>
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../index.html#about">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> /
+      <a href="../../index.html#tools">Tools</a> /
+      <span>JWT Decoder</span>
+    </div>
+    <h1>JWT Decoder</h1>
+    <p>Decode the header and payload of a JSON Web Token. Everything runs locally in your browser — the token is never sent anywhere.</p>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Token</h2>
+    <div id="errorMsg"></div>
+    <div class="textarea-wrapper">
+      <textarea id="token" spellcheck="false" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"></textarea>
+    </div>
+    <div class="toolbar" style="margin-top:12px;">
+      <button class="btn" onclick="decode()">Decode</button>
+      <button class="btn btn-secondary" onclick="clearAll()">Clear</button>
+    </div>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Result</h2>
+    <div id="results"><div style="text-align:center;padding:40px 20px;color:var(--muted);">Paste a token and click Decode</div></div>
+  </div>
+
+  <div class="info-section">
+    <h3>Important</h3>
+    <ul>
+      <li>Decoding is <strong>not</strong> verification: the signature is not checked and no key is used.</li>
+      <li>The payload is only base64url-encoded, so treat token contents as readable. Tokens may contain sensitive data.</li>
+      <li>This decoder never transmits the token — it is processed entirely in your browser.</li>
+    </ul>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../index.html#about">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function showError(m) {
+  const el = document.getElementById('errorMsg');
+  el.innerHTML = '';
+  const div = document.createElement('div');
+  div.className = 'error';
+  div.textContent = String(m == null ? '' : m);
+  el.appendChild(div);
+}
+function clearError() { document.getElementById('errorMsg').innerHTML = ''; }
+function clearAll() { document.getElementById('token').value = ''; clearError(); document.getElementById('results').innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--muted);">Paste a token and click Decode</div>'; }
+
+function b64url(str) {
+  str = str.replace(/-/g, '+').replace(/_/g, '/');
+  while (str.length % 4) str += '=';
+  const bin = atob(str);
+  const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+function fmtTs(sec) {
+  const d = new Date(sec * 1000);
+  return isNaN(d.getTime()) ? '—' : d.toISOString().replace('T', ' ').replace(/\..+/, ' UTC');
+}
+
+function decode() {
+  clearError();
+  const raw = document.getElementById('token').value.trim();
+  if (!raw) { showError('Please paste a token'); return; }
+  const parts = raw.split('.');
+  if (parts.length < 2) { showError('A JWT must have at least two dot-separated parts'); return; }
+
+  let header, payload;
+  try { header = JSON.parse(b64url(parts[0])); }
+  catch (e) { showError('Cannot decode header: ' + e.message); return; }
+  try { payload = JSON.parse(b64url(parts[1])); }
+  catch (e) { showError('Cannot decode payload: ' + e.message); return; }
+
+  let html = '';
+
+  if (typeof payload.exp === 'number') {
+    const exp = new Date(payload.exp * 1000);
+    if (exp.getTime() < Date.now()) {
+      html += '<div class="status-box error">Token expired on ' + esc(fmtTs(payload.exp)) + '</div>';
+    } else {
+      html += '<div class="status-box success">Token valid until ' + esc(fmtTs(payload.exp)) + '</div>';
+    }
+  } else {
+    html += '<div class="status-box info">No exp claim — this token has no built-in expiry.</div>';
+  }
+
+  html += '<div class="result-box"><div class="result-label">Header (alg: ' + esc(header.alg || '—') + ', typ: ' + esc(header.typ || '—') + ')</div>' +
+    '<pre class="jwt-json">' + esc(JSON.stringify(header, null, 2)) + '</pre></div>';
+
+  html += '<div class="result-box"><div class="result-label">Payload</div>' +
+    '<pre class="jwt-json">' + esc(JSON.stringify(payload, null, 2)) + '</pre></div>';
+
+  const timeClaims = ['iat', 'nbf', 'exp'];
+  const rows = timeClaims.filter(c => typeof payload[c] === 'number');
+  if (rows.length) {
+    html += '<div class="result-box"><div class="result-label">Time claims</div><div style="margin-top:8px;font-size:.88rem;line-height:1.8;">';
+    rows.forEach(c => {
+      const label = { iat: 'Issued at', nbf: 'Not before', exp: 'Expires at' }[c];
+      html += '<div><strong>' + esc(c) + '</strong> (' + esc(label) + '): ' + esc(fmtTs(payload[c])) + '</div>';
+    });
+    html += '</div></div>';
+  }
+
+  html += '<div class="result-box"><div class="result-label">Signature</div>' +
+    '<div class="result-value jwt-part" style="color:var(--muted)">' + esc(parts[2] || '(none)') + '</div>' +
+    '<div class="result-sub" style="margin-top:6px;">Not verified. Only the presence of a signature is shown.</div></div>';
+
+  document.getElementById('results').innerHTML = html;
+}
+</script>
+</body>
+</html>

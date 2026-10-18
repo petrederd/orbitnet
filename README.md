@@ -36,6 +36,14 @@
 - [x] **IP / Binary Converter** — IPv4 ↔ binary/decimal/hex
 - [x] **MAC Address Converter** — форматы MAC, тип адреса и OUI
 - [x] **Reverse IP Lookup** — PTR-запись для IP (через бэкенд)
+- [x] **SSL/TLS Checker** — срок, издатель, SAN, цепочка и совпадение имени (через бэкенд)
+- [x] **HTTP Headers Inspector** — заголовки ответа и предупреждения по security-заголовкам
+- [x] **Email DNS Checker** — MX, SPF, DMARC, DKIM (по селектору) и PTR
+- [x] **DNS Propagation Checker** — сравнение ответов нескольких публичных резолверов
+- [x] **Redirect Checker** — цепочка перенаправлений, коды и конечный адрес
+- [x] **Website Health Check** — объединённый отчёт: DNS, TLS, доступность, заголовки
+- [x] **Network Diagnostics** — прямой/обратный DNS и проверка TCP-порта на одной странице
+- [x] **Email Deliverability Check** — разбор почтовых DNS-настроек с пояснением ошибок
 
 ### Инструменты разработчика (Developer Tools)
 - [x] **JSON Formatter & Validator** — форматирование и валидация JSON
@@ -46,6 +54,7 @@
 - [x] **Timestamp Converter** — Unix ↔ ISO 8601 ↔ локальное время
 - [x] **Regex Tester** — проверка регулярок с флагами и группами
 - [x] **Color Converter** — HEX ↔ RGB ↔ HSL
+- [x] **JWT Decoder** — разбор header/payload и claims JWT локально в браузере
 
 ### Электроника (Electronics)
 - [x] **Ohm's Law Calculator**
@@ -121,18 +130,27 @@ orbitnet/
 | `GET /api/port?host=&port=` | проверка TCP-порта |
 | `GET /api/whois?host=` | whois-данные для домена или IP |
 | `GET /api/site?host=` | HTTP-статус, сервер, заголовок и время отклика сайта |
+| `GET /api/headers?host=` | заголовки HTTP-ответа (статус, тип, кэш, security-заголовки) |
+| `GET /api/tls?host=&port=` | сертификат TLS: срок, издатель, SAN, цепочка, совпадение имени |
+| `GET /api/email?host=&selector=` | MX, SPF, DMARC, DKIM и PTR для почтовой конфигурации |
+| `GET /api/propagation?host=&type=` | ответы нескольких публичных DNS-резолверов |
+| `GET /api/redirect?host=` | цепочка перенаправлений и конечный адрес |
 
 ### Безопасность сетевых проверок
 
-Так как `/api/port` и `/api/site` инициируют соединения по запросу посетителя, бэкенд защищён от SSRF:
+Так как `/api/port`, `/api/site`, `/api/headers`, `/api/tls` и `/api/redirect` инициируют соединения
+по запросу посетителя, бэкенд защищён от SSRF:
 
 - разрешены только корректные доменные имена и публичные IP-адреса;
 - отклоняются loopback, приватные (RFC 1918), link-local, CGNAT, multicast, Teredo, 6to4, NAT64,
   IPv4-mapped/-compatible и другие непубличные диапазоны IPv4/IPv6 (через `net.BlockList`);
 - проверяются **все** адреса, полученные через DNS, а не только имя хоста (защита от DNS-rebinding:
-  соединение идёт на уже проверенный IP);
+  соединение идёт на уже проверенный IP); в `/api/redirect` каждая точка перенаправления проверяется
+  отдельно, переход на приватный адрес прерывает цепочку;
 - редиректы не следуются, а небезопасные схемы (`javascript:` и т. п.) отбрасываются при выводе;
-- TLS-сертификаты проверяются штатно (`rejectUnauthorized` не отключается);
+- TLS-сертификаты проверяются штатно (`rejectUnauthorized` не отключается) — **кроме** `/api/tls`,
+  который намеренно подключается без проверки, чтобы показать просроченные и самоподписанные
+  сертификаты, и явно сообщает результат проверки;
 - заданы таймауты, ограничение одновременных исходящих проверок с ограниченной очередью и лимит
   частоты запросов (HTTP 429), включая `/api/ip` (запускающий reverse DNS).
 
@@ -245,8 +263,10 @@ docker-compose up -d
 - [x] Math: Number Base, Scientific Notation, Statistics, Prime Checker
 - [x] Text: Case Converter, Word Counter, Text Diff, Lorem Ipsum
 - [x] Node.js API-бэкенд
+- [x] Networks: SSL/TLS Checker, HTTP Headers, Email DNS, DNS Propagation, Redirect Checker
+- [x] Combined: Website Health, Network Diagnostics, Email Deliverability; Developer: JWT Decoder
 - [ ] Resistor Color Code Calculator
-- [ ] 40+ инструментов к концу 2026
+- [x] 40 инструментов к концу 2026
 
 ## Лицензия
 

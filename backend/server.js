@@ -386,6 +386,7 @@ function fetchOnce(ip, host, path, secure, timeout) {
           server: headers['server'] || '',
           contentType: headers['content-type'] || '',
           title,
+          headers,
           finalUrl: (secure ? 'https://' : 'http://') + host + path
         });
       });
@@ -427,6 +428,208 @@ async function siteInfo(host) {
   };
 }
 
+// ---------- /api/headers ----------
+async function headersInfo(host) {
+  const ips = await resolvePublic(host);
+  const ip = pickAddress(ips);
+  let result = await outbound(() => fetchOnce(ip, host, '/', true));
+  let protocol = 'https';
+  if (result.error) {
+    const httpResult = await outbound(() => fetchOnce(ip, host, '/', false));
+    if (!httpResult.error) { result = httpResult; protocol = 'http'; }
+  }
+  const headers = [];
+  if (result.headers) {
+    for (const [name, value] of Object.entries(result.headers)) {
+      headers.push({ name, value: Array.isArray(value) ? value.join(', ') : String(value) });
+    }
+  }
+  return {
+    host,
+    ip,
+    protocol,
+    status: result.status || null,
+    responseMs: result.ms,
+    headers,
+    redirect: result.redirect || '',
+    error: result.error || null
+  };
+}
+
+// ---------- /api/tls ----------
+// Deliberately connects with rejectUnauthorized:false so invalid/expired
+// certificates can still be inspected; validity is then reported explicitly.
+async function tlsInfo(host, port) {
+  const ips = await resolvePublic(host);
+  const ip = pickAddress(ips);
+  return outbound(() => new Promise((resolve) => {
+    const socket = tls.connect({
+      host: ip,
+      servername: host,
+      port: port || 443,
+      rejectUnauthorized: false,
+      timeout: OUTBOUND_TIMEOUT
+    }, () => {
+      const cert = socket.getPeerCertificate(true);
+      const chain = [];
+      let node = cert;
+      const seen = new Set();
+      while (node && node.subject && !seen.has(node.fingerprint256)) {
+        seen.add(node.fingerprint256);
+        chain.push({
+          subject: node.subject,
+          issuer: node.issuer,
+          valid_from: node.valid_from,
+          valid_to: node.valid_to,
+          fingerprint256: node.fingerprint256,
+          selfSigned: node.subject && node.issuer &&
+            node.subject.CN === node.issuer.CN && node.subject.O === node.issuer.O
+        });
+        node = node.issuerCertificate;
+      }
+      let hostnameMatch = true;
+      let hostnameError = '';
+      try {
+        const e = tls.checkServerIdentity(host, cert);
+        if (e) { hostnameMatch = false; hostnameError = e.message; }
+      } catch (e) { hostnameMatch = false; hostnameError = e.message; }
+
+      const validTo = new Date(cert.valid_to);
+      const daysRemaining = isNaN(validTo.getTime()) ? null :
+        Math.floor((validTo.getTime() - Date.now()) / 86400000);
+
+      const out = {
+        host,
+        ip,
+        port: port || 443,
+        protocol: socket.getProtocol(),
+        cipher: (socket.getCipher() || {}).name || '',
+        authorized: socket.authorized,
+        authorizationError: socket.authorizationError ? String(socket.authorizationError) : '',
+        subject: cert.subject || {},
+        issuer: cert.issuer || {},
+        valid_from: cert.valid_from || '',
+        valid_to: cert.valid_to || '',
+        daysRemaining,
+        serialNumber: cert.serialNumber || '',
+        fingerprint256: cert.fingerprint256 || '',
+        subjectaltname: cert.subjectaltname || '',
+        hostnameMatch,
+        hostnameError,
+        chain
+      };
+      socket.end();
+      resolve(out);
+    });
+    socket.on('timeout', () => { socket.destroy(); resolve({ host, ip, error: 'timeout' }); });
+    socket.on('error', (e) => resolve({ host, ip, error: e.code || e.message }));
+  }));
+}
+
+// ---------- /api/email ----------
+async function emailInfo(host, selector) {
+  const result = { host, mx: [], spf: null, dmarc: null, dkim: null, errors: {} };
+  try {
+    const mx = await withTimeout(dns.resolveMx(host), DNS_TIMEOUT, 'timeout');
+    result.mx = mx.map(r => ({ priority: r.priority, host: r.exchange }))
+      .sort((a, b) => a.priority - b.priority);
+  } catch (e) { result.errors.mx = e.code || e.message; }
+
+  try {
+    const txt = await withTimeout(dns.resolveTxt(host), DNS_TIMEOUT, 'timeout');
+    const flat = txt.map(r => r.join(''));
+    result.spf = flat.find(t => /^v=spf1/i.test(t)) || null;
+  } catch (e) { result.errors.spf = e.code || e.message; }
+
+  try {
+    const txt = await withTimeout(dns.resolveTxt('_dmarc.' + host), DNS_TIMEOUT, 'timeout');
+    const flat = txt.map(r => r.join(''));
+    result.dmarc = flat.find(t => /^v=DMARC1/i.test(t)) || null;
+  } catch (e) { result.errors.dmarc = e.code || e.message; }
+
+  if (selector) {
+    try {
+      const txt = await withTimeout(dns.resolveTxt(selector + '._domainkey.' + host), DNS_TIMEOUT, 'timeout');
+      result.dkim = txt.map(r => r.join(''));
+    } catch (e) { result.errors.dkim = e.code || e.message; }
+  }
+
+  if (result.mx.length) {
+    try {
+      const ips = await withTimeout(dns.resolve(result.mx[0].host, 'A'), DNS_TIMEOUT, 'timeout');
+      if (ips.length) {
+        const names = await withTimeout(dns.reverse(ips[0]), DNS_TIMEOUT, 'timeout');
+        result.mxPtr = { ip: ips[0], hostnames: names };
+      }
+    } catch (e) { /* optional */ }
+  }
+  return result;
+}
+
+// ---------- /api/propagation ----------
+const PUBLIC_RESOLVERS = [
+  '1.1.1.1', '1.0.0.1', '8.8.8.8', '8.8.4.4',
+  '9.9.9.9', '208.67.222.222', '77.88.8.8'
+];
+
+async function propagation(host, type) {
+  const tasks = PUBLIC_RESOLVERS.map(async (server) => {
+    const resolver = new dns.Resolver({ timeout: 5000, tries: 2 });
+    resolver.setServers([server]);
+    try {
+      let records;
+      if (type === 'MX') records = (await resolver.resolveMx(host)).map(r => r.priority + ' ' + r.exchange);
+      else if (type === 'TXT') records = (await resolver.resolveTxt(host)).map(r => r.join(''));
+      else if (type === 'NS') records = await resolver.resolveNs(host);
+      else if (type === 'CNAME') records = await resolver.resolveCname(host);
+      else if (type === 'SOA') records = [JSON.stringify(await resolver.resolveSoa(host))];
+      else if (type === 'CAA') records = (await resolver.resolveCaa(host)).map(r => r.flag + ' ' + r.tag + ' ' + r.value);
+      else records = await resolver.resolve(host, type === 'AAAA' ? 'AAAA' : 'A');
+      return { server, records: records.slice().sort() };
+    } catch (e) {
+      return { server, error: e.code || e.message };
+    }
+  });
+  return Promise.all(tasks);
+}
+
+// ---------- /api/redirect ----------
+const MAX_REDIRECTS = 10;
+
+async function redirectChain(startHost) {
+  const chain = [];
+  let url = new URL('https://' + startHost + '/');
+  let finalUrl = url.href;
+  for (let i = 0; i < MAX_REDIRECTS; i++) {
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') break;
+    const secure = url.protocol === 'https:';
+    const host = url.hostname;
+    const path = url.pathname + url.search;
+    let result;
+    try {
+      const ips = await resolvePublic(host);
+      const ip = pickAddress(ips);
+      result = await outbound(() => fetchOnce(ip, host, path, secure));
+    } catch (e) {
+      chain.push({ url: url.href, status: null, location: '', blocked: true, error: e.message });
+      break;
+    }
+    chain.push({
+      url: url.href,
+      status: result.status || null,
+      location: result.redirect || '',
+      ms: result.ms,
+      error: result.error || null
+    });
+    if (!result.redirect) { finalUrl = url.href; break; }
+    try {
+      url = new URL(result.redirect, url);
+    } catch (e) { break; }
+    finalUrl = url.href;
+  }
+  return { host: startHost, chain, finalUrl, hops: chain.length };
+}
+
 // ---------- router ----------
 const server = http.createServer(async (req, res) => {
   const parsed = new URL(req.url, 'http://localhost');
@@ -442,7 +645,9 @@ const server = http.createServer(async (req, res) => {
 
   const ip = clientIp(req);
   const limited = path === '/api/ip' || path === '/api/dns' || path === '/api/port' ||
-    path === '/api/whois' || path === '/api/site';
+    path === '/api/whois' || path === '/api/site' || path === '/api/tls' ||
+    path === '/api/headers' || path === '/api/email' || path === '/api/propagation' ||
+    path === '/api/redirect';
 
   try {
     if (path === '/health') return send(res, 200, { ok: true });
@@ -501,6 +706,45 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, result);
     }
 
+    if (path === '/api/headers') {
+      const host = query.get('host') || '';
+      if (!isValidHost(host)) return bad(res, 'Invalid hostname');
+      return send(res, 200, await headersInfo(host));
+    }
+
+    if (path === '/api/tls') {
+      const host = query.get('host') || '';
+      const portStr = query.get('port') || '443';
+      if (!isValidHost(host)) return bad(res, 'Invalid hostname');
+      if (!/^\d{1,5}$/.test(portStr)) return bad(res, 'Port must be 1-65535');
+      const port = parseInt(portStr, 10);
+      if (port < 1 || port > 65535) return bad(res, 'Port must be 1-65535');
+      return send(res, 200, await tlsInfo(host, port));
+    }
+
+    if (path === '/api/email') {
+      const host = query.get('host') || '';
+      const selector = (query.get('selector') || '').trim();
+      if (!isValidHost(host)) return bad(res, 'Invalid hostname');
+      if (selector && !/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/i.test(selector)) {
+        return bad(res, 'Invalid DKIM selector');
+      }
+      return send(res, 200, await emailInfo(host, selector));
+    }
+
+    if (path === '/api/propagation') {
+      const host = query.get('host') || '';
+      const type = sanitizeType(query.get('type'));
+      if (!isValidHost(host)) return bad(res, 'Invalid hostname');
+      return send(res, 200, { host, type, resolvers: await propagation(host, type) });
+    }
+
+    if (path === '/api/redirect') {
+      const host = query.get('host') || '';
+      if (!isValidHost(host)) return bad(res, 'Invalid hostname');
+      return send(res, 200, await redirectChain(host));
+    }
+
     return send(res, 404, { error: 'Not found' });
   } catch (e) {
     return send(res, e.status || 500, { error: e.message || 'Server error' });
@@ -513,4 +757,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { normalizeIp, isPublicIp, clientIp, server };
+module.exports = { normalizeIp, isPublicIp, clientIp, server, tlsInfo, headersInfo, emailInfo, propagation, redirectChain };
