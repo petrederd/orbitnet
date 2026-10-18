@@ -7,10 +7,22 @@ const net = require('net');
 const PORT = process.env.PORT || 3000;
 const OUTBOUND_TIMEOUT = 8000;
 const DNS_TIMEOUT = 5000;
-const MAX_CONCURRENT = parseInt(process.env.MAX_CONCURRENT || '24', 10);
-const MAX_QUEUE = parseInt(process.env.MAX_QUEUE || '100', 10);
+
+function positiveIntEnv(name, def) {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') return def;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n <= 0) {
+    console.error('Invalid ' + name + ': expected a positive integer, got "' + raw + '"');
+    process.exit(1);
+  }
+  return n;
+}
+const MAX_CONCURRENT = positiveIntEnv('MAX_CONCURRENT', 24);
+const MAX_QUEUE = positiveIntEnv('MAX_QUEUE', 100);
 const RATE_WINDOW_MS = 60000;
 const RATE_MAX = 60;
+const RATE_MAX_ENTRIES = 10000;
 
 // Simple JSON helpers
 function send(res, code, obj) {
@@ -34,6 +46,36 @@ function httpError(status, message) {
 }
 
 // ---------- IP helpers ----------
+// Expands a valid IPv6 string into 8 numeric groups (handles "::" and a
+// trailing embedded IPv4). Returns null if it cannot be parsed.
+function parseIpv6Groups(ip) {
+  let s = ip.split('%')[0];
+  const dc = s.indexOf('::');
+  const head = dc === -1 ? s : s.slice(0, dc);
+  const tail = dc === -1 ? '' : s.slice(dc + 2);
+  const toGroups = (part) => {
+    if (!part) return [];
+    const arr = part.split(':');
+    const last = arr[arr.length - 1];
+    if (last.includes('.')) {
+      const v4 = last.split('.').map(Number);
+      if (v4.length !== 4 || v4.some(n => !Number.isInteger(n) || n < 0 || n > 255)) return null;
+      arr.pop();
+      arr.push(((v4[0] << 8) | v4[1]).toString(16), ((v4[2] << 8) | v4[3]).toString(16));
+    }
+    const groups = arr.map(g => parseInt(g, 16));
+    if (groups.some(n => !Number.isInteger(n) || n < 0 || n > 0xffff)) return null;
+    return groups;
+  };
+  const h = toGroups(head);
+  const t = toGroups(tail);
+  if (h === null || t === null) return null;
+  if (dc === -1) return h.length === 8 ? h : null;
+  const fill = 8 - h.length - t.length;
+  if (fill < 0) return null;
+  return h.concat(new Array(fill).fill(0), t);
+}
+
 function normalizeIp(input) {
   if (!input || typeof input !== 'string') return '';
   let s = input.trim();
@@ -41,16 +83,17 @@ function normalizeIp(input) {
     const end = s.indexOf(']');
     s = end === -1 ? s.slice(1) : s.slice(1, end);
   }
-  // hex-form IPv4-mapped, e.g. ::ffff:7f00:1 or ::ffff:808:808
-  const mapped = s.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i);
-  if (mapped) {
-    const hi = parseInt(mapped[1], 16);
-    const lo = parseInt(mapped[2], 16);
-    return [hi >> 8, hi & 255, lo >> 8, lo & 255].join('.');
-  }
-  s = s.replace(/^::ffff:/i, '');
   const m = s.match(/^(\d{1,3}(?:\.\d{1,3}){3})(?::\d+)?$/);
   if (m) return m[1];
+  if (net.isIPv6(s)) {
+    const g = parseIpv6Groups(s);
+    // IPv4-mapped ::ffff:0:0/96 — collapse to plain IPv4 in any notation
+    if (g && g.length === 8 && g[0] === 0 && g[1] === 0 && g[2] === 0 &&
+        g[3] === 0 && g[4] === 0 && g[5] === 0xffff) {
+      return [g[6] >> 8, g[6] & 255, g[7] >> 8, g[7] & 255].join('.');
+    }
+    return s;
+  }
   return s;
 }
 
@@ -64,7 +107,7 @@ const BLOCKED = new net.BlockList();
   ['198.51.100.0', 24], ['203.0.113.0', 24], ['224.0.0.0', 4], ['240.0.0.0', 4]
 ].forEach(([ip, bits]) => BLOCKED.addSubnet(ip, bits, 'ipv4'));
 [
-  ['::', 96],            // unspecified, loopback, IPv4-compatible and IPv4-mapped
+  ['::', 96],            // unspecified, loopback, IPv4-compatible
   ['64:ff9b::', 96],     // NAT64
   ['64:ff9b:1::', 48],   // NAT64 local-use
   ['100::', 64],         // discard-only
@@ -163,15 +206,24 @@ function createLimiter(max, maxQueue) {
 const outbound = createLimiter(MAX_CONCURRENT, MAX_QUEUE);
 
 const rateHits = new Map();
+let lastRatePrune = Date.now();
 function isRateLimited(ip) {
   const now = Date.now();
+  if (now - lastRatePrune > RATE_WINDOW_MS || rateHits.size > RATE_MAX_ENTRIES) {
+    for (const [key, rec] of rateHits) {
+      if (now - rec.start > RATE_WINDOW_MS) rateHits.delete(key);
+    }
+    lastRatePrune = now;
+  }
   let rec = rateHits.get(ip);
   if (!rec || now - rec.start > RATE_WINDOW_MS) {
+    // Keep the table bounded: once it is full of active clients, shed new ones
+    // instead of wiping every counter at once.
+    if (!rec && rateHits.size >= RATE_MAX_ENTRIES) return true;
     rec = { start: now, count: 0 };
     rateHits.set(ip, rec);
   }
   rec.count++;
-  if (rateHits.size > 10000) rateHits.clear();
   return rec.count > RATE_MAX;
 }
 
