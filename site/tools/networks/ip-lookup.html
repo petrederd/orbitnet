@@ -1,99 +1,105 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="IP Lookup — discover your public IP address, location, ISP and network information">
-<meta name="theme-color" content="#111110">
-<title>IP Lookup — OrbitNet</title>
-<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2">
-<link rel="stylesheet" href="../../assets/css/style.css">
-<style>
-.tool-page { padding: 40px 0; }
-.tool-header { margin-bottom: 40px; }
-.tool-header h1 { font-size: 2.5rem; margin: 10px 0; }
-.tool-header .breadcrumb { font-size: .85rem; color: var(--muted); margin-bottom: 10px; }
-.tool-header .breadcrumb a { text-decoration: none; }
-.tool-header .breadcrumb a:hover { text-decoration: underline; }
-.tool-panel { background: var(--card); border: 1.5px solid var(--line); border-radius: 16px; padding: 24px; margin-bottom: 24px; }
-.tool-panel h2 { font-size: 1.3rem; margin: 0 0 20px; }
-.result-box { background: var(--paper); border: 1.5px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
-.result-box.highlight { border-color: var(--orange); background: rgba(212,107,21,.05); }
-.result-label { font-size: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 700; margin-bottom: 6px; }
-.result-value { font-size: 1.4rem; font-weight: 800; font-family: 'Monaco', 'Courier New', monospace; color: var(--ink); word-break: break-all; }
-.result-value.large { font-size: 2rem; color: var(--orange); }
-.result-sub { font-size: .85rem; color: var(--muted); margin-top: 4px; }
-.btn { display: inline-block; padding: 12px 24px; background: var(--orange); color: #f5ebe2; border: 0; border-radius: 10px; font-weight: 800; cursor: pointer; font-size: .95rem; transition: background .2s; }
-.btn:hover { background: #ef8528; }
-.loading { text-align: center; padding: 40px 20px; color: var(--muted); }
-.loading:before { content: "⏳"; font-size: 2rem; display: block; margin-bottom: 10px; animation: spin 2s linear infinite; }
-@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-.grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
-.info-section { background: var(--paper-2); border-radius: 12px; padding: 20px; margin-top: 24px; }
-.info-section h3 { font-size: 1.1rem; margin: 0 0 12px; }
-.info-section p { margin: 0 0 10px; color: var(--muted); font-size: .9rem; line-height: 1.6; }
-.info-section ul { margin: 10px 0; padding-left: 20px; color: var(--muted); font-size: .9rem; }
-.error { color: #ff5555; background: rgba(255,85,85,.1); border: 1.5px solid #ff5555; padding: 12px 16px; border-radius: 10px; margin-bottom: 20px; font-size: .9rem; }
-@media (max-width: 768px) {
-  .grid-2 { grid-template-columns: 1fr; }
-  .tool-header h1 { font-size: 2rem; }
-}
-</style>
-</head>
-<body>
-<header class="wrap topbar">
-  <a class="brand" href="../../index.html">
-    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-    <span>orbitnet<span style="font-weight:500">.ru</span></span>
-  </a>
-  <nav class="nav">
-    <a href="../../index.html#tools">Tools</a>
-    <a href="../../index.html#about">About</a>
-  </nav>
-</header>
-
-<main class="wrap tool-page">
-  <div class="tool-header">
-    <div class="breadcrumb">
-      <a href="../../index.html">Home</a> / 
-      <a href="../../index.html#tools">Tools</a> / 
-      <span>IP Lookup</span>
-    </div>
-    <h1>IP Lookup</h1>
-    <p style="color: var(--muted); max-width: 700px;">Discover your public IP address, geographical location, ISP information, and network details instantly.</p>
-  </div>
-
-  <div class="tool-panel">
-    <h2>Your IP Information</h2>
-    <div id="loading" class="loading">Loading your IP information...</div>
-    <div id="results" style="display:none;"></div>
-    <div id="error" style="display:none;"></div>
-    <button class="btn" onclick="refresh()" style="margin-top: 10px;">🔄 Refresh Data</button>
-  </div>
-
-  <div class="info-section">
-    <h3>About this tool</h3>
-    <p>This tool shows your <strong>public IP address</strong> — the address that websites and online services see when you connect to them. This is different from your local/private IP address used within your home or office network.</p>
-    
-    <h3 style="margin-top: 20px;">Information displayed</h3>
-    <ul>
-      <li><strong>IP Address:</strong> Your public IPv4 or IPv6 address</li>
-      <li><strong>Location:</strong> Approximate geographical location (city, region, country)</li>
-      <li><strong>ISP:</strong> Your Internet Service Provider</li>
-      <li><strong>Organization:</strong> The organization that owns the IP block</li>
-      <li><strong>Timezone:</strong> Your timezone based on location</li>
-    </ul>
-
-    <h3 style="margin-top: 20px;">Privacy note</h3>
-    <p>This tool uses free public IP geolocation APIs. The location shown is approximate and based on your ISP's registration, not your exact physical location. No data is stored or logged by OrbitNet.</p>
-  </div>
-</main>
-
-<footer class="wrap footer">
-  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
-  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../index.html#about">About</a></div>
-</footer>
-
+  <head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="IP Lookup — discover your public IP address, location, ISP and network information"><meta name="theme-color" content="#f5f5f4">
+    <title>
+      IP Lookup — OrbitNet
+    </title>
+    <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2"><link rel="stylesheet" href="../../assets/css/style.css">
+  </head>
+  <body>
+    <header class="wrap topbar">
+      <a class="brand" href="../../index.html"><span class="brand-mark" aria-hidden="true"><i></i>
+      <i></i>
+      <i></i>
+      <i></i>
+      </span>
+      <span>orbitnet<span style="font-weight:500">.ru</span>
+      </span>
+      </a>
+      <nav class="nav">
+        <a href="../../index.html#tools">Tools</a>
+        <a href="../../index.html#about">About</a>
+      </nav>
+    </header>
+    <main class="wrap tool-page">
+      <div class="tool-header">
+        <div class="breadcrumb">
+          <a href="../../index.html">Home</a>
+          /<a href="../../index.html#tools">Tools</a>
+          /<span>IP Lookup</span>
+        </div>
+        <h1>
+          IP Lookup
+        </h1>
+        <p style="color: var(--muted); max-width: 700px;">
+          Discover your public IP address, geographical location, ISP information, and network details instantly.
+        </p>
+      </div>
+      <div class="tool-panel">
+        <h2>
+          Your IP Information
+        </h2>
+        <div id="loading" class="loading">
+          Loading your IP information...
+        </div>
+        <div id="results" style="display:none;">
+        </div>
+        <div id="error" style="display:none;">
+        </div>
+        <button class="btn" onclick="refresh()" style="margin-top: 10px;">Refresh Data</button>
+      </div>
+      <div class="info-section">
+        <h3>
+          About this tool
+        </h3>
+        <p>
+          This tool shows your<strong>public IP address</strong>
+          — the address that websites and online services see when you connect to them. This is different from your local/private IP address used within your home or office network.
+        </p>
+        <h3 style="margin-top: 20px;">
+          Information displayed
+        </h3>
+        <ul>
+          <li>
+            <strong>IP Address:</strong>
+            Your public IPv4 or IPv6 address
+          </li>
+          <li>
+            <strong>Location:</strong>
+            Approximate geographical location (city, region, country)
+          </li>
+          <li>
+            <strong>ISP:</strong>
+            Your Internet Service Provider
+          </li>
+          <li>
+            <strong>Organization:</strong>
+            The organization that owns the IP block
+          </li>
+          <li>
+            <strong>Timezone:</strong>
+            Your timezone based on location
+          </li>
+        </ul>
+        <h3 style="margin-top: 20px;">
+          Privacy note
+        </h3>
+        <p>
+          This tool uses free public IP geolocation APIs. The location shown is approximate and based on your ISP's registration, not your exact physical location. No data is stored or logged by OrbitNet.
+        </p>
+      </div>
+    </main>
+    <footer class="wrap footer">
+      <div>
+        <strong>OrbitNet</strong>
+        <br>Open source. No ads. No tracking. ©<span id="year"></span>
+      </div>
+      <div class="footer-links">
+        <a href="../../index.html#tools">Browse tools</a>
+        <a href="../../index.html#about">About</a>
+      </div>
+    </footer>
 <script>
 document.getElementById('year').textContent = new Date().getFullYear();
 
@@ -131,62 +137,22 @@ async function fetchIPInfo() {
 }
 
 function displayResults(data) {
-  const flagEmoji = data.country_code ? getFlagEmoji(data.country_code) : '🌍';
+  const location = data.country_name || data.country || 'Unknown';
   
   const html = `
-    <div class="result-box highlight">
-      <div class="result-label">Your IP Address</div>
-      <div class="result-value large">${data.ip}</div>
-      <div class="result-sub">Public IP (IPv${data.ip.includes(':') ? '6' : '4'})</div>
-    </div>
-
-    <div class="grid-2">
-      <div class="result-box">
-        <div class="result-label">Location</div>
-        <div class="result-value">${flagEmoji} ${data.city || 'Unknown'}</div>
-        <div class="result-sub">${data.region || ''}, ${data.country || 'Unknown'}</div>
-      </div>
-
-      <div class="result-box">
-        <div class="result-label">Country Code</div>
-        <div class="result-value">${data.country_code || 'N/A'}</div>
-        <div class="result-sub">${data.country_name || data.country || ''}</div>
-      </div>
-
-      <div class="result-box">
-        <div class="result-label">Internet Provider (ISP)</div>
-        <div class="result-value" style="font-size: 1.1rem;">${data.org || data.isp || 'Unknown'}</div>
-        <div class="result-sub">${data.isp && data.isp !== data.org ? data.isp : ''}</div>
-      </div>
-
-      <div class="result-box">
-        <div class="result-label">Timezone</div>
-        <div class="result-value">${data.timezone || 'Unknown'}</div>
-        <div class="result-sub">${data.utc_offset || ''}</div>
-      </div>
+    <div class="result-box highlight"><div class="result-label">Your IP Address</div><div class="result-value large">${data.ip}</div><div class="result-sub">Public IP (IPv${data.ip.includes(':') ? '6' : '4'})</div></div><div class="grid-2"><div class="result-box"><div class="result-label">Location</div><div class="result-value">${data.city || 'Unknown'}</div><div class="result-sub">${data.region || ''}, ${location}</div></div><div class="result-box"><div class="result-label">Country</div><div class="result-value">${data.country_code || 'N/A'}</div><div class="result-sub">${location}</div></div><div class="result-box"><div class="result-label">Internet Provider (ISP)</div><div class="result-value" style="font-size: 1.1rem;">${data.org || data.isp || 'Unknown'}</div><div class="result-sub">${data.isp && data.isp !== data.org ? data.isp : ''}</div></div><div class="result-box"><div class="result-label">Timezone</div><div class="result-value">${data.timezone || 'Unknown'}</div><div class="result-sub">${data.utc_offset || ''}</div></div>
 
       ${data.postal ? `
-      <div class="result-box">
-        <div class="result-label">Postal Code</div>
-        <div class="result-value">${data.postal}</div>
-      </div>
+      <div class="result-box"><div class="result-label">Postal Code</div><div class="result-value">${data.postal}</div></div>
       ` : ''}
 
       ${data.latitude && data.longitude ? `
-      <div class="result-box">
-        <div class="result-label">Coordinates</div>
-        <div class="result-value" style="font-size: 1rem;">${data.latitude.toFixed(4)}, ${data.longitude.toFixed(4)}</div>
-        <div class="result-sub">Approximate location</div>
-      </div>
+      <div class="result-box"><div class="result-label">Coordinates</div><div class="result-value" style="font-size: 1rem;">${data.latitude.toFixed(4)}, ${data.longitude.toFixed(4)}</div><div class="result-sub">Approximate location</div></div>
       ` : ''}
     </div>
 
     ${data.asn ? `
-    <div class="result-box">
-      <div class="result-label">ASN (Autonomous System Number)</div>
-      <div class="result-value">${data.asn}</div>
-      <div class="result-sub">${data.org || ''}</div>
-    </div>
+    <div class="result-box"><div class="result-label">ASN (Autonomous System Number)</div><div class="result-value">${data.asn}</div><div class="result-sub">${data.org || ''}</div></div>
     ` : ''}
   `;
 
@@ -197,19 +163,10 @@ function displayResults(data) {
 }
 
 function showError(message) {
-  document.getElementById('error').innerHTML = `<div class="error">✗ ${message}</div>`;
+  document.getElementById('error').innerHTML = `<div class="error">${message}</div>`;
   document.getElementById('error').style.display = 'block';
   document.getElementById('loading').style.display = 'none';
   document.getElementById('results').style.display = 'none';
-}
-
-function getFlagEmoji(countryCode) {
-  if (!countryCode || countryCode.length !== 2) return '🌍';
-  const codePoints = countryCode
-    .toUpperCase()
-    .split('')
-    .map(char => 127397 + char.charCodeAt());
-  return String.fromCodePoint(...codePoints);
 }
 
 async function loadIPInfo() {

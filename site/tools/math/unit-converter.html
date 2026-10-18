@@ -1,122 +1,97 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Unit Converter — convert between different units of length, weight, temperature, area, volume, and more">
-<meta name="theme-color" content="#111110">
-<title>Unit Converter — OrbitNet</title>
-<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2">
-<link rel="stylesheet" href="../../assets/css/style.css">
-<style>
-.tool-page { padding: 40px 0; }
-.tool-header { margin-bottom: 40px; }
-.tool-header h1 { font-size: 2.5rem; margin: 10px 0; }
-.tool-header .breadcrumb { font-size: .85rem; color: var(--muted); margin-bottom: 10px; }
-.tool-header .breadcrumb a { text-decoration: none; }
-.tool-header .breadcrumb a:hover { text-decoration: underline; }
-.tool-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-.tool-panel { background: var(--card); border: 1.5px solid var(--line); border-radius: 16px; padding: 24px; }
-.tool-panel h2 { font-size: 1.3rem; margin: 0 0 20px; }
-.category-selector { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 20px; }
-.cat-btn { padding: 10px; border: 1.5px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); font-weight: 600; cursor: pointer; text-align: center; transition: all .2s; font-size: .8rem; }
-.cat-btn:hover { border-color: var(--orange); }
-.cat-btn.active { background: var(--orange); color: #f5ebe2; border-color: var(--orange); }
-.input-group { margin-bottom: 20px; }
-.input-group label { display: block; font-weight: 700; margin-bottom: 8px; font-size: .9rem; }
-.input-group input, .input-group select { width: 100%; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); font-size: 1rem; }
-.input-group input:focus, .input-group select:focus { outline: none; border-color: var(--orange); }
-.input-group small { display: block; margin-top: 6px; color: var(--muted); font-size: .8rem; }
-.result-box { background: var(--paper); border: 1.5px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
-.result-box.highlight { border-color: var(--orange); background: rgba(212,107,21,.05); }
-.result-label { font-size: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 700; margin-bottom: 6px; }
-.result-value { font-size: 1.8rem; font-weight: 800; color: var(--orange); font-family: 'Monaco', 'Courier New', monospace; }
-.result-sub { font-size: .85rem; color: var(--muted); margin-top: 4px; }
-.error { color: #ff5555; background: rgba(255,85,85,.1); border: 1.5px solid #ff5555; padding: 12px 16px; border-radius: 10px; margin-bottom: 20px; font-size: .9rem; }
-.conversion-arrow { text-align: center; font-size: 1.5rem; color: var(--orange); margin: 10px 0; }
-@media (max-width: 768px) {
-  .tool-layout { grid-template-columns: 1fr; }
-  .tool-header h1 { font-size: 2rem; }
-  .category-selector { grid-template-columns: repeat(2, 1fr); }
-}
-</style>
-</head>
-<body>
-<header class="wrap topbar">
-  <a class="brand" href="../../index.html">
-    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-    <span>orbitnet<span style="font-weight:500">.ru</span></span>
-  </a>
-  <nav class="nav">
-    <a href="../../index.html#tools">Tools</a>
-    <a href="../../index.html#about">About</a>
-  </nav>
-</header>
-
-<main class="wrap tool-page">
-  <div class="tool-header">
-    <div class="breadcrumb">
-      <a href="../../index.html">Home</a> / 
-      <a href="../../index.html#tools">Tools</a> / 
-      <span>Unit Converter</span>
-    </div>
-    <h1>Unit Converter</h1>
-    <p style="color: var(--muted); max-width: 700px;">Convert between different units of measurement for length, weight, temperature, area, volume, speed, and time.</p>
-  </div>
-
-  <div class="tool-layout">
-    <div class="tool-panel">
-      <h2>Select Category</h2>
-      
-      <div class="category-selector">
-        <button class="cat-btn active" onclick="setCategory('length')">Length</button>
-        <button class="cat-btn" onclick="setCategory('weight')">Weight</button>
-        <button class="cat-btn" onclick="setCategory('temperature')">Temperature</button>
-        <button class="cat-btn" onclick="setCategory('area')">Area</button>
-        <button class="cat-btn" onclick="setCategory('volume')">Volume</button>
-        <button class="cat-btn" onclick="setCategory('speed')">Speed</button>
+  <head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Unit Converter — convert between different units of length, weight, temperature, area, volume, and more"><meta name="theme-color" content="#f5f5f4">
+    <title>
+      Unit Converter — OrbitNet
+    </title>
+    <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2"><link rel="stylesheet" href="../../assets/css/style.css">
+  </head>
+  <body>
+    <header class="wrap topbar">
+      <a class="brand" href="../../index.html"><span class="brand-mark" aria-hidden="true"><i></i>
+      <i></i>
+      <i></i>
+      <i></i>
+      </span>
+      <span>orbitnet<span style="font-weight:500">.ru</span>
+      </span>
+      </a>
+      <nav class="nav">
+        <a href="../../index.html#tools">Tools</a>
+        <a href="../../index.html#about">About</a>
+      </nav>
+    </header>
+    <main class="wrap tool-page">
+      <div class="tool-header">
+        <div class="breadcrumb">
+          <a href="../../index.html">Home</a>
+          /<a href="../../index.html#tools">Tools</a>
+          /<span>Unit Converter</span>
+        </div>
+        <h1>
+          Unit Converter
+        </h1>
+        <p style="color: var(--muted); max-width: 700px;">
+          Convert between different units of measurement for length, weight, temperature, area, volume, speed, and time.
+        </p>
       </div>
-      
-      <div id="errorMsg"></div>
-      
-      <div class="input-group">
-        <label for="inputValue">Value</label>
-        <input type="number" id="inputValue" placeholder="Enter value" value="1" step="any" oninput="convert()">
-      </div>
-
-      <div class="input-group">
-        <label for="fromUnit">From</label>
-        <select id="fromUnit" onchange="convert()">
-          <!-- Populated by JavaScript -->
-        </select>
-      </div>
-
-      <div class="conversion-arrow">↓</div>
-
-      <div class="input-group">
-        <label for="toUnit">To</label>
-        <select id="toUnit" onchange="convert()">
-          <!-- Populated by JavaScript -->
-        </select>
-      </div>
-    </div>
-
-    <div class="tool-panel">
-      <h2>Result</h2>
-      <div id="results">
-        <div style="text-align: center; padding: 40px 20px; color: var(--muted);">
-          Enter a value to convert
+      <div class="tool-layout">
+        <div class="tool-panel">
+          <h2>
+            Select Category
+          </h2>
+          <div class="category-selector">
+            <button class="cat-btn active" onclick="setCategory('length')">Length</button>
+            <button class="cat-btn" onclick="setCategory('weight')">Weight</button>
+            <button class="cat-btn" onclick="setCategory('temperature')">Temperature</button>
+            <button class="cat-btn" onclick="setCategory('area')">Area</button>
+            <button class="cat-btn" onclick="setCategory('volume')">Volume</button>
+            <button class="cat-btn" onclick="setCategory('speed')">Speed</button>
+          </div>
+          <div id="errorMsg">
+          </div>
+          <div class="input-group">
+            <label for="inputValue">Value</label>
+            <input type="number" id="inputValue" placeholder="Enter value" value="1" step="any" oninput="convert()">
+          </div>
+          <div class="input-group">
+            <label for="fromUnit">From</label>
+            <select id="fromUnit" onchange="convert()">
+              <!-- Populated by JavaScript -->
+            </select>
+          </div>
+          <div class="conversion-arrow">
+          </div>
+          <div class="input-group">
+            <label for="toUnit">To</label>
+            <select id="toUnit" onchange="convert()">
+              <!-- Populated by JavaScript -->
+            </select>
+          </div>
+        </div>
+        <div class="tool-panel">
+          <h2>
+            Result
+          </h2>
+          <div id="results">
+            <div style="text-align: center; padding: 40px 20px; color: var(--muted);">
+              Enter a value to convert
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  </div>
-</main>
-
-<footer class="wrap footer">
-  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
-  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../index.html#about">About</a></div>
-</footer>
-
+    </main>
+    <footer class="wrap footer">
+      <div>
+        <strong>OrbitNet</strong>
+        <br>Open source. No ads. No tracking. ©<span id="year"></span>
+      </div>
+      <div class="footer-links">
+        <a href="../../index.html#tools">Browse tools</a>
+        <a href="../../index.html#about">About</a>
+      </div>
+    </footer>
 <script>
 document.getElementById('year').textContent = new Date().getFullYear();
 
@@ -243,17 +218,7 @@ function convert() {
   }
   
   document.getElementById('results').innerHTML = `
-    <div class="result-box highlight">
-      <div class="result-label">Result</div>
-      <div class="result-value">${result.toFixed(6)}</div>
-      <div class="result-sub">${toUnit}</div>
-    </div>
-    <div class="result-box">
-      <div class="result-label">Conversion</div>
-      <div style="font-size: 1.1rem; font-weight: 600; color: var(--ink);">${value} ${fromUnit}</div>
-      <div style="text-align: center; font-size: 1.3rem; color: var(--orange); margin: 8px 0;">↓</div>
-      <div style="font-size: 1.1rem; font-weight: 600; color: var(--ink);">${result.toFixed(6)} ${toUnit}</div>
-    </div>
+    <div class="result-box highlight"><div class="result-label">Result</div><div class="result-value">${result.toFixed(6)}</div><div class="result-sub">${toUnit}</div></div><div class="result-box"><div class="result-label">Conversion</div><div style="font-size: 1.1rem; font-weight: 600; color: var(--ink);">${value} ${fromUnit}</div><div style="text-align: center; font-size: 1.3rem; color: var(--orange); margin: 8px 0;"></div><div style="font-size: 1.1rem; font-weight: 600; color: var(--ink);">${result.toFixed(6)} ${toUnit}</div></div>
   `;
 }
 

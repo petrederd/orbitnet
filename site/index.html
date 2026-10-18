@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="A growing collection of free, practical online tools for networking, electronics, development, mathematics and everyday tasks.">
-<meta name="theme-color" content="#111110">
+<meta name="theme-color" content="#f5f5f4">
 <title>OrbitNet — Open tools, no noise</title>
 <link rel="stylesheet" href="assets/css/style.css">
 <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2">
@@ -16,135 +16,110 @@
     <span>orbitnet<span style="font-weight:500">.ru</span></span>
   </a>
   <nav class="nav" aria-label="Main navigation">
-    <a href="#tools">Explore tools</a>
+    <a href="#tools">Tools</a>
     <a class="optional" href="#about">About</a>
-    <span class="status">OPEN SOURCE · NO ADS</span>
+    <span class="status">Open source · No ads</span>
   </nav>
 </header>
 
 <main class="wrap">
-  <section class="hero">
-    <div>
-      <div class="eyebrow">Independent tools for curious people</div>
-      <h1>Useful tools.<br><span class="outline">No noise.</span></h1>
-      <p class="hero-copy">A personal, open-source collection of practical tools — from networking and electronics to development and maths. No ads, no accounts, no tracking. The tools should be useful, inspectable, and easy to self-host.</p>
-      <form class="searchbox" id="searchForm" role="search">
-        <span class="magnify" aria-hidden="true">⌕</span>
-        <label class="sr-only" for="searchInput">Search tools</label>
-        <input id="searchInput" type="search" placeholder="Find a tool… try 'subnet' or 'resistor'" autocomplete="off">
-        <span class="key">/</span>
-        <button type="submit">Search ↗</button>
-      </form>
-    </div>
-    <div class="hero-art" aria-label="Abstract geometric orbit illustration">
-      <div class="orbit">
-        <div class="core">✳</div>
-        <div class="planet p1">+</div>
-        <div class="planet p2">↗</div>
-        <div class="planet p3">∿</div>
-      </div>
-      <div class="art-note">Open source.<br>No ads.<br>Made to be useful.</div>
-    </div>
+  <section class="page-head">
+    <h1>Open tools, no noise</h1>
+    <p>A personal, open-source collection of practical tools — from networking and electronics to development and maths. No ads, no accounts, no tracking.</p>
   </section>
 
-  <section class="stats" aria-label="Collection overview">
-    <div class="stat"><div class="stat-num" id="toolCount">10</div><div class="stat-label">working tools<br>and growing</div></div>
-    <div class="stat"><div class="stat-num">5</div><div class="stat-label">toolbox categories<br>to explore</div></div>
-    <div class="stat"><div class="stat-num">0</div><div class="stat-label">accounts required<br>to get started</div></div>
+  <section class="ip-card" id="ipWidget" aria-label="Your IP information">
+    <p class="ip-title">Your IP address</p>
+    <div class="ip-value" id="ipValue">Loading…</div>
+    <p class="ip-meta" id="ipMeta"></p>
   </section>
+
+  <form class="searchbox" id="searchForm" role="search">
+    <span class="magnify" aria-hidden="true">⌕</span>
+    <label class="sr-only" for="searchInput">Search tools</label>
+    <input id="searchInput" type="search" placeholder="Find a tool… try 'subnet' or 'resistor'" autocomplete="off">
+    <span class="key">/</span>
+    <button type="submit">Search</button>
+  </form>
 
   <section id="tools">
     <div class="section-head">
-      <div><div class="eyebrow">Browse the collection</div><h2>Pick a toolbox.</h2></div>
-      <p>Browse by topic, or search the whole collection. One place for small tools that solve real problems. No sales funnel, no sponsored results.</p>
+      <h2>Pick a toolbox.</h2>
+      <p>Browse by topic, or search the whole collection.</p>
     </div>
     <div class="layout">
       <aside class="filters" aria-label="Filter tools by category">
-        <h3>Toolboxes <span style="color:#aeb7a7;font-weight:500">/ Categories</span></h3>
+        <h3>Toolboxes</h3>
         <div class="filter-list" id="filterList">
           <button class="filter-btn active" data-filter="all"><span class="filter-icon">◈</span> All tools <span class="filter-count">10</span></button>
           <button class="filter-btn" data-filter="networks"><span class="filter-icon">⌘</span> Networks <span class="filter-count">2</span></button>
           <button class="filter-btn" data-filter="electricity"><span class="filter-icon">ϟ</span> Electricity <span class="filter-count">2</span></button>
-          <button class="filter-btn" data-filter="developer"><span class="filter-icon">{ }</span> Developer tools <span class="filter-count">3</span></button>
-          <button class="filter-btn" data-filter="math"><span class="filter-icon">∑</span> Math & science <span class="filter-count">3</span></button>
-          <button class="filter-btn" data-filter="text"><span class="filter-icon">Aa</span> Text & data <span class="filter-count">0</span></button>
+          <button class="filter-btn" data-filter="developer"><span class="filter-icon">{ }</span> Developer <span class="filter-count">3</span></button>
+          <button class="filter-btn" data-filter="math"><span class="filter-icon">∑</span> Math <span class="filter-count">3</span></button>
+          <button class="filter-btn" data-filter="text"><span class="filter-icon">Aa</span> Text <span class="filter-count">0</span></button>
         </div>
-        <p class="filter-note">New tools will appear here as the collection grows. Got an idea? Start with a small problem worth solving.</p>
       </aside>
 
       <div class="tools-area">
         <div class="tools-toolbar">
           <div class="results-count" id="resultsCount" aria-live="polite">Showing all 10 tools</div>
           <select class="sort" id="sortSelect" aria-label="Sort tools">
-            <option value="featured">Sort: Featured</option>
+            <option value="featured">Sort: Default</option>
             <option value="az">Name: A to Z</option>
             <option value="category">Category</option>
           </select>
         </div>
 
-        <div class="featured">
-          <article class="feature-card">
-            <span class="feature-badge">✦ Featured concept</span>
-            <h3>Subnet Calculator</h3>
-            <p>Understand an IPv4 network at a glance: network address, broadcast, usable range and host count.</p>
-            <div class="feature-shape" aria-hidden="true"></div>
-          </article>
-          <article class="feature-side">
-            <div class="big-icon">⌁</div>
-            <div><span class="feature-badge">Coming into focus</span><h3>Build your own toolbox</h3><p>Useful utilities for curious minds, makers and people who like knowing how things work.</p></div>
-          </article>
-        </div>
-
         <div class="tool-grid" id="toolGrid">
           <article class="tool-card" data-category="networks" data-name="IPv4 Subnet Calculator" data-order="1">
-            <div class="tool-top"><span class="tool-icon">⌘</span><span class="pill">Networking</span></div>
+            <div class="tool-top"><span class="tool-icon">⌘</span><span class="pill">Networks</span></div>
             <h3>IPv4 Subnet Calculator</h3><p>Calculate network and broadcast addresses, CIDR range, usable hosts and subnet mask.</p>
-            <div class="tool-bottom"><span class="status-label" style="color: #4ade80;">✓ Ready</span><a class="open" href="tools/networks/subnet-calculator.html">Open ↗</a></div>
+            <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/networks/subnet-calculator.html">Open</a></div>
           </article>
           <article class="tool-card" data-category="developer" data-name="JSON Formatter & Validator" data-order="2">
             <div class="tool-top"><span class="tool-icon">{ }</span><span class="pill">Developer</span></div>
             <h3>JSON Formatter & Validator</h3><p>Format messy JSON, validate syntax and make nested data easier to read.</p>
-            <div class="tool-bottom"><span class="status-label" style="color: #4ade80;">✓ Ready</span><a class="open" href="tools/developer/json-formatter.html">Open ↗</a></div>
+            <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/developer/json-formatter.html">Open</a></div>
           </article>
           <article class="tool-card" data-category="networks" data-name="IP Lookup" data-order="3">
-            <div class="tool-top"><span class="tool-icon">🌍</span><span class="pill">Networking</span></div>
+            <div class="tool-top"><span class="tool-icon">🌍</span><span class="pill">Networks</span></div>
             <h3>IP Lookup</h3><p>Discover your public IP address, location, ISP and network information instantly.</p>
-            <div class="tool-bottom"><span class="status-label" style="color: #4ade80;">✓ Ready</span><a class="open" href="tools/networks/ip-lookup.html">Open ↗</a></div>
+            <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/networks/ip-lookup.html">Open</a></div>
           </article>
           <article class="tool-card" data-category="electricity" data-name="Ohm's Law Calculator" data-order="4">
-            <div class="tool-top"><span class="tool-icon">ϟ</span><span class="pill">Electronics</span></div>
+            <div class="tool-top"><span class="tool-icon">ϟ</span><span class="pill">Electricity</span></div>
             <h3>Ohm's Law Calculator</h3><p>Calculate voltage, current, resistance or power from the values you already know.</p>
-            <div class="tool-bottom"><span class="status-label" style="color: #4ade80;">✓ Ready</span><a class="open" href="tools/electricity/ohms-law.html">Open ↗</a></div>
+            <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/electricity/ohms-law.html">Open</a></div>
           </article>
           <article class="tool-card" data-category="electricity" data-name="NE555 Timer Calculator" data-order="5">
-            <div class="tool-top"><span class="tool-icon">⏱</span><span class="pill">Electronics</span></div>
+            <div class="tool-top"><span class="tool-icon">⏱</span><span class="pill">Electricity</span></div>
             <h3>NE555 Timer Calculator</h3><p>Calculate resistor and capacitor values for 555 timer circuits in astable and monostable modes.</p>
-            <div class="tool-bottom"><span class="status-label" style="color: #4ade80;">✓ Ready</span><a class="open" href="tools/electricity/ne555-calculator.html">Open ↗</a></div>
+            <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/electricity/ne555-calculator.html">Open</a></div>
           </article>
           <article class="tool-card" data-category="developer" data-name="Base64 Encoder & Decoder" data-order="6">
             <div class="tool-top"><span class="tool-icon">⇄</span><span class="pill">Developer</span></div>
             <h3>Base64 Encoder / Decoder</h3><p>Convert text to Base64 and decode it back, with input validation and copy buttons.</p>
-            <div class="tool-bottom"><span class="status-label" style="color: #4ade80;">✓ Ready</span><a class="open" href="tools/developer/base64.html">Open ↗</a></div>
+            <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/developer/base64.html">Open</a></div>
           </article>
           <article class="tool-card" data-category="developer" data-name="UUID Generator" data-order="7">
             <div class="tool-top"><span class="tool-icon">✳</span><span class="pill">Developer</span></div>
             <h3>UUID Generator</h3><p>Generate unique identifiers for test data, development and quick prototyping.</p>
-            <div class="tool-bottom"><span class="status-label" style="color: #4ade80;">✓ Ready</span><a class="open" href="tools/developer/uuid-generator.html">Open ↗</a></div>
+            <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/developer/uuid-generator.html">Open</a></div>
           </article>
           <article class="tool-card" data-category="math" data-name="Quadratic Equation Solver" data-order="8">
             <div class="tool-top"><span class="tool-icon">∑</span><span class="pill">Math</span></div>
             <h3>Quadratic Equation Solver</h3><p>Solve quadratic equations ax² + bx + c = 0 with real and complex roots calculation.</p>
-            <div class="tool-bottom"><span class="status-label" style="color: #4ade80;">✓ Ready</span><a class="open" href="tools/math/quadratic-solver.html">Open ↗</a></div>
+            <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/math/quadratic-solver.html">Open</a></div>
           </article>
           <article class="tool-card" data-category="math" data-name="Percentage Calculator" data-order="9">
             <div class="tool-top"><span class="tool-icon">%</span><span class="pill">Math</span></div>
             <h3>Percentage Calculator</h3><p>Calculate percentages, percentage change, and solve various percentage problems.</p>
-            <div class="tool-bottom"><span class="status-label" style="color: #4ade80;">✓ Ready</span><a class="open" href="tools/math/percentage-calculator.html">Open ↗</a></div>
+            <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/math/percentage-calculator.html">Open</a></div>
           </article>
           <article class="tool-card" data-category="math" data-name="Unit Converter" data-order="10">
             <div class="tool-top"><span class="tool-icon">⇄</span><span class="pill">Math</span></div>
             <h3>Unit Converter</h3><p>Convert between different units of length, weight, temperature, area, volume and speed.</p>
-            <div class="tool-bottom"><span class="status-label" style="color: #4ade80;">✓ Ready</span><a class="open" href="tools/math/unit-converter.html">Open ↗</a></div>
+            <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/math/unit-converter.html">Open</a></div>
           </article>
         </div>
         <div class="empty" id="emptyState"><strong>No tools found.</strong>Try another search term or choose a different category.</div>
@@ -154,19 +129,19 @@
 
   <section class="below" id="about">
     <article class="info-card">
-      <div class="info-icon">◌</div><h2>Made to be useful.</h2>
-      <p>No ads, no tracking, no accounts, and no sponsored placements. Tools should work directly in your browser whenever possible, without sending your data anywhere.</p>
+      <div class="info-icon">◌</div><h2>No ads, no tracking.</h2>
+      <p>No accounts, no sponsored placements. Tools work directly in your browser whenever possible, without sending your data anywhere.</p>
     </article>
-    <article class="info-card" id="tool-request">
-      <div class="info-icon">✳</div><h2>Open source by default.</h2>
-      <p>OrbitNet is a personal, community-readable project. All source code will be published on GitHub so anyone can inspect it, learn from it, fork it, or self-host it.</p>
+    <article class="info-card">
+      <div class="info-icon">✳</div><h2>Open source.</h2>
+      <p>OrbitNet is a personal, community-readable project. All source code is published on GitHub so anyone can inspect it, fork it, or self-host it.</p>
     </article>
   </section>
 </main>
 
 <footer class="wrap footer">
   <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
-  <div class="footer-links"><a href="#tools">Browse tools</a><a href="#about">About the project</a><a href="https://orbitnet.ru">orbitnet.ru</a></div>
+  <div class="footer-links"><a href="#tools">Browse tools</a><a href="#about">About</a><a href="https://orbitnet.ru">orbitnet.ru</a></div>
 </footer>
 
 <script src="assets/js/main.js"></script>

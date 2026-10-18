@@ -1,202 +1,217 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Ohm's Law Calculator — calculate voltage, current, resistance and power">
-<meta name="theme-color" content="#111110">
-<title>Ohm's Law Calculator — OrbitNet</title>
-<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2">
-<link rel="stylesheet" href="../../assets/css/style.css">
-<style>
-.tool-page { padding: 40px 0; }
-.tool-header { margin-bottom: 40px; }
-.tool-header h1 { font-size: 2.5rem; margin: 10px 0; }
-.tool-header .breadcrumb { font-size: .85rem; color: var(--muted); margin-bottom: 10px; }
-.tool-header .breadcrumb a { text-decoration: none; }
-.tool-header .breadcrumb a:hover { text-decoration: underline; }
-.tool-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-.tool-panel { background: var(--card); border: 1.5px solid var(--line); border-radius: 16px; padding: 24px; }
-.tool-panel h2 { font-size: 1.3rem; margin: 0 0 20px; }
-.input-group { margin-bottom: 20px; }
-.input-group label { display: block; font-weight: 700; margin-bottom: 8px; font-size: .9rem; }
-.input-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; }
-.input-row input { flex: 1; }
-.input-row select { padding: 12px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); font-size: .9rem; min-width: 80px; }
-.input-group input, .input-group select { width: 100%; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); font-size: 1rem; }
-.input-group input:focus, .input-group select:focus { outline: none; border-color: var(--orange); }
-.input-group input:disabled { opacity: 0.5; cursor: not-allowed; background: var(--paper-2); }
-.input-group small { display: block; margin-top: 6px; color: var(--muted); font-size: .8rem; }
-.btn { display: inline-block; padding: 12px 24px; background: var(--orange); color: #f5ebe2; border: 0; border-radius: 10px; font-weight: 800; cursor: pointer; font-size: .95rem; transition: background .2s; }
-.btn:hover { background: #ef8528; }
-.btn-secondary { background: var(--line); color: var(--ink); }
-.btn-secondary:hover { background: var(--muted); }
-.result-box { background: var(--paper); border: 1.5px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
-.result-box.highlight { border-color: var(--orange); background: rgba(212,107,21,.05); }
-.result-label { font-size: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 700; margin-bottom: 6px; }
-.result-value { font-size: 1.6rem; font-weight: 800; font-family: 'Monaco', 'Courier New', monospace; color: var(--ink); }
-.result-value.large { font-size: 2rem; color: var(--orange); }
-.result-sub { font-size: .85rem; color: var(--muted); margin-top: 4px; }
-.error { color: #ff5555; background: rgba(255,85,85,.1); border: 1.5px solid #ff5555; padding: 12px 16px; border-radius: 10px; margin-bottom: 20px; font-size: .9rem; }
-.formula-box { background: var(--paper-2); border-radius: 10px; padding: 16px; margin: 20px 0; text-align: center; }
-.formula { font-size: 1.4rem; font-weight: 800; font-family: 'Georgia', serif; color: var(--orange); margin: 10px 0; }
-.formula-desc { font-size: .85rem; color: var(--muted); }
-.info-section { background: var(--paper-2); border-radius: 12px; padding: 20px; margin-top: 24px; }
-.info-section h3 { font-size: 1.1rem; margin: 0 0 12px; }
-.info-section p { margin: 0 0 10px; color: var(--muted); font-size: .9rem; line-height: 1.6; }
-.info-section ul { margin: 10px 0; padding-left: 20px; color: var(--muted); font-size: .9rem; }
-.info-section code { background: var(--card); padding: 2px 6px; border-radius: 4px; font-family: monospace; color: var(--orange); }
-@media (max-width: 768px) {
-  .tool-layout { grid-template-columns: 1fr; }
-  .tool-header h1 { font-size: 2rem; }
-}
-</style>
-</head>
-<body>
-<header class="wrap topbar">
-  <a class="brand" href="../../index.html">
-    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-    <span>orbitnet<span style="font-weight:500">.ru</span></span>
-  </a>
-  <nav class="nav">
-    <a href="../../index.html#tools">Tools</a>
-    <a href="../../index.html#about">About</a>
-  </nav>
-</header>
-
-<main class="wrap tool-page">
-  <div class="tool-header">
-    <div class="breadcrumb">
-      <a href="../../index.html">Home</a> / 
-      <a href="../../index.html#tools">Tools</a> / 
-      <span>Ohm's Law Calculator</span>
-    </div>
-    <h1>Ohm's Law Calculator</h1>
-    <p style="color: var(--muted); max-width: 700px;">Calculate voltage, current, resistance or power using Ohm's Law. Enter any two values to find the missing ones.</p>
-  </div>
-
-  <div class="tool-layout">
-    <div class="tool-panel">
-      <h2>Input Values</h2>
-      <p style="color: var(--muted); font-size: .9rem; margin-bottom: 20px;">Enter any TWO values to calculate the rest</p>
-      <div id="errorMsg"></div>
-      
-      <div class="input-group">
-        <label for="voltage">Voltage (V)</label>
-        <div class="input-row">
-          <input type="number" id="voltage" placeholder="e.g., 12" step="any">
-          <select id="voltageUnit">
-            <option value="1">V</option>
-            <option value="0.001">mV</option>
-            <option value="1000">kV</option>
-          </select>
+  <head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Ohm's Law Calculator — calculate voltage, current, resistance and power"><meta name="theme-color" content="#f5f5f4">
+    <title>
+      Ohm's Law Calculator — OrbitNet
+    </title>
+    <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2"><link rel="stylesheet" href="../../assets/css/style.css">
+  </head>
+  <body>
+    <header class="wrap topbar">
+      <a class="brand" href="../../index.html"><span class="brand-mark" aria-hidden="true"><i></i>
+      <i></i>
+      <i></i>
+      <i></i>
+      </span>
+      <span>orbitnet<span style="font-weight:500">.ru</span>
+      </span>
+      </a>
+      <nav class="nav">
+        <a href="../../index.html#tools">Tools</a>
+        <a href="../../index.html#about">About</a>
+      </nav>
+    </header>
+    <main class="wrap tool-page">
+      <div class="tool-header">
+        <div class="breadcrumb">
+          <a href="../../index.html">Home</a>
+          /<a href="../../index.html#tools">Tools</a>
+          /<span>Ohm's Law Calculator</span>
         </div>
-        <small>Voltage = Potential difference</small>
+        <h1>
+          Ohm's Law Calculator
+        </h1>
+        <p style="color: var(--muted); max-width: 700px;">
+          Calculate voltage, current, resistance or power using Ohm's Law. Enter any two values to find the missing ones.
+        </p>
       </div>
-
-      <div class="input-group">
-        <label for="current">Current (I)</label>
-        <div class="input-row">
-          <input type="number" id="current" placeholder="e.g., 2" step="any">
-          <select id="currentUnit">
-            <option value="1">A</option>
-            <option value="0.001">mA</option>
-            <option value="0.000001">µA</option>
-            <option value="1000">kA</option>
-          </select>
+      <div class="tool-layout">
+        <div class="tool-panel">
+          <h2>
+            Input Values
+          </h2>
+          <p style="color: var(--muted); font-size: .9rem; margin-bottom: 20px;">
+            Enter any TWO values to calculate the rest
+          </p>
+          <div id="errorMsg">
+          </div>
+          <div class="input-group">
+            <label for="voltage">Voltage (V)</label>
+            <div class="input-row">
+              <input type="number" id="voltage" placeholder="e.g., 12" step="any">
+              <select id="voltageUnit">
+                <option value="1">V</option>
+                <option value="0.001">mV</option>
+                <option value="1000">kV</option>
+              </select>
+            </div>
+            <small>Voltage = Potential difference</small>
+          </div>
+          <div class="input-group">
+            <label for="current">Current (I)</label>
+            <div class="input-row">
+              <input type="number" id="current" placeholder="e.g., 2" step="any">
+              <select id="currentUnit">
+                <option value="1">A</option>
+                <option value="0.001">mA</option>
+                <option value="0.000001">µA</option>
+                <option value="1000">kA</option>
+              </select>
+            </div>
+            <small>Current = Flow of charge</small>
+          </div>
+          <div class="input-group">
+            <label for="resistance">Resistance (R)</label>
+            <div class="input-row">
+              <input type="number" id="resistance" placeholder="e.g., 6" step="any">
+              <select id="resistanceUnit">
+                <option value="1">Ω</option>
+                <option value="1000">kΩ</option>
+                <option value="1000000">MΩ</option>
+              </select>
+            </div>
+            <small>Resistance = Opposition to current</small>
+          </div>
+          <div class="input-group">
+            <label for="power">Power (P)</label>
+            <div class="input-row">
+              <input type="number" id="power" placeholder="e.g., 24" step="any">
+              <select id="powerUnit">
+                <option value="1">W</option>
+                <option value="0.001">mW</option>
+                <option value="1000">kW</option>
+                <option value="1000000">MW</option>
+              </select>
+            </div>
+            <small>Power = Energy per time</small>
+          </div>
+          <button class="btn" onclick="calculate()">Calculate</button>
+          <button class="btn btn-secondary" onclick="reset()" style="margin-left: 10px;">Reset</button>
         </div>
-        <small>Current = Flow of charge</small>
-      </div>
-
-      <div class="input-group">
-        <label for="resistance">Resistance (R)</label>
-        <div class="input-row">
-          <input type="number" id="resistance" placeholder="e.g., 6" step="any">
-          <select id="resistanceUnit">
-            <option value="1">Ω</option>
-            <option value="1000">kΩ</option>
-            <option value="1000000">MΩ</option>
-          </select>
-        </div>
-        <small>Resistance = Opposition to current</small>
-      </div>
-
-      <div class="input-group">
-        <label for="power">Power (P)</label>
-        <div class="input-row">
-          <input type="number" id="power" placeholder="e.g., 24" step="any">
-          <select id="powerUnit">
-            <option value="1">W</option>
-            <option value="0.001">mW</option>
-            <option value="1000">kW</option>
-            <option value="1000000">MW</option>
-          </select>
-        </div>
-        <small>Power = Energy per time</small>
-      </div>
-
-      <button class="btn" onclick="calculate()">Calculate ↗</button>
-      <button class="btn btn-secondary" onclick="reset()" style="margin-left: 10px;">Reset</button>
-    </div>
-
-    <div class="tool-panel">
-      <h2>Results</h2>
-      <div id="results">
-        <div style="text-align: center; padding: 40px 20px; color: var(--muted);">
-          Enter any two values to calculate the rest
+        <div class="tool-panel">
+          <h2>
+            Results
+          </h2>
+          <div id="results">
+            <div style="text-align: center; padding: 40px 20px; color: var(--muted);">
+              Enter any two values to calculate the rest
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  </div>
-
-  <div class="info-section">
-    <h3>Ohm's Law Formulas</h3>
-    <div class="formula-box">
-      <div class="formula">V = I × R</div>
-      <div class="formula-desc">Voltage = Current × Resistance</div>
-    </div>
-    <div class="formula-box">
-      <div class="formula">I = V ÷ R</div>
-      <div class="formula-desc">Current = Voltage ÷ Resistance</div>
-    </div>
-    <div class="formula-box">
-      <div class="formula">R = V ÷ I</div>
-      <div class="formula-desc">Resistance = Voltage ÷ Current</div>
-    </div>
-    <div class="formula-box">
-      <div class="formula">P = V × I</div>
-      <div class="formula-desc">Power = Voltage × Current</div>
-    </div>
-    
-    <h3 style="margin-top: 20px;">Understanding Ohm's Law</h3>
-    <p><strong>Ohm's Law</strong> describes the relationship between voltage, current, and resistance in an electrical circuit:</p>
-    <ul>
-      <li><strong>Voltage (V):</strong> Measured in Volts — the electrical potential difference that drives current</li>
-      <li><strong>Current (I):</strong> Measured in Amperes — the flow of electrical charge through a conductor</li>
-      <li><strong>Resistance (R):</strong> Measured in Ohms (Ω) — the opposition to current flow</li>
-      <li><strong>Power (P):</strong> Measured in Watts — the rate of energy consumption or production</li>
-    </ul>
-
-    <h3 style="margin-top: 20px;">Common applications</h3>
-    <ul>
-      <li>Calculating current draw for circuit design</li>
-      <li>Determining resistor values for LEDs</li>
-      <li>Sizing power supplies and batteries</li>
-      <li>Troubleshooting electrical circuits</li>
-    </ul>
-
-    <h3 style="margin-top: 20px;">Example calculation</h3>
-    <p>If you have a <code>12V</code> power supply and a <code>6Ω</code> resistor:</p>
-    <p>• Current: <code>I = V ÷ R = 12V ÷ 6Ω = 2A</code><br>
-    • Power: <code>P = V × I = 12V × 2A = 24W</code></p>
-  </div>
-</main>
-
-<footer class="wrap footer">
-  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
-  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../index.html#about">About</a></div>
-</footer>
-
+      <div class="info-section">
+        <h3>
+          Ohm's Law Formulas
+        </h3>
+        <div class="formula-box">
+          <div class="formula">
+            V = I × R
+          </div>
+          <div class="formula-desc">
+            Voltage = Current × Resistance
+          </div>
+        </div>
+        <div class="formula-box">
+          <div class="formula">
+            I = V ÷ R
+          </div>
+          <div class="formula-desc">
+            Current = Voltage ÷ Resistance
+          </div>
+        </div>
+        <div class="formula-box">
+          <div class="formula">
+            R = V ÷ I
+          </div>
+          <div class="formula-desc">
+            Resistance = Voltage ÷ Current
+          </div>
+        </div>
+        <div class="formula-box">
+          <div class="formula">
+            P = V × I
+          </div>
+          <div class="formula-desc">
+            Power = Voltage × Current
+          </div>
+        </div>
+        <h3 style="margin-top: 20px;">
+          Understanding Ohm's Law
+        </h3>
+        <p>
+          <strong>Ohm's Law</strong>
+          describes the relationship between voltage, current, and resistance in an electrical circuit:
+        </p>
+        <ul>
+          <li>
+            <strong>Voltage (V):</strong>
+            Measured in Volts — the electrical potential difference that drives current
+          </li>
+          <li>
+            <strong>Current (I):</strong>
+            Measured in Amperes — the flow of electrical charge through a conductor
+          </li>
+          <li>
+            <strong>Resistance (R):</strong>
+            Measured in Ohms (Ω) — the opposition to current flow
+          </li>
+          <li>
+            <strong>Power (P):</strong>
+            Measured in Watts — the rate of energy consumption or production
+          </li>
+        </ul>
+        <h3 style="margin-top: 20px;">
+          Common applications
+        </h3>
+        <ul>
+          <li>
+            Calculating current draw for circuit design
+          </li>
+          <li>
+            Determining resistor values for LEDs
+          </li>
+          <li>
+            Sizing power supplies and batteries
+          </li>
+          <li>
+            Troubleshooting electrical circuits
+          </li>
+        </ul>
+        <h3 style="margin-top: 20px;">
+          Example calculation
+        </h3>
+        <p>
+          If you have a<code>12V</code>
+          power supply and a<code>6Ω</code>
+          resistor:
+        </p>
+        <p>
+          • Current:<code>I = V ÷ R = 12V ÷ 6Ω = 2A</code>
+          <br>• Power:<code>P = V × I = 12V × 2A = 24W</code>
+        </p>
+      </div>
+    </main>
+    <footer class="wrap footer">
+      <div>
+        <strong>OrbitNet</strong>
+        <br>Open source. No ads. No tracking. ©<span id="year"></span>
+      </div>
+      <div class="footer-links">
+        <a href="../../index.html#tools">Browse tools</a>
+        <a href="../../index.html#about">About</a>
+      </div>
+    </footer>
 <script>
 document.getElementById('year').textContent = new Date().getFullYear();
 
@@ -211,7 +226,7 @@ function clearError() {
 }
 
 function showError(message) {
-  document.getElementById('errorMsg').innerHTML = `<div class="error">✗ ${message}</div>`;
+  document.getElementById('errorMsg').innerHTML = `<div class="error"> ${message}</div>`;
 }
 
 function formatValue(value, baseUnit, units) {
@@ -328,37 +343,12 @@ function displayResults(V, I, R, P, formulas) {
   const pDisplay = formatValue(P, 'W', [['mW', 0.001], ['W', 1], ['kW', 1000], ['MW', 1000000]]);
   
   const html = `
-    <div class="result-box highlight">
-      <div class="result-label">Voltage</div>
-      <div class="result-value large">${vDisplay}</div>
-      <div class="result-sub">V = ${V.toExponential(3)}</div>
-    </div>
-    
-    <div class="result-box highlight">
-      <div class="result-label">Current</div>
-      <div class="result-value large">${iDisplay}</div>
-      <div class="result-sub">I = ${I.toExponential(3)}</div>
-    </div>
-    
-    <div class="result-box highlight">
-      <div class="result-label">Resistance</div>
-      <div class="result-value large">${rDisplay}</div>
-      <div class="result-sub">R = ${R.toExponential(3)}</div>
-    </div>
-    
-    <div class="result-box highlight">
-      <div class="result-label">Power</div>
-      <div class="result-value large">${pDisplay}</div>
-      <div class="result-sub">P = ${P.toExponential(3)}</div>
-    </div>
+    <div class="result-box highlight"><div class="result-label">Voltage</div><div class="result-value large">${vDisplay}</div><div class="result-sub">V = ${V.toExponential(3)}</div></div><div class="result-box highlight"><div class="result-label">Current</div><div class="result-value large">${iDisplay}</div><div class="result-sub">I = ${I.toExponential(3)}</div></div><div class="result-box highlight"><div class="result-label">Resistance</div><div class="result-value large">${rDisplay}</div><div class="result-sub">R = ${R.toExponential(3)}</div></div><div class="result-box highlight"><div class="result-label">Power</div><div class="result-value large">${pDisplay}</div><div class="result-sub">P = ${P.toExponential(3)}</div></div>
     
     ${formulas.length > 0 ? `
-    <div class="result-box">
-      <div class="result-label">Formulas Used</div>
-      <div style="font-size: .95rem; color: var(--muted); margin-top: 8px;">
+    <div class="result-box"><div class="result-label">Formulas Used</div><div style="font-size: .95rem; color: var(--muted); margin-top: 8px;">
         ${formulas.map(f => `• ${f}`).join('<br>')}
-      </div>
-    </div>
+      </div></div>
     ` : ''}
   `;
   
