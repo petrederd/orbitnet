@@ -1,8 +1,15 @@
 const http = require('http');
+const https = require('https');
+const tls = require('tls');
 const dns = require('dns').promises;
 const net = require('net');
 
 const PORT = process.env.PORT || 3000;
+const OUTBOUND_TIMEOUT = 8000;
+const DNS_TIMEOUT = 5000;
+const MAX_CONCURRENT = 24;
+const RATE_WINDOW_MS = 60000;
+const RATE_MAX = 60;
 
 // Simple JSON helpers
 function send(res, code, obj) {
@@ -19,14 +26,146 @@ function bad(res, message) {
   send(res, 400, { error: message });
 }
 
+function httpError(status, message) {
+  const e = new Error(message);
+  e.status = status;
+  return e;
+}
+
+// ---------- IP helpers ----------
+function normalizeIp(input) {
+  if (!input || typeof input !== 'string') return '';
+  let s = input.trim();
+  if (s.startsWith('[')) {
+    const end = s.indexOf(']');
+    s = end === -1 ? s.slice(1) : s.slice(1, end);
+  }
+  s = s.replace(/^::ffff:/i, '');
+  const m = s.match(/^(\d{1,3}(?:\.\d{1,3}){3})(?::\d+)?$/);
+  if (m) return m[1];
+  return s;
+}
+
+function ipv4ToInt(ip) {
+  const p = ip.split('.').map(Number);
+  return (((p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3]) >>> 0);
+}
+
+// RFC1918 + loopback, link-local, CGNAT, documentation, multicast, reserved, etc.
+const PRIVATE_V4 = [
+  ['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8],
+  ['169.254.0.0', 16], ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.0.2.0', 24],
+  ['192.88.99.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15],
+  ['198.51.100.0', 24], ['203.0.113.0', 24], ['224.0.0.0', 4], ['240.0.0.0', 4]
+].map(([ip, bits]) => {
+  const base = ipv4ToInt(ip);
+  const mask = bits === 0 ? 0 : (bits === 32 ? 0xffffffff : ((0xffffffff << (32 - bits)) >>> 0));
+  return { base: (base & mask) >>> 0, mask };
+});
+
+function isPrivateV4(ip) {
+  const n = ipv4ToInt(ip);
+  return PRIVATE_V4.some(r => ((n & r.mask) >>> 0) === r.base);
+}
+
+function isPrivateV6(ip) {
+  const s = ip.toLowerCase();
+  if (s === '::' || s === '::1') return true;
+  if (/^fe[89ab]/.test(s)) return true;       // fe80::/10 link-local
+  if (/^f[cd]/.test(s)) return true;          // fc00::/7 unique local
+  if (/^ff/.test(s)) return true;             // ff00::/8 multicast
+  if (s.startsWith('2001:db8')) return true;  // documentation
+  return false;
+}
+
+function isPublicIp(ip) {
+  const norm = normalizeIp(ip);
+  if (net.isIPv4(norm)) return !isPrivateV4(norm);
+  if (net.isIPv6(norm)) return !isPrivateV6(norm);
+  return false;
+}
+
+function withTimeout(promise, ms, message) {
+  let timer;
+  return Promise.race([
+    promise.finally(() => clearTimeout(timer)),
+    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(message)), ms); })
+  ]);
+}
+
+// Resolves a host to IPs and rejects the request unless every address is public.
+async function resolvePublic(host) {
+  const literal = normalizeIp(host);
+  if (net.isIP(literal)) {
+    if (!isPublicIp(literal)) throw httpError(400, 'Only public IP addresses are allowed');
+    return [literal];
+  }
+  let addrs = null;
+  for (let attempt = 0; attempt < 2 && !addrs; attempt++) {
+    try {
+      addrs = await withTimeout(dns.lookup(host, { all: true }), DNS_TIMEOUT, 'DNS resolution timeout');
+    } catch (e) {
+      if (e.status) throw e;
+    }
+  }
+  if (!addrs) throw httpError(400, 'Cannot resolve ' + host);
+  const ips = addrs.map(a => normalizeIp(a.address)).filter(ip => net.isIP(ip));
+  if (!ips.length) throw httpError(400, 'Cannot resolve ' + host);
+  for (const ip of ips) {
+    if (!isPublicIp(ip)) throw httpError(400, 'Blocked: ' + host + ' resolves to a non-public address');
+  }
+  return ips;
+}
+
+function pickAddress(ips) {
+  return ips.find(net.isIPv4) || ips[0];
+}
+
+// ---------- client IP (behind trusted reverse proxies) ----------
+function clientIp(req) {
+  const chain = [];
+  const xff = req.headers['x-forwarded-for'];
+  if (typeof xff === 'string') chain.push(...xff.split(','));
+  chain.push(req.socket.remoteAddress || '');
+  const norm = chain.map(normalizeIp).filter(ip => net.isIP(ip));
+  // Walk from the nearest hop outward; the first public address is the real client.
+  for (let i = norm.length - 1; i >= 0; i--) {
+    if (isPublicIp(norm[i])) return norm[i];
+  }
+  return norm[norm.length - 1] || '';
+}
+
+// ---------- concurrency + rate limiting ----------
+function createLimiter(max) {
+  let active = 0;
+  const queue = [];
+  const next = () => {
+    if (active >= max || !queue.length) return;
+    active++;
+    const job = queue.shift();
+    Promise.resolve().then(job.fn).then(job.resolve, job.reject).finally(() => { active--; next(); });
+  };
+  return (fn) => new Promise((resolve, reject) => { queue.push({ fn, resolve, reject }); next(); });
+}
+const outbound = createLimiter(MAX_CONCURRENT);
+
+const rateHits = new Map();
+function isRateLimited(ip) {
+  const now = Date.now();
+  let rec = rateHits.get(ip);
+  if (!rec || now - rec.start > RATE_WINDOW_MS) {
+    rec = { start: now, count: 0 };
+    rateHits.set(ip, rec);
+  }
+  rec.count++;
+  if (rateHits.size > 10000) rateHits.clear();
+  return rec.count > RATE_MAX;
+}
+
 // ---------- validation ----------
 const HOSTNAME_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/i;
 function isValidHost(host) {
   return typeof host === 'string' && host.length <= 253 && HOSTNAME_RE.test(host);
-}
-function isValidIpv4(ip) {
-  const parts = ip.split('.').map(Number);
-  return parts.length === 4 && parts.every(p => Number.isInteger(p) && p >= 0 && p <= 255);
 }
 function sanitizeType(t) {
   return /^[A-Z]{1,6}$/.test(t || '') ? t.toUpperCase() : 'A';
@@ -34,31 +173,25 @@ function sanitizeType(t) {
 
 // ---------- /api/ip ----------
 async function ipInfo(req) {
-  const xff = req.headers['x-forwarded-for'];
-  const remote = (xff && xff.split(',')[0].trim()) || req.socket.remoteAddress || '';
-  const ip = remote.replace(/^::ffff:/, '');
-
+  const ip = clientIp(req);
   let hostname = '';
   try {
-    hostname = await dns.reverse(ip);
-    hostname = hostname[0] || '';
+    const names = await withTimeout(dns.reverse(ip), DNS_TIMEOUT, 'timeout');
+    hostname = (names && names[0]) || '';
   } catch (e) { hostname = ''; }
 
-  const version = ip.includes(':') ? 6 : 4;
+  const version = net.isIPv6(ip) ? 6 : 4;
   return { ip, version, hostname };
 }
 
 // ---------- /api/dns ----------
 async function dnsLookup(host, type) {
-  const resolver = new dns.Resolver();
   try {
     if (type === 'A' || type === 'AAAA') {
-      const records = await dns.resolve(host, type);
-      return records;
+      return await dns.resolve(host, type);
     }
     if (type === 'CNAME') {
-      const records = await dns.resolveCname(host);
-      return records;
+      return await dns.resolveCname(host);
     }
     if (type === 'MX') {
       const records = await dns.resolveMx(host);
@@ -86,7 +219,7 @@ async function dnsLookup(host, type) {
 }
 
 // ---------- /api/port ----------
-function checkPort(host, port, timeout) {
+function checkPort(ip, port, timeout) {
   return new Promise((resolve) => {
     const sock = new net.Socket();
     const to = timeout || 3000;
@@ -96,14 +229,14 @@ function checkPort(host, port, timeout) {
       done = true;
       clearTimeout(timer);
       sock.destroy();
-      resolve({ host, port, open, error: err || null });
+      resolve({ ip, port, open, error: err || null });
     };
     const timer = setTimeout(() => finish(false, 'timeout'), to);
     sock.setTimeout(to);
     sock.once('connect', () => finish(true));
     sock.once('timeout', () => finish(false, 'timeout'));
     sock.once('error', (e) => finish(false, e.code || 'error'));
-    sock.connect(port, host);
+    sock.connect(port, ip);
   });
 }
 
@@ -139,38 +272,40 @@ async function whoisLookup(host) {
   const tld = host.split('.').pop().toLowerCase();
   const server = WHOIS_SERVERS[tld] || 'whois.iana.org';
   try {
-    const raw = await queryWhois(host, server, 43);
-    return raw;
+    return await queryWhois(host, server, 43);
   } catch (e) {
     // fallback to iana
-    const raw = await queryWhois(host, 'whois.iana.org', 43);
-    return raw;
+    return await queryWhois(host, 'whois.iana.org', 43);
   }
 }
 
 // ---------- /api/site ----------
-// Follows redirects, returns HTTP status, server header, page title and timing.
-function fetchOnce(targetHost, path, secure, timeout) {
+// Connects to the pre-resolved public IP, keeps the original Host/SNI, verifies TLS.
+function fetchOnce(ip, host, path, secure, timeout) {
   return new Promise((resolve) => {
-    const lib = secure ? require('https') : http;
+    const lib = secure ? https : http;
     const start = Date.now();
     const options = {
-      hostname: targetHost,
+      hostname: ip,
       path: path || '/',
       method: 'GET',
       headers: {
+        'Host': host,
         'User-Agent': 'OrbitNet/1.0 (+https://orbitnet.ru)',
         'Accept': 'text/html,application/xhtml+xml'
       },
-      timeout: timeout || 8000,
-      rejectUnauthorized: false
+      timeout: timeout || OUTBOUND_TIMEOUT
     };
+    if (secure) {
+      options.servername = host;
+      options.checkServerIdentity = (servername, cert) => tls.checkServerIdentity(host, cert);
+    }
     const req = lib.request(options, (res) => {
       const status = res.statusCode;
       const headers = res.headers;
       if ([301, 302, 303, 307, 308].includes(status) && headers.location) {
         res.resume();
-        return resolve({ status, redirect: headers.location, ms: Date.now() - start, headers });
+        return resolve({ status, redirect: safeRedirect(headers.location), ms: Date.now() - start, headers });
       }
       let body = '';
       res.setEncoding('utf8');
@@ -186,7 +321,7 @@ function fetchOnce(targetHost, path, secure, timeout) {
           server: headers['server'] || '',
           contentType: headers['content-type'] || '',
           title,
-          finalUrl: (secure ? 'https://' : 'http://') + targetHost + path
+          finalUrl: (secure ? 'https://' : 'http://') + host + path
         });
       });
     });
@@ -196,18 +331,27 @@ function fetchOnce(targetHost, path, secure, timeout) {
   });
 }
 
+// Only expose http(s) redirect targets; the target is never followed.
+function safeRedirect(location) {
+  if (typeof location !== 'string') return '';
+  const trimmed = location.trim();
+  if (/^https?:\/\//i.test(trimmed) || /^\//.test(trimmed)) return trimmed.slice(0, 2048);
+  return '';
+}
+
 async function siteInfo(host) {
-  const address = await dns.lookup(host, { family: 4 });
-  // Try HTTPS first, fall back to HTTP
-  let result = await fetchOnce(host, '/', true);
+  const ips = await resolvePublic(host);
+  const ip = pickAddress(ips);
+  // Try HTTPS first (with certificate verification), fall back to HTTP.
+  let result = await outbound(() => fetchOnce(ip, host, '/', true));
   let protocol = 'https';
   if (result.error || (result.status && result.status >= 400 && !result.redirect)) {
-    const httpResult = await fetchOnce(host, '/', false);
+    const httpResult = await outbound(() => fetchOnce(ip, host, '/', false));
     if (!httpResult.error) { result = httpResult; protocol = 'http'; }
   }
   return {
     host,
-    ip: address.address,
+    ip,
     protocol,
     status: result.status || null,
     responseMs: result.ms,
@@ -231,6 +375,9 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  const ip = clientIp(req);
+  const limited = path === '/api/dns' || path === '/api/port' || path === '/api/whois' || path === '/api/site';
+
   try {
     if (path === '/health') return send(res, 200, { ok: true });
 
@@ -238,37 +385,44 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, await ipInfo(req));
     }
 
+    if (limited && isRateLimited(ip)) {
+      return send(res, 429, { error: 'Too many requests, slow down' });
+    }
+
     if (path === '/api/dns') {
       const host = query.get('host') || '';
       const type = sanitizeType(query.get('type'));
       // allow IP lookup too
-      if (isValidIpv4(host) && type === 'A') {
-        return send(res, 200, { host, type: 'A', records: [host] });
+      if (net.isIPv4(normalizeIp(host)) && type === 'A') {
+        return send(res, 200, { host, type: 'A', records: [normalizeIp(host)] });
       }
-      if (isValidIpv4(host) && type === 'PTR') {
+      if (net.isIPv4(normalizeIp(host)) && type === 'PTR') {
+        const target = normalizeIp(host);
         let records = [];
         let err = null;
-        try { records = await dns.reverse(host); } catch (e) { err = e.code || 'error'; }
+        try { records = await withTimeout(dns.reverse(target), DNS_TIMEOUT, 'timeout'); } catch (e) { err = e.code || 'error'; }
         return send(res, 200, { host, type: 'PTR', records, error: err });
       }
       if (!isValidHost(host)) return bad(res, 'Invalid hostname');
-      const records = await dnsLookup(host, type);
+      const records = await outbound(() => dnsLookup(host, type));
       return send(res, 200, { host, type, records });
     }
 
     if (path === '/api/port') {
       const host = query.get('host') || '';
       const port = parseInt(query.get('port'), 10);
-      if (!isValidHost(host) && !isValidIpv4(host)) return bad(res, 'Invalid hostname');
+      if (!isValidHost(host) && !net.isIP(normalizeIp(host))) return bad(res, 'Invalid hostname');
       if (isNaN(port) || port < 1 || port > 65535) return bad(res, 'Port must be 1-65535');
-      const result = await checkPort(host, port);
-      return send(res, 200, result);
+      const ips = await resolvePublic(host);
+      const target = pickAddress(ips);
+      const result = await outbound(() => checkPort(target, port));
+      return send(res, 200, Object.assign({ host }, result));
     }
 
     if (path === '/api/whois') {
       const host = query.get('host') || '';
-      if (!isValidHost(host) && !isValidIpv4(host)) return bad(res, 'Invalid hostname');
-      const raw = await whoisLookup(host);
+      if (!isValidHost(host)) return bad(res, 'Invalid hostname');
+      const raw = await outbound(() => whoisLookup(host));
       return send(res, 200, { host, raw });
     }
 
@@ -281,7 +435,7 @@ const server = http.createServer(async (req, res) => {
 
     return send(res, 404, { error: 'Not found' });
   } catch (e) {
-    return send(res, 500, { error: e.message || 'Server error' });
+    return send(res, e.status || 500, { error: e.message || 'Server error' });
   }
 });
 

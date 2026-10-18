@@ -4,25 +4,28 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-orange.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-active-success.svg)]()
-[![Made with Love](https://img.shields.io/badge/made%20with-❤-red.svg)]()
 
-## 🌟 О проекте
+## О проекте
 
 **OrbitNet** — это open-source коллекция полезных веб-инструментов, созданная для специалистов и любознательных людей. Проект построен на простых принципах:
 
-- ✅ **Без рекламы** — никаких баннеров или спонсорских размещений
-- ✅ **Без трекинга** — ваши данные не собираются и не отправляются на серверы
-- ✅ **Без регистрации** — все инструменты доступны сразу
-- ✅ **Open source** — весь код открыт для изучения и улучшения
-- ✅ **Приватность** — вычисления выполняются локально, а сетевые проверки (DNS, порты, whois) идут через собственный бэкенд, без сторонних сервисов
+- **Без рекламы** — никаких баннеров или спонсорских размещений
+- **Без трекинга** — приложение не ведёт базу пользовательских данных и не использует сторонние сервисы аналитики
+- **Без регистрации** — все инструменты доступны сразу
+- **Open source** — весь код открыт для изучения и улучшения
+- **Приватность** — вычисления выполняются локально, а сетевые проверки (DNS, порты, whois) идут через собственный бэкенд, без сторонних сервисов
 
-## 🚀 Живая демо
+> Оговорка по приватности: приложение не собирает и не хранит пользовательские данные. При этом
+> веб-сервер, reverse-proxy и контейнерная платформа могут вести технические логи запросов
+> (например, IP-адрес, время, путь запроса) — это стандартные логи хостинга, а не профилирование.
 
-🔗 **[orbitnet.ru](https://orbitnet.ru)** (скоро будет доступен)
+## Живая демо
 
-## 📦 Доступные инструменты
+[orbitnet.ru](https://orbitnet.ru) (скоро будет доступен)
 
-### 🌐 Сетевые инструменты (Networks)
+## Доступные инструменты
+
+### Сетевые инструменты (Networks)
 - [x] **IPv4 Subnet Calculator** — расчет подсетей, маски, диапазонов хостов
 - [x] **IP Lookup** — ваш публичный IP и reverse DNS (через собственный бэкенд)
 - [x] **DNS Lookup** — записи A, AAAA, MX, TXT, NS, CNAME, SOA, CAA
@@ -34,7 +37,7 @@
 - [x] **MAC Address Converter** — форматы MAC, тип адреса и OUI
 - [x] **Reverse IP Lookup** — PTR-запись для IP (через бэкенд)
 
-### 💻 Инструменты разработчика (Developer Tools)
+### Инструменты разработчика (Developer Tools)
 - [x] **JSON Formatter & Validator** — форматирование и валидация JSON
 - [x] **Base64 Encoder/Decoder**
 - [x] **UUID Generator**
@@ -44,14 +47,14 @@
 - [x] **Regex Tester** — проверка регулярок с флагами и группами
 - [x] **Color Converter** — HEX ↔ RGB ↔ HSL
 
-### ⚡ Электроника (Electronics)
+### Электроника (Electronics)
 - [x] **Ohm's Law Calculator**
 - [x] **NE555 Timer Calculator**
 - [ ] Resistor Color Code Calculator
 - [ ] LED Resistor Calculator
 - [ ] Voltage Divider Calculator
 
-### 🔢 Математика и наука (Math & Science)
+### Математика и наука (Math & Science)
 - [x] **Quadratic Equation Solver**
 - [x] **Percentage Calculator**
 - [x] **Unit Converter**
@@ -60,13 +63,13 @@
 - [x] **Statistics Calculator** — mean, median, mode, variance, quartiles
 - [x] **Prime Number Checker** — простота, факторизация, ближайшие простые
 
-### 📝 Текст и данные (Text & Data)
+### Текст и данные (Text & Data)
 - [x] **Case Converter** — регистр, camelCase, snake_case, kebab-case и др.
 - [x] **Word Counter** — слова, символы, время чтения, частые слова
 - [x] **Text Diff Checker** — построчное сравнение двух текстов
 - [x] **Lorem Ipsum Generator** — placeholder-текст
 
-## 🏗️ Структура проекта
+## Структура проекта
 
 ```
 orbitnet/
@@ -96,17 +99,17 @@ orbitnet/
 └── ROADMAP.md                     # План развития
 ```
 
-## 🛠️ Технологии
+## Технологии
 
 - **Vanilla JavaScript** — без фреймворков, чистый JS
 - **Modern CSS** — CSS Grid, Custom Properties, темная тема
 - **Semantic HTML5** — доступность и SEO
-- **Node.js** — легкий API-бэкенд только на встроенных модулях (dns, net, http, https)
+- **Node.js** — легкий API-бэкенд только на встроенных модулях (dns, net, http, https, tls)
 - **nginx** — раздача статики и проксирование `/api/` на бэкенд
 - **Docker** — контейнеризация для деплоя
 - **GitHub Actions** — автоматический деплой
 
-## 🔌 API бэкенда
+## API бэкенда
 
 Бэкенд не использует внешних зависимостей и отдаёт JSON:
 
@@ -114,12 +117,25 @@ orbitnet/
 |----------|----------|
 | `GET /health` | проверка доступности |
 | `GET /api/ip` | IP клиента, версия и reverse DNS |
-| `GET /api/dns?host=&type=` | DNS-записи (A, AAAA, MX, TXT, NS, CNAME, SOA, CAA) |
+| `GET /api/dns?host=&type=` | DNS-записи (A, AAAA, MX, TXT, NS, CNAME, SOA, CAA, PTR для IP) |
 | `GET /api/port?host=&port=` | проверка TCP-порта |
 | `GET /api/whois?host=` | whois-данные для домена или IP |
 | `GET /api/site?host=` | HTTP-статус, сервер, заголовок и время отклика сайта |
 
-## 🚀 Локальный запуск
+### Безопасность сетевых проверок
+
+Так как `/api/port` и `/api/site` инициируют соединения по запросу посетителя, бэкенд защищён от SSRF:
+
+- разрешены только корректные доменные имена и публичные IP-адреса;
+- отклоняются `localhost`, loopback, приватные (RFC 1918), link-local, CGNAT, multicast и другие
+  непубличные диапазоны IPv4/IPv6;
+- проверяются **все** адреса, полученные через DNS, а не только имя хоста (защита от DNS-rebinding:
+  соединение идёт на уже проверенный IP);
+- редиректы не следуются, а небезопасные схемы (`javascript:` и т. п.) отбрасываются при выводе;
+- TLS-сертификаты проверяются штатно (`rejectUnauthorized` не отключается);
+- заданы таймауты, ограничение числа одновременных исходящих проверок и лимит частоты запросов (HTTP 429).
+
+## Локальный запуск
 
 ### Вариант 1: Прямо из файловой системы
 Просто откройте `site/index.html` в браузере. Инструменты, работающие на клиенте, будут работать сразу. Сетевые инструменты (DNS, порты, whois, site info, IP-виджет) требуют запущенного бэкенда.
@@ -163,12 +179,12 @@ docker-compose up -d
 # Откройте http://localhost:8081
 ```
 
-## 🤝 Как внести вклад
+## Как внести вклад
 
 Мы приветствуем любые улучшения! Вот как можно помочь:
 
 ### 1. Сообщить об ошибке (Bug Report)
-Создайте [issue](https://github.com/yourusername/orbitnet/issues) с описанием проблемы.
+Создайте [issue](https://github.com/petrederd/orbitnet/issues) с описанием проблемы.
 
 ### 2. Предложить новый инструмент
 1. Проверьте [ROADMAP.md](ROADMAP.md) — возможно, идея уже запланирована
@@ -196,7 +212,7 @@ docker-compose up -d
 - **HTML**: семантичные теги, ARIA-метки для доступности
 - **Комментарии**: документируйте сложную логику
 
-## 📋 Принципы дизайна
+## Принципы дизайна
 
 ### Визуальный стиль
 - Тёмная тема с зелёным акцентом (#6ecfa0)
@@ -211,50 +227,41 @@ docker-compose up -d
 4. Клавиатурные шорткаты где уместно
 5. Понятные сообщения об ошибках
 
-## 🎯 Дорожная карта
+## Дорожная карта
 
 Смотрите подробный план в [ROADMAP.md](ROADMAP.md)
 
 **Ближайшие цели:**
-- ✅ Главная страница с дизайн-системой (тёмная тема)
-- ✅ Базовая коллекция: Subnet, JSON, Base64, UUID, Password
-- ✅ Сетевые: DNS Lookup, Port Checker, IP & Domain Info, Site Info, CIDR/Netmask, IP/Binary, MAC, Reverse IP
-- ✅ Developer: Hash Generator, Timestamp Converter, Regex Tester, Color Converter
-- ✅ Math: Number Base, Scientific Notation, Statistics, Prime Checker
-- ✅ Text: Case Converter, Word Counter, Text Diff, Lorem Ipsum
-- ✅ Node.js API-бэкенд
-- 📅 Resistor Color Code Calculator
-- 📅 40+ инструментов к концу 2026
+- [x] Главная страница с дизайн-системой (тёмная тема)
+- [x] Базовая коллекция: Subnet, JSON, Base64, UUID, Password
+- [x] Сетевые: DNS Lookup, Port Checker, IP & Domain Info, Site Info, CIDR/Netmask, IP/Binary, MAC, Reverse IP
+- [x] Developer: Hash Generator, Timestamp Converter, Regex Tester, Color Converter
+- [x] Math: Number Base, Scientific Notation, Statistics, Prime Checker
+- [x] Text: Case Converter, Word Counter, Text Diff, Lorem Ipsum
+- [x] Node.js API-бэкенд
+- [ ] Resistor Color Code Calculator
+- [ ] 40+ инструментов к концу 2026
 
-## 📄 Лицензия
+## Лицензия
 
-MIT License (планируется) — свободно используйте, модифицируйте и распространяйте.
+Проект распространяется под лицензией **MIT** — см. файл [LICENSE](LICENSE). Вы можете свободно
+использовать, изменять и распространять код при условии сохранения уведомления об авторских правах.
 
-```
-Copyright (c) 2026 OrbitNet Team
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software...
-```
-
-## 🌟 Поддержка проекта
+## Поддержка проекта
 
 Если проект полезен для вас:
-- ⭐ Поставьте звезду на GitHub
-- 🐦 Расскажите друзьям и коллегам
-- 🛠️ Предложите новый инструмент или улучшение
-- 💬 Оставьте отзыв в issues
+- Поставьте звезду на GitHub
+- Расскажите друзьям и коллегам
+- Предложите новый инструмент или улучшение
+- Оставьте отзыв в issues
 
-## 📞 Контакты
+## Контакты
 
 - **Website**: [orbitnet.ru](https://orbitnet.ru)
-- **Issues**: [GitHub Issues](https://github.com/yourusername/orbitnet/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/orbitnet/discussions)
+- **Issues**: [GitHub Issues](https://github.com/petrederd/orbitnet/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/petrederd/orbitnet/discussions)
 
 ---
 
-**Made with ❤️ by OrbitNet Team**  
+**Made by OrbitNet Team**
 *Open source. No ads. No tracking.*
