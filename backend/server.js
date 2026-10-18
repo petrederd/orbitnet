@@ -7,7 +7,8 @@ const net = require('net');
 const PORT = process.env.PORT || 3000;
 const OUTBOUND_TIMEOUT = 8000;
 const DNS_TIMEOUT = 5000;
-const MAX_CONCURRENT = 24;
+const MAX_CONCURRENT = parseInt(process.env.MAX_CONCURRENT || '24', 10);
+const MAX_QUEUE = parseInt(process.env.MAX_QUEUE || '100', 10);
 const RATE_WINDOW_MS = 60000;
 const RATE_MAX = 60;
 
@@ -40,48 +41,50 @@ function normalizeIp(input) {
     const end = s.indexOf(']');
     s = end === -1 ? s.slice(1) : s.slice(1, end);
   }
+  // hex-form IPv4-mapped, e.g. ::ffff:7f00:1 or ::ffff:808:808
+  const mapped = s.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i);
+  if (mapped) {
+    const hi = parseInt(mapped[1], 16);
+    const lo = parseInt(mapped[2], 16);
+    return [hi >> 8, hi & 255, lo >> 8, lo & 255].join('.');
+  }
   s = s.replace(/^::ffff:/i, '');
   const m = s.match(/^(\d{1,3}(?:\.\d{1,3}){3})(?::\d+)?$/);
   if (m) return m[1];
   return s;
 }
 
-function ipv4ToInt(ip) {
-  const p = ip.split('.').map(Number);
-  return (((p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3]) >>> 0);
-}
-
-// RFC1918 + loopback, link-local, CGNAT, documentation, multicast, reserved, etc.
-const PRIVATE_V4 = [
+// Single deny-list of non-public IPv4 and IPv6 ranges. net.BlockList handles
+// prefix matching and address parsing for both families.
+const BLOCKED = new net.BlockList();
+[
   ['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8],
   ['169.254.0.0', 16], ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.0.2.0', 24],
   ['192.88.99.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15],
   ['198.51.100.0', 24], ['203.0.113.0', 24], ['224.0.0.0', 4], ['240.0.0.0', 4]
-].map(([ip, bits]) => {
-  const base = ipv4ToInt(ip);
-  const mask = bits === 0 ? 0 : (bits === 32 ? 0xffffffff : ((0xffffffff << (32 - bits)) >>> 0));
-  return { base: (base & mask) >>> 0, mask };
-});
-
-function isPrivateV4(ip) {
-  const n = ipv4ToInt(ip);
-  return PRIVATE_V4.some(r => ((n & r.mask) >>> 0) === r.base);
-}
-
-function isPrivateV6(ip) {
-  const s = ip.toLowerCase();
-  if (s === '::' || s === '::1') return true;
-  if (/^fe[89ab]/.test(s)) return true;       // fe80::/10 link-local
-  if (/^f[cd]/.test(s)) return true;          // fc00::/7 unique local
-  if (/^ff/.test(s)) return true;             // ff00::/8 multicast
-  if (s.startsWith('2001:db8')) return true;  // documentation
-  return false;
-}
+].forEach(([ip, bits]) => BLOCKED.addSubnet(ip, bits, 'ipv4'));
+[
+  ['::', 96],            // unspecified, loopback, IPv4-compatible and IPv4-mapped
+  ['64:ff9b::', 96],     // NAT64
+  ['64:ff9b:1::', 48],   // NAT64 local-use
+  ['100::', 64],         // discard-only
+  ['2001::', 32],        // Teredo
+  ['2001:2::', 48],      // benchmarking
+  ['2001:db8::', 32],    // documentation
+  ['2001:10::', 28],     // ORCHID
+  ['2001:20::', 28],     // ORCHIDv2
+  ['2002::', 16],        // 6to4
+  ['3fff::', 20],        // documentation (RFC 9637)
+  ['5f00::', 16],        // segment routing
+  ['fc00::', 7],         // unique local
+  ['fe80::', 10],        // link-local
+  ['ff00::', 8]          // multicast
+].forEach(([ip, bits]) => BLOCKED.addSubnet(ip, bits, 'ipv6'));
 
 function isPublicIp(ip) {
-  const norm = normalizeIp(ip);
-  if (net.isIPv4(norm)) return !isPrivateV4(norm);
-  if (net.isIPv6(norm)) return !isPrivateV6(norm);
+  const norm = normalizeIp(ip).toLowerCase();
+  if (net.isIPv4(norm)) return !BLOCKED.check(norm, 'ipv4');
+  if (net.isIPv6(norm)) return !BLOCKED.check(norm, 'ipv6');
   return false;
 }
 
@@ -122,13 +125,19 @@ function pickAddress(ips) {
 }
 
 // ---------- client IP (behind trusted reverse proxies) ----------
+// nginx (the only allowed caller of this service) sets X-Real-IP to the client
+// address after resolving the trusted proxy chain, so that header is preferred.
+// X-Forwarded-For is only used as a fallback, picking the nearest hop that is a
+// public address and ignoring client-supplied (spoofable) entries.
 function clientIp(req) {
+  const real = normalizeIp(String(req.headers['x-real-ip'] || ''));
+  if (net.isIP(real)) return real;
+
   const chain = [];
   const xff = req.headers['x-forwarded-for'];
   if (typeof xff === 'string') chain.push(...xff.split(','));
   chain.push(req.socket.remoteAddress || '');
   const norm = chain.map(normalizeIp).filter(ip => net.isIP(ip));
-  // Walk from the nearest hop outward; the first public address is the real client.
   for (let i = norm.length - 1; i >= 0; i--) {
     if (isPublicIp(norm[i])) return norm[i];
   }
@@ -136,7 +145,7 @@ function clientIp(req) {
 }
 
 // ---------- concurrency + rate limiting ----------
-function createLimiter(max) {
+function createLimiter(max, maxQueue) {
   let active = 0;
   const queue = [];
   const next = () => {
@@ -145,9 +154,13 @@ function createLimiter(max) {
     const job = queue.shift();
     Promise.resolve().then(job.fn).then(job.resolve, job.reject).finally(() => { active--; next(); });
   };
-  return (fn) => new Promise((resolve, reject) => { queue.push({ fn, resolve, reject }); next(); });
+  return (fn) => new Promise((resolve, reject) => {
+    if (queue.length >= maxQueue) { reject(httpError(503, 'Server busy, try again later')); return; }
+    queue.push({ fn, resolve, reject });
+    next();
+  });
 }
-const outbound = createLimiter(MAX_CONCURRENT);
+const outbound = createLimiter(MAX_CONCURRENT, MAX_QUEUE);
 
 const rateHits = new Map();
 function isRateLimited(ip) {
@@ -376,31 +389,32 @@ const server = http.createServer(async (req, res) => {
   }
 
   const ip = clientIp(req);
-  const limited = path === '/api/dns' || path === '/api/port' || path === '/api/whois' || path === '/api/site';
+  const limited = path === '/api/ip' || path === '/api/dns' || path === '/api/port' ||
+    path === '/api/whois' || path === '/api/site';
 
   try {
     if (path === '/health') return send(res, 200, { ok: true });
-
-    if (path === '/api/ip') {
-      return send(res, 200, await ipInfo(req));
-    }
 
     if (limited && isRateLimited(ip)) {
       return send(res, 429, { error: 'Too many requests, slow down' });
     }
 
+    if (path === '/api/ip') {
+      return send(res, 200, await ipInfo(req));
+    }
+
     if (path === '/api/dns') {
       const host = query.get('host') || '';
       const type = sanitizeType(query.get('type'));
-      // allow IP lookup too
-      if (net.isIPv4(normalizeIp(host)) && type === 'A') {
-        return send(res, 200, { host, type: 'A', records: [normalizeIp(host)] });
+      const literal = normalizeIp(host);
+      // allow IP lookups too (IPv4 and IPv6)
+      if (net.isIPv4(literal) && type === 'A') {
+        return send(res, 200, { host, type: 'A', records: [literal] });
       }
-      if (net.isIPv4(normalizeIp(host)) && type === 'PTR') {
-        const target = normalizeIp(host);
+      if (net.isIP(literal) && type === 'PTR') {
         let records = [];
         let err = null;
-        try { records = await withTimeout(dns.reverse(target), DNS_TIMEOUT, 'timeout'); } catch (e) { err = e.code || 'error'; }
+        try { records = await withTimeout(dns.reverse(literal), DNS_TIMEOUT, 'timeout'); } catch (e) { err = e.code || 'error'; }
         return send(res, 200, { host, type: 'PTR', records, error: err });
       }
       if (!isValidHost(host)) return bad(res, 'Invalid hostname');
@@ -410,9 +424,11 @@ const server = http.createServer(async (req, res) => {
 
     if (path === '/api/port') {
       const host = query.get('host') || '';
-      const port = parseInt(query.get('port'), 10);
+      const portStr = query.get('port') || '';
+      if (!/^\d{1,5}$/.test(portStr)) return bad(res, 'Port must be 1-65535');
+      const port = parseInt(portStr, 10);
       if (!isValidHost(host) && !net.isIP(normalizeIp(host))) return bad(res, 'Invalid hostname');
-      if (isNaN(port) || port < 1 || port > 65535) return bad(res, 'Port must be 1-65535');
+      if (port < 1 || port > 65535) return bad(res, 'Port must be 1-65535');
       const ips = await resolvePublic(host);
       const target = pickAddress(ips);
       const result = await outbound(() => checkPort(target, port));
@@ -439,6 +455,10 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
-  console.log('OrbitNet backend listening on :' + PORT);
-});
+if (require.main === module) {
+  server.listen(PORT, () => {
+    console.log('OrbitNet backend listening on :' + PORT);
+  });
+}
+
+module.exports = { normalizeIp, isPublicIp, clientIp, server };

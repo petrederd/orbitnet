@@ -84,6 +84,13 @@
 document.getElementById('year').textContent = new Date().getFullYear();
 
 /**
+ * Escape a value before inserting it into HTML.
+ */
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/**
  * Main calculation function
  */
 function calculate() {
@@ -128,17 +135,22 @@ function displayResults(result) {
   const html = `
     <div class="result-box highlight">
       <div class="result-label">Result Label</div>
-      <div class="result-value large">${result.value}</div>
+      <div class="result-value large">${esc(result.value)}</div>
     </div>
   `;
   document.getElementById('results').innerHTML = html;
 }
 
 /**
- * Show error message
+ * Show error message (text is inserted safely, never as raw HTML)
  */
 function showError(message) {
-  document.getElementById('errorMsg').innerHTML = `<div class="error">${message}</div>`;
+  const el = document.getElementById('errorMsg');
+  el.innerHTML = '';
+  const div = document.createElement('div');
+  div.className = 'error';
+  div.textContent = String(message == null ? '' : message);
+  el.appendChild(div);
 }
 
 /**
