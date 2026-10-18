@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Timestamp Converter — convert between Unix timestamps, ISO 8601 and human-readable dates">
+<meta name="theme-color" content="#16161a">
+<title>Timestamp Converter — OrbitNet</title>
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2">
+<link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../index.html#about">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> /
+      <a href="../../index.html#tools">Tools</a> /
+      <span>Timestamp Converter</span>
+    </div>
+    <h1>Timestamp Converter</h1>
+    <p>Convert between Unix timestamps, ISO 8601 and readable local and UTC dates.</p>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Input</h2>
+    <div id="errorMsg"></div>
+    <div class="input-group">
+      <label for="inputType">Input type</label>
+      <select id="inputType">
+        <option value="auto">Auto-detect</option>
+        <option value="s">Unix seconds</option>
+        <option value="ms">Unix milliseconds</option>
+        <option value="date">Date / ISO string</option>
+      </select>
+    </div>
+    <div class="input-group">
+      <label for="value">Value</label>
+      <input type="text" id="value" placeholder="e.g. 1700000000 or 2026-01-01T00:00:00Z">
+    </div>
+    <div class="toolbar">
+      <button class="btn" onclick="convert()">Convert</button>
+      <button class="btn btn-secondary" onclick="useNow()">Now</button>
+    </div>
+    <div class="result-box" style="margin-top:16px;">
+      <div class="result-label">Current Unix time</div>
+      <div class="result-value" id="live">—</div>
+    </div>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Result</h2>
+    <div id="results">
+      <div class="result-sub">Enter a timestamp or date.</div>
+    </div>
+  </div>
+
+  <div class="info-section">
+    <h3>Seconds or milliseconds?</h3>
+    <p>Unix time counts seconds since 1 January 1970 UTC. Many languages and tools use milliseconds instead, which is 1000× larger. Auto-detect treats numbers with 10 or fewer digits as seconds and larger numbers as milliseconds. ISO 8601 strings such as <code>2026-01-01T12:00:00Z</code> are parsed directly.</p>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../index.html#about">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+function parseInput(raw, type) {
+  raw = raw.trim();
+  if (!raw) return null;
+  if (type === 'date') { const d = new Date(raw); return isNaN(d) ? null : d; }
+  if (type === 's') { return /^-?\d+(\.\d+)?$/.test(raw) ? new Date(Number(raw) * 1000) : null; }
+  if (type === 'ms') { return /^-?\d+$/.test(raw) ? new Date(Number(raw)) : null; }
+  // auto
+  if (/^-?\d+$/.test(raw)) {
+    const n = Number(raw);
+    const ms = raw.replace('-', '').length <= 10 ? n * 1000 : n;
+    return new Date(ms);
+  }
+  const d = new Date(raw);
+  return isNaN(d) ? null : d;
+}
+
+function relative(d) {
+  const diff = d.getTime() - Date.now();
+  const abs = Math.abs(diff);
+  const units = [
+    ['year', 31557600000], ['month', 2629800000], ['day', 86400000],
+    ['hour', 3600000], ['minute', 60000], ['second', 1000]
+  ];
+  for (const [name, ms] of units) {
+    if (abs >= ms || name === 'second') {
+      const v = Math.round(diff / ms);
+      const n = Math.abs(v);
+      const word = name + (n === 1 ? '' : 's');
+      return v === 0 ? 'now' : (v > 0 ? 'in ' + n + ' ' + word : n + ' ' + word + ' ago');
+    }
+  }
+  return 'now';
+}
+
+function convert() {
+  const type = document.getElementById('inputType').value;
+  const raw = document.getElementById('value').value;
+  const errEl = document.getElementById('errorMsg');
+  const resEl = document.getElementById('results');
+  errEl.innerHTML = '';
+
+  if (!raw.trim()) { resEl.innerHTML = '<div class="result-sub">Enter a timestamp or date.</div>'; return; }
+
+  const d = parseInput(raw, type);
+  if (!d || isNaN(d)) {
+    errEl.innerHTML = '<div class="error">Could not parse that value.</div>';
+    resEl.innerHTML = '<div class="result-sub">Enter a valid timestamp or date.</div>';
+    return;
+  }
+
+  const sec = Math.floor(d.getTime() / 1000);
+  const ms = d.getTime();
+  const iso = d.toISOString();
+  const utc = d.toUTCString();
+  const local = d.toString();
+
+  resEl.innerHTML =
+    '<div class="result-box highlight"><div class="result-label">Unix seconds</div><div class="result-value large">' + sec + '</div><div class="result-sub">' + relative(d) + '</div></div>' +
+    '<div class="grid-2">' +
+      '<div class="result-box"><div class="result-label">Unix milliseconds</div><div class="result-value" style="font-size:1rem;">' + ms + '</div></div>' +
+      '<div class="result-box"><div class="result-label">ISO 8601 (UTC)</div><div class="result-value" style="font-size:1rem;">' + iso + '</div></div>' +
+      '<div class="result-box"><div class="result-label">UTC</div><div class="result-value" style="font-size:1rem;">' + utc + '</div></div>' +
+      '<div class="result-box"><div class="result-label">Local time</div><div class="result-value" style="font-size:.95rem;">' + local + '</div></div>' +
+    '</div>';
+}
+
+function useNow() {
+  document.getElementById('inputType').value = 's';
+  document.getElementById('value').value = Math.floor(Date.now() / 1000);
+  convert();
+}
+
+function tick() {
+  document.getElementById('live').textContent = Math.floor(Date.now() / 1000) + '  (' + new Date().toISOString() + ')';
+}
+
+useNow();
+tick();
+setInterval(tick, 1000);
+</script>
+</body>
+</html>

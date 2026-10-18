@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Scientific Notation Converter — convert numbers to and from scientific and engineering notation">
+<meta name="theme-color" content="#16161a">
+<title>Scientific Notation Converter — OrbitNet</title>
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2">
+<link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../index.html#about">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> /
+      <a href="../../index.html#tools">Tools</a> /
+      <span>Scientific Notation Converter</span>
+    </div>
+    <h1>Scientific Notation Converter</h1>
+    <p>Convert a number to scientific and engineering notation, or turn scientific notation back into a plain decimal.</p>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Input</h2>
+    <div id="errorMsg"></div>
+    <div class="input-group">
+      <label for="value">Number or scientific notation</label>
+      <input type="text" id="value" value="0.00042" placeholder="e.g. 0.00042, 1.23e5, 6.022×10^23" oninput="convert()">
+      <small>Accepts plain decimals and forms like <code>1.23e5</code>, <code>1.23 × 10^5</code> or <code>1.23x10^5</code>.</small>
+    </div>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Result</h2>
+    <div id="results">
+      <div class="result-sub">Enter a number to convert.</div>
+    </div>
+  </div>
+
+  <div class="info-section">
+    <h3>Definitions</h3>
+    <p><strong>Scientific notation</strong> writes a number as <code>m × 10^e</code> where the mantissa <code>m</code> is between 1 and 10. <strong>Engineering notation</strong> is the same, but the exponent is always a multiple of 3, which pairs naturally with SI prefixes such as kilo (10³) and micro (10⁻⁶).</p>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../index.html#about">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+function parseInput(raw) {
+  let s = raw.trim().toLowerCase();
+  if (!s) return null;
+  s = s.replace(/×10\^?/g, 'e').replace(/x10\^?/g, 'e').replace(/\s/g, '').replace(/,/g, '');
+  if (!/^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/.test(s)) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function sciParts(n, sig) {
+  if (n === 0) return { mantissa: 0, exponent: 0 };
+  const exp = Math.floor(Math.log10(Math.abs(n)));
+  const mantissa = Number((n / Math.pow(10, exp)).toPrecision(sig));
+  return { mantissa, exponent: exp };
+}
+
+function convert() {
+  const raw = document.getElementById('value').value;
+  const errEl = document.getElementById('errorMsg');
+  const resEl = document.getElementById('results');
+  errEl.innerHTML = '';
+
+  if (!raw.trim()) {
+    resEl.innerHTML = '<div class="result-sub">Enter a number to convert.</div>';
+    return;
+  }
+
+  const n = parseInput(raw);
+  if (n === null) {
+    errEl.innerHTML = '<div class="error">Could not parse that as a number.</div>';
+    resEl.innerHTML = '<div class="result-sub">Enter a valid number.</div>';
+    return;
+  }
+
+  const sig = 10;
+  const { mantissa, exponent } = sciParts(n, sig);
+  const engExp = Math.floor(exponent / 3) * 3;
+  const engMantissa = Number((n / Math.pow(10, engExp)).toPrecision(sig));
+
+  const plain = n.toLocaleString('en-US', { maximumFractionDigits: 20 });
+  const scientific = mantissa + ' × 10^' + exponent;
+  const engineering = engMantissa + ' × 10^' + engExp;
+  const eNotation = mantissa + 'e' + (exponent >= 0 ? '+' : '') + exponent;
+
+  resEl.innerHTML =
+    '<div class="result-box highlight"><div class="result-label">Scientific notation</div><div class="result-value large" style="font-size:1.3rem;">' + scientific + '</div></div>' +
+    '<div class="result-box"><div class="result-label">Engineering notation</div><div class="result-value" style="font-size:1.1rem;">' + engineering + '</div></div>' +
+    '<div class="result-box"><div class="result-label">E-notation</div><div class="result-value" style="font-size:1.1rem;">' + eNotation + '</div></div>' +
+    '<div class="result-box"><div class="result-label">Plain decimal</div><div class="result-value" style="font-size:1.05rem;">' + plain + '</div></div>' +
+    '<div class="grid-2">' +
+      '<div class="result-box"><div class="result-label">Mantissa</div><div class="result-value">' + mantissa + '</div></div>' +
+      '<div class="result-box"><div class="result-label">Exponent</div><div class="result-value">' + exponent + '</div></div>' +
+    '</div>';
+}
+
+convert();
+</script>
+</body>
+</html>

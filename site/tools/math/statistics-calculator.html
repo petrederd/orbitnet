@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Statistics Calculator — mean, median, mode, variance, standard deviation and quartiles from a list of numbers">
+<meta name="theme-color" content="#16161a">
+<title>Statistics Calculator — OrbitNet</title>
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2">
+<link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../index.html#about">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> /
+      <a href="../../index.html#tools">Tools</a> /
+      <span>Statistics Calculator</span>
+    </div>
+    <h1>Statistics Calculator</h1>
+    <p>Enter a list of numbers to get count, sum, mean, median, mode, variance, standard deviation and quartiles.</p>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Data set</h2>
+    <div id="errorMsg"></div>
+    <div class="input-group">
+      <label for="data">Numbers</label>
+      <textarea id="data" class="text-textarea" placeholder="e.g. 12, 7, 3, 19, 7, 25" oninput="calculate()"></textarea>
+      <small>Separate values by commas, spaces or new lines.</small>
+    </div>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Results</h2>
+    <div id="results">
+      <div class="result-sub">Enter some numbers to see statistics.</div>
+    </div>
+  </div>
+
+  <div class="info-section">
+    <h3>Formulas</h3>
+    <ul>
+      <li><strong>Mean</strong> — the arithmetic average (sum ÷ count)</li>
+      <li><strong>Median</strong> — the middle value of the sorted data</li>
+      <li><strong>Variance</strong> — population divides by n, sample divides by n − 1</li>
+      <li><strong>Standard deviation</strong> — the square root of the variance</li>
+      <li><strong>Quartiles</strong> — median of the lower and upper halves (Q1, Q3); IQR = Q3 − Q1</li>
+    </ul>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../index.html#about">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+function num(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function median(sorted) {
+  const n = sorted.length;
+  if (!n) return NaN;
+  const mid = Math.floor(n / 2);
+  return n % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+function fmt(x) {
+  if (!Number.isFinite(x)) return '—';
+  return (Math.round(x * 1e10) / 1e10).toLocaleString('en-US', { maximumFractionDigits: 10 });
+}
+
+function calculate() {
+  const raw = document.getElementById('data').value;
+  const errEl = document.getElementById('errorMsg');
+  const resEl = document.getElementById('results');
+  errEl.innerHTML = '';
+
+  const tokens = raw.split(/[\s,;]+/).filter(t => t !== '');
+  if (!tokens.length) {
+    resEl.innerHTML = '<div class="result-sub">Enter some numbers to see statistics.</div>';
+    return;
+  }
+
+  const numbers = [];
+  const bad = [];
+  tokens.forEach(t => {
+    const v = num(t);
+    if (v === null) bad.push(t); else numbers.push(v);
+  });
+
+  if (bad.length) {
+    errEl.innerHTML = '<div class="error">Ignored non-numeric value(s): ' + bad.slice(0, 6).map(e => e.replace(/</g, '&lt;')).join(', ') + (bad.length > 6 ? '…' : '') + '</div>';
+  }
+  if (!numbers.length) {
+    resEl.innerHTML = '<div class="result-sub">No valid numbers found.</div>';
+    return;
+  }
+
+  const n = numbers.length;
+  const sorted = [...numbers].sort((a, b) => a - b);
+  const sum = numbers.reduce((a, b) => a + b, 0);
+  const mean = sum / n;
+  const med = median(sorted);
+  const min = sorted[0];
+  const max = sorted[n - 1];
+
+  // mode
+  const counts = {};
+  let best = 0;
+  numbers.forEach(v => { counts[v] = (counts[v] || 0) + 1; best = Math.max(best, counts[v]); });
+  const modes = Object.keys(counts).filter(k => counts[k] === best).map(Number).sort((a, b) => a - b);
+  const modeText = best <= 1 ? 'none' : modes.map(fmt).join(', ');
+
+  const sumSq = numbers.reduce((a, b) => a + Math.pow(b - mean, 2), 0);
+  const popVar = sumSq / n;
+  const sampVar = n > 1 ? sumSq / (n - 1) : NaN;
+  const popSd = Math.sqrt(popVar);
+  const sampSd = Math.sqrt(sampVar);
+
+  const q1 = median(sorted.slice(0, Math.floor(n / 2)));
+  const q3 = median(sorted.slice(Math.ceil(n / 2)));
+  const iqr = q3 - q1;
+
+  resEl.innerHTML =
+    '<div class="grid-2">' +
+      '<div class="result-box"><div class="result-label">Count</div><div class="result-value">' + n + '</div></div>' +
+      '<div class="result-box"><div class="result-label">Sum</div><div class="result-value">' + fmt(sum) + '</div></div>' +
+      '<div class="result-box"><div class="result-label">Mean</div><div class="result-value">' + fmt(mean) + '</div></div>' +
+      '<div class="result-box"><div class="result-label">Median</div><div class="result-value">' + fmt(med) + '</div></div>' +
+      '<div class="result-box"><div class="result-label">Mode</div><div class="result-value" style="font-size:1rem;">' + modeText + '</div></div>' +
+      '<div class="result-box"><div class="result-label">Range</div><div class="result-value">' + fmt(max - min) + '</div><div class="result-sub">' + fmt(min) + ' – ' + fmt(max) + '</div></div>' +
+    '</div>' +
+    '<div class="grid-2">' +
+      '<div class="result-box"><div class="result-label">Population std dev</div><div class="result-value">' + fmt(popSd) + '</div><div class="result-sub">variance ' + fmt(popVar) + '</div></div>' +
+      '<div class="result-box"><div class="result-label">Sample std dev</div><div class="result-value">' + fmt(sampSd) + '</div><div class="result-sub">variance ' + fmt(sampVar) + '</div></div>' +
+      '<div class="result-box"><div class="result-label">Q1</div><div class="result-value">' + fmt(q1) + '</div></div>' +
+      '<div class="result-box"><div class="result-label">Q3</div><div class="result-value">' + fmt(q3) + '</div></div>' +
+    '</div>' +
+    '<div class="result-box"><div class="result-label">Interquartile range (IQR)</div><div class="result-value">' + fmt(iqr) + '</div></div>';
+}
+
+calculate();
+</script>
+</body>
+</html>

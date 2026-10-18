@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Reverse IP Lookup — find the hostname (PTR record) associated with an IP address">
+<meta name="theme-color" content="#16161a">
+<title>Reverse IP Lookup — OrbitNet</title>
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2">
+<link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../index.html#about">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> /
+      <a href="../../index.html#tools">Tools</a> /
+      <span>Reverse IP Lookup</span>
+    </div>
+    <h1>Reverse IP Lookup</h1>
+    <p>Find the hostname associated with an IP address through its PTR (reverse DNS) record. Resolved by our own server.</p>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Input</h2>
+    <div id="errorMsg"></div>
+    <div class="input-group">
+      <label for="query">IP address or domain</label>
+      <input type="text" id="query" value="8.8.8.8" placeholder="e.g. 8.8.8.8 or example.com" oninput="run()">
+      <small>If you enter a domain, it is resolved to its IP addresses first.</small>
+    </div>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Result</h2>
+    <div id="results">
+      <div class="result-sub">Enter an IP address or domain.</div>
+    </div>
+  </div>
+
+  <div class="info-section">
+    <h3>What is reverse DNS?</h3>
+    <p>Forward DNS maps a name to an IP address. Reverse DNS does the opposite: it looks up the PTR record for an address to find which hostname points to it. Not every IP has a PTR record, and the name it returns is controlled by the network owner, so it should not be treated as authoritative.</p>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../index.html#about">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+function isIp(s) { return /^\d{1,3}(\.\d{1,3}){3}$/.test(s); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+let timer = null;
+
+function run() {
+  clearTimeout(timer);
+  timer = setTimeout(doRun, 300);
+}
+
+function doRun() {
+  const raw = document.getElementById('query').value.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+  const errEl = document.getElementById('errorMsg');
+  const resEl = document.getElementById('results');
+  errEl.innerHTML = '';
+
+  if (!raw) { resEl.innerHTML = '<div class="result-sub">Enter an IP address or domain.</div>'; return; }
+
+  resEl.innerHTML = '<div class="loading">Looking up ' + esc(raw) + '...</div>';
+
+  if (isIp(raw)) {
+    ptr(raw);
+  } else {
+    fetch('/api/dns?host=' + encodeURIComponent(raw) + '&type=A')
+      .then(r => r.json())
+      .then(data => {
+        const ips = data.records || [];
+        if (!ips.length) {
+          resEl.innerHTML = '<div class="error">Could not resolve ' + esc(raw) + ' to an IP address.</div>';
+          return;
+        }
+        return Promise.all(ips.map(ip => ptrData(ip))).then(results => renderDomain(raw, results));
+      })
+      .catch(e => { resEl.innerHTML = '<div class="error">' + esc(e.message) + '</div>'; });
+  }
+}
+
+function ptr(ip) {
+  ptrData(ip).then(r => render([r]));
+}
+
+function ptrData(ip) {
+  return fetch('/api/dns?host=' + encodeURIComponent(ip) + '&type=PTR')
+    .then(r => r.json())
+    .then(d => ({ ip, hostnames: d.records || [], error: d.error || null }))
+    .catch(e => ({ ip, hostnames: [], error: e.message }));
+}
+
+function render(results) {
+  const rows = results.map(r => {
+    const names = r.hostnames.length
+      ? r.hostnames.map(esc).join('<br>')
+      : '<span class="result-sub">No PTR record</span>';
+    return '<div class="result-box"><div class="result-label">' + esc(r.ip) + '</div><div class="result-value" style="font-size:1.1rem;">' + names + '</div></div>';
+  }).join('');
+  document.getElementById('results').innerHTML = rows;
+}
+
+function renderDomain(domain, results) {
+  const rows = results.map(r => {
+    const names = r.hostnames.length
+      ? r.hostnames.map(esc).join('<br>')
+      : '<span class="result-sub">No PTR record</span>';
+    return '<div class="result-box"><div class="result-label">' + esc(r.ip) + '</div><div class="result-value" style="font-size:1.1rem;">' + names + '</div></div>';
+  }).join('');
+  document.getElementById('results').innerHTML =
+    '<div class="info">' + esc(domain) + ' resolves to ' + results.length + ' address' + (results.length > 1 ? 'es' : '') + '.</div>' + rows;
+}
+
+doRun();
+</script>
+</body>
+</html>

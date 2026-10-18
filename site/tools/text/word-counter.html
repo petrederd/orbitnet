@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Word Counter — count words, characters, sentences and paragraphs, with reading time and keyword frequency">
+<meta name="theme-color" content="#16161a">
+<title>Word Counter — OrbitNet</title>
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2">
+<link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../index.html#about">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> /
+      <a href="../../index.html#tools">Tools</a> /
+      <span>Word Counter</span>
+    </div>
+    <h1>Word Counter</h1>
+    <p>Count words, characters, sentences and paragraphs as you type, with estimated reading time and the most frequent keywords.</p>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Text</h2>
+    <div class="input-group">
+      <label for="input">Your text</label>
+      <textarea id="input" class="text-textarea" placeholder="Type or paste text here..." oninput="update()"></textarea>
+    </div>
+    <div class="toolbar">
+      <button class="btn btn-secondary" onclick="clearAll()">Clear</button>
+    </div>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Statistics</h2>
+    <div class="grid-2">
+      <div class="result-box"><div class="result-label">Words</div><div class="result-value" id="words">0</div></div>
+      <div class="result-box"><div class="result-label">Characters</div><div class="result-value" id="chars">0</div></div>
+      <div class="result-box"><div class="result-label">Characters (no spaces)</div><div class="result-value" id="charsNoSpace">0</div></div>
+      <div class="result-box"><div class="result-label">Sentences</div><div class="result-value" id="sentences">0</div></div>
+      <div class="result-box"><div class="result-label">Paragraphs</div><div class="result-value" id="paragraphs">0</div></div>
+      <div class="result-box"><div class="result-label">Lines</div><div class="result-value" id="lines">0</div></div>
+    </div>
+    <div class="grid-2">
+      <div class="result-box"><div class="result-label">Reading time</div><div class="result-value" id="readTime">0s</div><div class="result-sub">at 200 words / minute</div></div>
+      <div class="result-box"><div class="result-label">Speaking time</div><div class="result-value" id="speakTime">0s</div><div class="result-sub">at 130 words / minute</div></div>
+    </div>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Top keywords</h2>
+    <div id="keywords"><div class="result-sub">No words yet.</div></div>
+  </div>
+
+  <div class="info-section">
+    <h3>About this tool</h3>
+    <p>The word count splits on whitespace, so hyphenated words count as one. Sentences are detected by <code>. ! ?</code> and paragraphs by blank lines. Reading and speaking times are rough estimates. Everything runs in your browser.</p>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../index.html#about">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+const STOP = new Set(['the','and','for','are','but','not','you','all','any','can','her','was','one','our','out','day','get','has','him','his','how','its','new','now','old','see','two','way','who','boy','did','use','that','this','with','from','they','have','will','your','what','when','were','been','them','than','then','some','into','than','there','their','would','could','should','about','which','these','those','other','after','before','because','while']);
+
+function update() {
+  const text = document.getElementById('input').value;
+  const trimmed = text.trim();
+
+  const wordList = trimmed ? trimmed.split(/\s+/) : [];
+  const words = wordList.filter(w => /[A-Za-z0-9\u00C0-\u024F]/.test(w)).length;
+  const chars = text.length;
+  const charsNoSpace = text.replace(/\s/g, '').length;
+  const sentences = trimmed ? (trimmed.match(/[^.!?]+[.!?]*/g) || []).filter(s => s.trim()).length : 0;
+  const paragraphs = trimmed ? trimmed.split(/\n\s*\n/).filter(p => p.trim()).length : 0;
+  const lines = text ? text.split(/\r?\n/).length : 0;
+
+  document.getElementById('words').textContent = words;
+  document.getElementById('chars').textContent = chars;
+  document.getElementById('charsNoSpace').textContent = charsNoSpace;
+  document.getElementById('sentences').textContent = sentences;
+  document.getElementById('paragraphs').textContent = paragraphs;
+  document.getElementById('lines').textContent = lines;
+  document.getElementById('readTime').textContent = formatTime(words, 200);
+  document.getElementById('speakTime').textContent = formatTime(words, 130);
+
+  topKeywords(trimmed);
+}
+
+function formatTime(words, wpm) {
+  if (!words) return '0s';
+  const seconds = Math.round(words / wpm * 60);
+  if (seconds < 60) return seconds + 's';
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return m + 'm ' + s + 's';
+}
+
+function topKeywords(text) {
+  const el = document.getElementById('keywords');
+  if (!text) { el.innerHTML = '<div class="result-sub">No words yet.</div>'; return; }
+  const counts = {};
+  (text.toLowerCase().match(/[a-z0-9\u00C0-\u024F']{3,}/g) || []).forEach(w => {
+    if (STOP.has(w)) return;
+    counts[w] = (counts[w] || 0) + 1;
+  });
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 12);
+  if (!top.length) { el.innerHTML = '<div class="result-sub">No significant keywords found.</div>'; return; }
+  el.innerHTML = top.map(([w, n]) =>
+    '<span class="pill" style="margin:0 6px 6px 0;display:inline-block;">' + w + ' · ' + n + '</span>'
+  ).join('');
+}
+
+function clearAll() {
+  document.getElementById('input').value = '';
+  update();
+}
+
+update();
+</script>
+</body>
+</html>

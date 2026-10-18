@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Text Diff Checker — compare two texts and highlight added and removed lines">
+<meta name="theme-color" content="#16161a">
+<title>Text Diff Checker — OrbitNet</title>
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2">
+<link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../index.html#about">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> /
+      <a href="../../index.html#tools">Tools</a> /
+      <span>Text Diff Checker</span>
+    </div>
+    <h1>Text Diff Checker</h1>
+    <p>Compare two blocks of text line by line. Added lines are highlighted green, removed lines red, with a summary of changes.</p>
+  </div>
+
+  <div class="tool-layout">
+    <div class="tool-panel">
+      <h2>Original</h2>
+      <div class="input-group">
+        <textarea id="left" class="text-textarea" placeholder="Original text..." oninput="run()"></textarea>
+      </div>
+    </div>
+    <div class="tool-panel">
+      <h2>Changed</h2>
+      <div class="input-group">
+        <textarea id="right" class="text-textarea" placeholder="Changed text..." oninput="run()"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Diff</h2>
+    <div class="controls">
+      <label style="display:flex;align-items:center;gap:8px;font-size:.88rem;"><input type="checkbox" id="ignoreCase" checked onchange="run()"> Ignore case</label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:.88rem;"><input type="checkbox" id="ignoreSpace" onchange="run()"> Ignore whitespace</label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:.88rem;"><input type="checkbox" id="showSame" checked onchange="run()"> Show unchanged lines</label>
+    </div>
+    <div id="summary"></div>
+    <div id="diff" style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.85rem;margin-top:12px;max-height:520px;overflow:auto;border:1px solid var(--line);border-radius:8px;">
+    </div>
+  </div>
+
+  <div class="info-section">
+    <h3>How the comparison works</h3>
+    <p>The tool uses a longest-common-subsequence algorithm to align the two texts, then marks lines that were added, removed or kept. It works line by line, so a small edit inside a line shows as one removed and one added line. All comparison runs in your browser.</p>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../index.html#about">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+function esc(s) {
+  return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+}
+
+function normalize(line) {
+  let s = line;
+  if (document.getElementById('ignoreCase').checked) s = s.toLowerCase();
+  if (document.getElementById('ignoreSpace').checked) s = s.replace(/\s+/g, ' ').trim();
+  return s;
+}
+
+function run() {
+  const left = document.getElementById('left').value.split(/\r?\n/);
+  const right = document.getElementById('right').value.split(/\r?\n/);
+
+  // Empty inputs
+  if ((left.length === 1 && left[0] === '') && (right.length === 1 && right[0] === '')) {
+    document.getElementById('diff').innerHTML = '<div style="padding:20px;color:var(--muted);">Enter text in both boxes to compare.</div>';
+    document.getElementById('summary').innerHTML = '';
+    return;
+  }
+
+  const a = left.map(normalize);
+  const b = right.map(normalize);
+
+  if (a.length * b.length > 12000000) {
+    document.getElementById('diff').innerHTML = '<div style="padding:20px;color:var(--danger);">Input too large to compare. Please shorten the texts.</div>';
+    document.getElementById('summary').innerHTML = '';
+    return;
+  }
+
+  // LCS table
+  const n = a.length, m = b.length;
+  const dp = Array.from({ length: n + 1 }, () => new Uint32Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+
+  // Backtrack
+  const ops = [];
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) { ops.push(['same', left[i]]); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) { ops.push(['del', left[i]]); i++; }
+    else { ops.push(['add', right[j]]); j++; }
+  }
+  while (i < n) { ops.push(['del', left[i]]); i++; }
+  while (j < m) { ops.push(['add', right[j]]); j++; }
+
+  let added = 0, removed = 0, same = 0;
+  ops.forEach(([t]) => { if (t === 'add') added++; else if (t === 'del') removed++; else same++; });
+
+  const showSame = document.getElementById('showSame').checked;
+  const rows = ops.filter(([t]) => showSame || t !== 'same').map(([t, line]) => {
+    let bg = 'transparent', color = 'var(--muted)', sign = '  ';
+    if (t === 'add') { bg = 'rgba(110,207,160,.14)'; color = 'var(--accent)'; sign = '+ '; }
+    else if (t === 'del') { bg = 'rgba(242,139,130,.14)'; color = 'var(--danger)'; sign = '- '; }
+    return '<div style="padding:3px 10px;white-space:pre-wrap;word-break:break-word;background:' + bg + ';color:' + color + ';">' + esc(sign + line) + '</div>';
+  }).join('');
+
+  document.getElementById('diff').innerHTML = rows || '<div style="padding:20px;color:var(--muted);">The texts are identical.</div>';
+  document.getElementById('summary').innerHTML =
+    '<div class="stats"><span>' + added + '</span> added · <span>' + removed + '</span> removed · <span>' + same + '</span> unchanged</div>';
+}
+
+run();
+</script>
+</body>
+</html>

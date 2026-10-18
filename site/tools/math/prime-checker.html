@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Prime Number Checker — test primality, factorise a number and find neighbouring primes">
+<meta name="theme-color" content="#16161a">
+<title>Prime Number Checker — OrbitNet</title>
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2">
+<link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../index.html#about">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> /
+      <a href="../../index.html#tools">Tools</a> /
+      <span>Prime Number Checker</span>
+    </div>
+    <h1>Prime Number Checker</h1>
+    <p>Check whether an integer is prime, see its prime factorisation and find the nearest primes around it.</p>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Number</h2>
+    <div id="errorMsg"></div>
+    <div class="input-group">
+      <label for="value">Integer</label>
+      <input type="text" id="value" value="97" placeholder="e.g. 97, 1000003" oninput="run()">
+    </div>
+    <div class="toolbar">
+      <button class="btn btn-secondary" onclick="random()">Random</button>
+      <button class="btn btn-secondary" onclick="decrement()">− 1</button>
+      <button class="btn btn-secondary" onclick="increment()">+ 1</button>
+    </div>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Result</h2>
+    <div id="results">
+      <div class="result-sub">Enter an integer to analyse.</div>
+    </div>
+  </div>
+
+  <div class="info-section">
+    <h3>How it works</h3>
+    <p>Primality is tested with a deterministic Miller–Rabin algorithm using a fixed set of bases, which is exact for all values used here. Factorisation uses trial division, so extremely large numbers may take a moment and are capped. A random number generator uses cryptographically secure values.</p>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../index.html#about">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+const BASES = [2n, 3n, 5n, 7n, 11n, 13n, 17n, 19n, 23n, 29n, 31n, 37n];
+
+function modPow(base, exp, mod) {
+  let result = 1n;
+  base %= mod;
+  while (exp > 0n) {
+    if (exp & 1n) result = (result * base) % mod;
+    exp >>= 1n;
+    base = (base * base) % mod;
+  }
+  return result;
+}
+
+function isPrime(n) {
+  if (n < 2n) return false;
+  for (const p of [2n, 3n, 5n, 7n, 11n, 13n, 17n, 19n, 23n, 29n, 31n, 37n]) {
+    if (n === p) return true;
+    if (n % p === 0n) return false;
+  }
+  let d = n - 1n, r = 0n;
+  while (d % 2n === 0n) { d /= 2n; r++; }
+  for (const a of BASES) {
+    if (a >= n) continue;
+    let x = modPow(a, d, n);
+    if (x === 1n || x === n - 1n) continue;
+    let composite = true;
+    for (let i = 1n; i < r; i++) {
+      x = (x * x) % n;
+      if (x === n - 1n) { composite = false; break; }
+    }
+    if (composite) return false;
+  }
+  return true;
+}
+
+function factorize(n) {
+  const factors = [];
+  let m = n;
+  const add = (p, count) => { if (count) factors.push({ p, count }); };
+  let c2 = 0;
+  while (m % 2n === 0n) { m /= 2n; c2++; }
+  add(2n, c2);
+  let i = 3n;
+  const limit = 5000000n;
+  while (i * i <= m && i <= limit) {
+    let c = 0;
+    while (m % i === 0n) { m /= i; c++; }
+    add(i, c);
+    i += 2n;
+  }
+  const capped = i > limit && m > 1n && i * i <= m;
+  if (m > 1n) add(m, 1);
+  return { factors, capped };
+}
+
+function fmtFactor(f) {
+  return f.count > 1 ? f.p + '^' + f.count : f.p.toString();
+}
+
+function run() {
+  const raw = document.getElementById('value').value.trim();
+  const errEl = document.getElementById('errorMsg');
+  const resEl = document.getElementById('results');
+  errEl.innerHTML = '';
+
+  if (!raw) {
+    resEl.innerHTML = '<div class="result-sub">Enter an integer to analyse.</div>';
+    return;
+  }
+  if (!/^\d+$/.test(raw)) {
+    errEl.innerHTML = '<div class="error">Please enter a non-negative integer.</div>';
+    resEl.innerHTML = '<div class="result-sub">Enter a valid integer.</div>';
+    return;
+  }
+
+  const n = BigInt(raw);
+  const prime = isPrime(n);
+
+  // nearest primes
+  const below = n > 2n ? prevPrime(n - 1n) : null;
+  const above = nextPrime(n + 1n);
+
+  let html = '';
+  html += '<div class="result-box ' + (prime ? 'highlight' : '') + '">' +
+    '<div class="result-label">Is ' + raw + ' prime?</div>' +
+    '<div class="result-value large">' + (prime ? 'Yes' : 'No') + '</div>' +
+    (n > 1n && !prime ? '<div class="result-sub">Composite number</div>' : '') +
+    '</div>';
+
+  if (n > 1n) {
+    const { factors, capped } = factorize(n);
+    const expr = factors.length ? factors.map(fmtFactor).join(' × ') : raw;
+    html += '<div class="result-box"><div class="result-label">Prime factorisation</div>' +
+      '<div class="result-value" style="font-size:1.1rem;">' + expr + '</div>' +
+      (capped ? '<div class="result-sub">Trial division was capped; a factor may remain combined.</div>' : '') +
+      '</div>';
+
+    // divisors count and sum (only when factorisation is reliable)
+    if (!capped) {
+      let divCount = 1n, divSum = 1n;
+      for (const f of factors) {
+        divCount *= BigInt(f.count + 1);
+        let term = 1n, pk = 1n;
+        for (let k = 0; k < f.count; k++) { pk *= f.p; term += pk; }
+        divSum *= term;
+      }
+      html += '<div class="grid-2">' +
+        '<div class="result-box"><div class="result-label">Divisors</div><div class="result-value">' + divCount + '</div></div>' +
+        '<div class="result-box"><div class="result-label">Sum of divisors</div><div class="result-value" style="font-size:1rem;">' + divSum + '</div></div>' +
+        '</div>';
+    }
+  }
+
+  html += '<div class="grid-2">' +
+    '<div class="result-box"><div class="result-label">Previous prime</div><div class="result-value">' + (below === null ? '—' : below.toString()) + '</div></div>' +
+    '<div class="result-box"><div class="result-label">Next prime</div><div class="result-value">' + above.toString() + '</div></div>' +
+    '</div>';
+
+  resEl.innerHTML = html;
+}
+
+function nextPrime(n) {
+  let x = n;
+  while (!isPrime(x)) x++;
+  return x;
+}
+
+function prevPrime(n) {
+  let x = n;
+  while (x >= 2n && !isPrime(x)) x--;
+  return x >= 2n ? x : 2n;
+}
+
+function setValue(v) {
+  document.getElementById('value').value = v.toString();
+  run();
+}
+
+function increment() {
+  const raw = document.getElementById('value').value.trim();
+  if (/^\d+$/.test(raw)) setValue(BigInt(raw) + 1n);
+}
+
+function decrement() {
+  const raw = document.getElementById('value').value.trim();
+  if (/^\d+$/.test(raw) && BigInt(raw) > 0n) setValue(BigInt(raw) - 1n);
+}
+
+function random() {
+  const bytes = new Uint32Array(1);
+  crypto.getRandomValues(bytes);
+  setValue(BigInt(bytes[0]) % 1000000n + 2n);
+}
+
+run();
+</script>
+</body>
+</html>

@@ -6,10 +6,10 @@
 
 | Параметр | Значение |
 |----------|----------|
-| **Версия** | 0.2.0 (октябрь 2026) |
+| **Версия** | 0.3.0 (октябрь 2026) |
 | **Статус** | Активная разработка |
-| **Инструментов готово** | 15 |
-| **Реализовано** | Главная страница (тёмная тема), структура проекта, Node.js API-бэкенд |
+| **Инструментов готово** | 31 |
+| **Реализовано** | Главная страница (тёмная тема), 31 инструмент, Node.js API-бэкенд |
 
 ---
 
@@ -23,62 +23,55 @@
 - [x] Модульная структура проекта (HTML/CSS/JS)
 
 ### Фаза 1: Первые инструменты ✓ (завершена)
-**Статус**: 15 инструментов готовы и работают
+**Статус**: 31 инструмент готов и работает
 
-#### ✓ Реализованные инструменты (Приоритет 1)
-- [x] **IPv4 Subnet Calculator** — расчет сетевых адресов и масок подсетей
-- [x] **JSON Formatter & Validator** — форматирование и валидация JSON
-- [x] **IP Lookup** — публичный IP и reverse DNS (через собственный бэкенд)
-- [x] **Ohm's Law Calculator** — расчеты для электрических цепей
-- [x] **NE555 Timer Calculator** — параметры таймера 555
+#### ✓ Базовые инструменты
+- [x] **IPv4 Subnet Calculator**, **JSON Formatter**, **IP Lookup**, **Ohm's Law**, **NE555 Timer**
+- [x] **Base64**, **UUID Generator**, **Quadratic Solver**, **Percentage**, **Unit Converter**
 
-#### ✓ Реализованные инструменты (Приоритет 2)
-- [x] **Base64 Encoder/Decoder** — кодирование и декодирование Base64
-- [x] **UUID Generator** — генерация уникальных идентификаторов
-- [x] **Quadratic Equation Solver** — решение квадратных уравнений
-- [x] **Percentage Calculator** — расчеты с процентами
-- [x] **Unit Converter** — конвертация единиц измерения
+#### ✓ Сетевые инструменты (через API-бэкенд и клиентские)
+- [x] **DNS Lookup**, **Port Checker**, **IP & Domain Info**, **Site Info**
+- [x] **CIDR / Netmask Converter**, **IP / Binary Converter**, **MAC Address Converter**, **Reverse IP Lookup**
 
-#### ✓ Реализованные сетевые инструменты (через API-бэкенд)
-- [x] **DNS Lookup** — записи A, AAAA, MX, TXT, NS, CNAME, SOA, CAA
-- [x] **Port Checker** — проверка TCP-порта на хосте
-- [x] **IP & Domain Info** — DNS, reverse DNS и whois
-- [x] **Site Info** — HTTP-статус, сервер, заголовок и время отклика
-- [x] **Password Generator** — генерация паролей и оценка стойкости
+#### ✓ Developer
+- [x] **Password Generator**, **Hash Generator**, **Timestamp Converter**, **Regex Tester**, **Color Converter**
 
-### Фаза 2: Расширение коллекции 📅
+#### ✓ Math
+- [x] **Number Base Converter**, **Scientific Notation**, **Statistics Calculator**, **Prime Checker**
+
+#### ✓ Text
+- [x] **Case Converter**, **Word Counter**, **Text Diff Checker**, **Lorem Ipsum Generator**
+
+### Фаза 2: Электроника и расширение 📅
 **Срок**: Ноябрь-декабрь 2026
-**Цель**: 20+ инструментов во всех категориях
-
-#### 🌐 Networking Tools (сетевые инструменты)
-- [ ] IP to Binary Converter
-- [ ] MAC Address Guide
-- [ ] CIDR/Netmask Converter
-- [ ] Reverse IP Lookup
-
-#### 👨‍💻 Developer Tools (инструменты разработчика)
-- [ ] Hash Generator (MD5, SHA-1, SHA-256)
-- [ ] Color Picker & Converter
-- [ ] Regex Tester
-- [ ] Timestamp Converter
+**Цель**: 40+ инструментов во всех категориях
 
 #### ⚡ Electronics Tools (электроника)
+- [x] **Ohm's Law Calculator**
+- [x] **NE555 Timer Calculator**
 - [ ] Resistor Color Code Calculator
 - [ ] LED Resistor Calculator
 - [ ] Voltage Divider Calculator
 - [ ] Power Supply Calculator
 
+#### 👨‍💻 Developer Tools (инструменты разработчика)
+- [ ] Color Picker (полноценный)
+- [ ] Cron Expression Helper
+- [ ] JWT Decoder
+- [ ] URL Encoder / Decoder
+
+#### 🌐 Networking Tools (сетевые инструменты)
+- [ ] HTTP Header Checker
+- [ ] IPv6 tools
+- [ ] Whois for IP blocks
+
 #### 🧮 Math & Science (математика)
-- [ ] Scientific Notation Converter
-- [ ] Binary/Hex/Decimal Converter
-- [ ] Statistics Calculator
-- [ ] Prime Number Checker
+- [ ] Binary/Hex/Decimal (расширенный)
+- [ ] GCD / LCM Calculator
 
 #### 📝 Text & Data (текст и данные)
-- [ ] Text Case Converter
-- [ ] Word Counter
-- [ ] Text Diff Checker
-- [ ] Lorem Ipsum Generator
+- [ ] Markdown Preview
+- [ ] Slug Generator
 
 ### Фаза 3: Продвинутые возможности 🎨
 **Срок**: Q1 2027
@@ -123,21 +116,36 @@ orbitnet/
 │       │   ├── dns-lookup.html
 │       │   ├── port-checker.html
 │       │   ├── ip-info.html
-│       │   └── site-info.html
+│       │   ├── site-info.html
+│       │   ├── cidr-netmask.html
+│       │   ├── ip-binary-converter.html
+│       │   ├── mac-converter.html
+│       │   └── reverse-ip.html
 │       ├── developer/             # Инструменты разработчика
 │       │   ├── json-formatter.html
 │       │   ├── base64.html
 │       │   ├── uuid-generator.html
-│       │   └── password-generator.html
+│       │   ├── password-generator.html
+│       │   ├── hash-generator.html
+│       │   ├── timestamp-converter.html
+│       │   ├── regex-tester.html
+│       │   └── color-converter.html
 │       ├── electricity/           # Электроника
 │       │   ├── ohms-law.html
 │       │   └── ne555-calculator.html
 │       ├── math/                  # Математика
 │       │   ├── quadratic-solver.html
 │       │   ├── percentage-calculator.html
-│       │   └── unit-converter.html
+│       │   ├── unit-converter.html
+│       │   ├── number-base-converter.html
+│       │   ├── scientific-notation.html
+│       │   ├── statistics-calculator.html
+│       │   └── prime-checker.html
 │       ├── text/                  # Текст и данные
-│       │   └── [reserved]
+│       │   ├── case-converter.html
+│       │   ├── word-counter.html
+│       │   ├── text-diff-checker.html
+│       │   └── lorem-ipsum-generator.html
 │       └── _template.html         # Шаблон для новых инструментов
 ├── backend/                       # Node.js API-бэкенд
 │   ├── server.js
@@ -190,8 +198,8 @@ orbitnet/
 - [ ] Поддержка браузеров: Chrome 90+, Firefox 88+, Safari 14+, Edge 90+
 
 ### Пользовательские метрики
-- [x] 15 работающих инструментов (октябрь 2026)
-- [ ] 20+ инструментов к концу 2026
+- [x] 31 работающий инструмент (октябрь 2026)
+- [ ] 40+ инструментов к концу 2026
 - [ ] Документация для каждого инструмента
 - [ ] Примеры использования для всех инструментов
 - [ ] 95%+ положительных отзывов

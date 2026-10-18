@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Regex Tester — test regular expressions with flags, highlighting and capture groups">
+<meta name="theme-color" content="#16161a">
+<title>Regex Tester — OrbitNet</title>
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2">
+<link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../index.html#about">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> /
+      <a href="../../index.html#tools">Tools</a> /
+      <span>Regex Tester</span>
+    </div>
+    <h1>Regex Tester</h1>
+    <p>Write a regular expression, see matches highlighted in the test text and inspect every capture group as you type.</p>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Pattern</h2>
+    <div id="errorMsg"></div>
+    <div class="input-group">
+      <label for="pattern">Regular expression</label>
+      <input type="text" id="pattern" value="(\w+)@(\w+)\.(\w+)" placeholder="e.g. \d+" oninput="run()">
+    </div>
+    <div class="controls">
+      <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;"><input type="checkbox" id="f_g" checked onchange="run()"> g</label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;"><input type="checkbox" id="f_i" onchange="run()"> i</label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;"><input type="checkbox" id="f_m" onchange="run()"> m</label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;"><input type="checkbox" id="f_s" onchange="run()"> s</label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;"><input type="checkbox" id="f_u" onchange="run()"> u</label>
+    </div>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Test text</h2>
+    <div class="input-group">
+      <textarea id="text" class="text-textarea" placeholder="Text to test against..." oninput="run()">Contact us at hello@example.com or support@orbitnet.ru.</textarea>
+    </div>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Matches</h2>
+    <div id="summary"></div>
+    <div class="result-box"><div class="result-label">Highlighted</div><div id="highlight" style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.85rem;white-space:pre-wrap;word-break:break-word;"></div></div>
+    <div id="matches"></div>
+  </div>
+
+  <div class="info-section">
+    <h3>Flags</h3>
+    <ul>
+      <li><strong>g</strong> — global, find all matches instead of just the first</li>
+      <li><strong>i</strong> — case-insensitive</li>
+      <li><strong>m</strong> — multi-line, <code>^</code> and <code>$</code> match line boundaries</li>
+      <li><strong>s</strong> — dot matches newlines</li>
+      <li><strong>u</strong> — full Unicode mode</li>
+    </ul>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../index.html#about">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+function esc(s) {
+  return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+}
+
+function getFlags() {
+  let f = '';
+  ['g', 'i', 'm', 's', 'u'].forEach(k => { if (document.getElementById('f_' + k).checked) f += k; });
+  return f;
+}
+
+function run() {
+  const pattern = document.getElementById('pattern').value;
+  const text = document.getElementById('text').value;
+  const errEl = document.getElementById('errorMsg');
+  const sumEl = document.getElementById('summary');
+  const hlEl = document.getElementById('highlight');
+  const mEl = document.getElementById('matches');
+  errEl.innerHTML = '';
+
+  if (!pattern) {
+    sumEl.innerHTML = '';
+    hlEl.innerHTML = esc(text);
+    mEl.innerHTML = '';
+    return;
+  }
+
+  let re;
+  try {
+    re = new RegExp(pattern, getFlags());
+  } catch (e) {
+    errEl.innerHTML = '<div class="error">Invalid regular expression: ' + esc(e.message) + '</div>';
+    sumEl.innerHTML = '';
+    hlEl.innerHTML = esc(text);
+    mEl.innerHTML = '';
+    return;
+  }
+
+  const global = re.flags.includes('g');
+  const matches = [];
+  if (global) {
+    let m;
+    let guard = 0;
+    while ((m = re.exec(text)) !== null) {
+      matches.push({ value: m[0], index: m.index, groups: m.slice(1) });
+      if (m[0] === '') re.lastIndex++;
+      if (++guard > 10000) break;
+      if (re.lastIndex > text.length) break;
+    }
+  } else {
+    const m = re.exec(text);
+    if (m) matches.push({ value: m[0], index: m.index, groups: m.slice(1) });
+  }
+
+  // highlight
+  let html = '';
+  let last = 0;
+  matches.forEach(mt => {
+    if (mt.index < last) return;
+    html += esc(text.slice(last, mt.index));
+    html += '<span style="background:var(--accent-dim);color:var(--accent);border-radius:3px;padding:0 2px;">' + esc(mt.value) + '</span>';
+    last = mt.index + mt.value.length;
+  });
+  html += esc(text.slice(last));
+  hlEl.innerHTML = html;
+
+  sumEl.innerHTML = '<div class="stats"><span>' + matches.length + '</span> match' + (matches.length === 1 ? '' : 'es') + '</div>';
+
+  mEl.innerHTML = matches.map((mt, i) => {
+    const groups = mt.groups.map((g, gi) => '<div class="result-sub">group ' + (gi + 1) + ': ' + (g === undefined ? '—' : esc(g)) + '</div>').join('');
+    return '<div class="result-box"><div class="result-label">Match ' + (i + 1) + ' at index ' + mt.index + '</div>' +
+      '<div class="result-value" style="font-size:1rem;">' + esc(mt.value) + '</div>' + groups + '</div>';
+  }).join('');
+}
+
+run();
+</script>
+</body>
+</html>

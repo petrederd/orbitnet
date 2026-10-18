@@ -29,16 +29,20 @@
 - [x] **Port Checker** — проверка TCP-порта на хосте
 - [x] **IP & Domain Info** — DNS-записи, reverse DNS и whois для IP/домена
 - [x] **Site Info** — IP, HTTP-статус, сервер, заголовок и время отклика сайта
-- [ ] MAC Address Guide
-- [ ] CIDR/Netmask Converter
+- [x] **CIDR / Netmask Converter** — конвертация prefix ↔ маска ↔ wildcard
+- [x] **IP / Binary Converter** — IPv4 ↔ binary/decimal/hex
+- [x] **MAC Address Converter** — форматы MAC, тип адреса и OUI
+- [x] **Reverse IP Lookup** — PTR-запись для IP (через бэкенд)
 
 ### 💻 Инструменты разработчика (Developer Tools)
 - [x] **JSON Formatter & Validator** — форматирование и валидация JSON
 - [x] **Base64 Encoder/Decoder**
 - [x] **UUID Generator**
 - [x] **Password Generator** — генерация паролей и оценка стойкости
-- [ ] Hash Generator (MD5, SHA-1, SHA-256)
-- [ ] Regex Tester
+- [x] **Hash Generator** — MD5, SHA-1, SHA-256, SHA-384, SHA-512
+- [x] **Timestamp Converter** — Unix ↔ ISO 8601 ↔ локальное время
+- [x] **Regex Tester** — проверка регулярок с флагами и группами
+- [x] **Color Converter** — HEX ↔ RGB ↔ HSL
 
 ### ⚡ Электроника (Electronics)
 - [x] **Ohm's Law Calculator**
@@ -51,14 +55,16 @@
 - [x] **Quadratic Equation Solver**
 - [x] **Percentage Calculator**
 - [x] **Unit Converter**
-- [ ] Scientific Notation Converter
-- [ ] Binary/Hex/Decimal Converter
+- [x] **Number Base Converter** — binary/octal/decimal/hex
+- [x] **Scientific Notation Converter** — scientific и engineering notation
+- [x] **Statistics Calculator** — mean, median, mode, variance, quartiles
+- [x] **Prime Number Checker** — простота, факторизация, ближайшие простые
 
 ### 📝 Текст и данные (Text & Data)
-- [ ] Text Case Converter
-- [ ] Word Counter
-- [ ] Text Diff Checker
-- [ ] Lorem Ipsum Generator
+- [x] **Case Converter** — регистр, camelCase, snake_case, kebab-case и др.
+- [x] **Word Counter** — слова, символы, время чтения, частые слова
+- [x] **Text Diff Checker** — построчное сравнение двух текстов
+- [x] **Lorem Ipsum Generator** — placeholder-текст
 
 ## 🏗️ Структура проекта
 
@@ -211,15 +217,14 @@ docker-compose up -d
 
 **Ближайшие цели:**
 - ✅ Главная страница с дизайн-системой (тёмная тема)
-- ✅ IPv4 Subnet Calculator
-- ✅ JSON Formatter & Validator
-- ✅ Base64 Encoder/Decoder
-- ✅ UUID Generator
-- ✅ Password Generator
-- ✅ DNS Lookup, Port Checker, IP & Domain Info, Site Info
+- ✅ Базовая коллекция: Subnet, JSON, Base64, UUID, Password
+- ✅ Сетевые: DNS Lookup, Port Checker, IP & Domain Info, Site Info, CIDR/Netmask, IP/Binary, MAC, Reverse IP
+- ✅ Developer: Hash Generator, Timestamp Converter, Regex Tester, Color Converter
+- ✅ Math: Number Base, Scientific Notation, Statistics, Prime Checker
+- ✅ Text: Case Converter, Word Counter, Text Diff, Lorem Ipsum
 - ✅ Node.js API-бэкенд
 - 📅 Resistor Color Code Calculator
-- 📅 20+ инструментов к концу 2026
+- 📅 40+ инструментов к концу 2026
 
 ## 📄 Лицензия
 

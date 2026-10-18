@@ -34,13 +34,21 @@ orbitnet/
 │       │   ├── dns-lookup.html              Готов
 │       │   ├── port-checker.html            Готов
 │       │   ├── ip-info.html                 Готов
-│       │   └── site-info.html               Готов
+│       │   ├── site-info.html               Готов
+│       │   ├── cidr-netmask.html            Готов
+│       │   ├── ip-binary-converter.html     Готов
+│       │   ├── mac-converter.html           Готов
+│       │   └── reverse-ip.html              Готов
 │       │
 │       ├── developer/             #  Инструменты разработчика
 │       │   ├── json-formatter.html          Готов
 │       │   ├── base64.html                  Готов
 │       │   ├── uuid-generator.html          Готов
-│       │   └── password-generator.html      Готов
+│       │   ├── password-generator.html      Готов
+│       │   ├── hash-generator.html          Готов
+│       │   ├── timestamp-converter.html     Готов
+│       │   ├── regex-tester.html            Готов
+│       │   └── color-converter.html         Готов
 │       │
 │       ├── electricity/           # Электроника
 │       │   ├── ohms-law.html                Готов
@@ -49,11 +57,17 @@ orbitnet/
 │       ├── math/                  # Математика
 │       │   ├── quadratic-solver.html        Готов
 │       │   ├── percentage-calculator.html   Готов
-│       │   └── unit-converter.html          Готов
+│       │   ├── unit-converter.html          Готов
+│       │   ├── number-base-converter.html   Готов
+│       │   ├── scientific-notation.html     Готов
+│       │   ├── statistics-calculator.html   Готов
+│       │   └── prime-checker.html           Готов
 │       │
 │       └── text/                  # Текст и данные
-│           ├── case-converter.html          Запланирован
-│           └── word-counter.html            Запланирован
+│           ├── case-converter.html          Готов
+│           ├── word-counter.html            Готов
+│           ├── text-diff-checker.html       Готов
+│           └── lorem-ipsum-generator.html   Готов
 │
 ├── backend/                       # Node.js API-бэкенд (без внешних зависимостей)
 │   ├── server.js                  # HTTP-сервер: /api/ip, /api/dns, /api/port, /api/whois, /api/site
@@ -163,11 +177,16 @@ orbitnet/
 **Статус**: Готовы
 **Пути**: `site/tools/networks/*.html`
 
+- **IPv4 Subnet Calculator** (`subnet-calculator.html`) — подсети, маски, хосты (клиентский)
 - **IP Lookup** (`ip-lookup.html`) — публичный IP клиента и reverse DNS (через `/api/ip`)
 - **DNS Lookup** (`dns-lookup.html`) — записи A, AAAA, MX, TXT, NS, CNAME, SOA, CAA (через `/api/dns`)
 - **Port Checker** (`port-checker.html`) — проверка TCP-порта (через `/api/port`)
 - **IP & Domain Info** (`ip-info.html`) — DNS, reverse DNS и whois (через `/api/dns`, `/api/whois`)
 - **Site Info** (`site-info.html`) — IP, HTTP-статус, сервер, заголовок, время отклика (через `/api/site`)
+- **CIDR / Netmask Converter** (`cidr-netmask.html`) — prefix ↔ маска ↔ wildcard, таблица префиксов (клиентский)
+- **IP / Binary Converter** (`ip-binary-converter.html`) — IPv4 ↔ binary/decimal/hex (клиентский)
+- **MAC Address Converter** (`mac-converter.html`) — форматы MAC, I/G и U/L биты, OUI (клиентский)
+- **Reverse IP Lookup** (`reverse-ip.html`) — PTR-запись для IP/домена (через `/api/dns?type=PTR`)
 
 ---
 
@@ -177,7 +196,19 @@ orbitnet/
 
 - **Base64 Encoder/Decoder** (`base64.html`) — клиентское кодирование/декодирование
 - **UUID Generator** (`uuid-generator.html`) — генерация UUID
-- **Password Generator** (`password-generator.html`) — генерация паролей и оценка стойкости (энтропия, время подбора); полностью клиентский
+- **Password Generator** (`password-generator.html`) — генерация паролей и оценка стойкости (энтропия, время подбора)
+- **Hash Generator** (`hash-generator.html`) — MD5 (собственная реализация) + SHA-1/256/384/512 (Web Crypto)
+- **Timestamp Converter** (`timestamp-converter.html`) — Unix ↔ ISO 8601 ↔ локальное время, live-часы
+- **Regex Tester** (`regex-tester.html`) — тест регулярок с флагами, подсветкой и группами
+- **Color Converter** (`color-converter.html`) — HEX ↔ RGB ↔ HSL
+
+---
+
+### 7b. Математика и текст (дополнительно)
+**Статус**: Готовы
+
+- Math: `number-base-converter.html`, `scientific-notation.html`, `statistics-calculator.html`, `prime-checker.html`
+- Text: `case-converter.html`, `word-counter.html`, `text-diff-checker.html`, `lorem-ipsum-generator.html`
 
 ---
 
@@ -288,18 +319,18 @@ cp site/tools/_template.html site/tools/[category]/[tool-name].html
 
 ### Статистика кода (оценка)
 ```
-HTML:  ~2200 строк (главная + 15 инструментов + шаблон)
+HTML:  ~4500 строк (главная + 31 инструмент + шаблон)
 CSS:   ~600 строк  (темная тема, компоненты)
-JS:    ~900 строк  (главная + инструменты)
+JS:    ~2200 строк (главная + инструменты)
 Node:  ~300 строк  (бэкенд)
 ───────────────────
-Всего: ~4000 строк кода
+Всего: ~7600 строк кода
 ```
 
 ### Готовность инструментов
--  **15 готовых** (6 networks, 4 developer, 2 electricity, 3 math)
--  **Запланированы**: text-инструменты, hash generator, regex tester и др.
--  **Цель**: 20+ к концу 2026 года
+-  **31 готовый** (10 networks, 8 developer, 2 electricity, 7 math, 4 text)
+-  **Запланированы**: electronics-инструменты (resistor, LED, voltage divider) и др.
+-  **Цель**: 40+ к концу 2026 года
 
 ### Производительность
 - Главная страница: ~100KB (HTML + CSS + JS)
@@ -342,6 +373,11 @@ Node:  ~300 строк  (бэкенд)
 ---
 
 ## 🔄 История изменений
+
+### v0.3.0 (18 октября 2026)
+- Добавлены 16 инструментов: Text (case, word count, diff, lorem), Math (number base, scientific, statistics, prime), Networks (CIDR/netmask, IP/binary, MAC, reverse IP), Developer (hash, timestamp, regex, color)
+- Обновлены главная страница (31 карточка) и счётчики фильтров
+- MD5 реализован вручную, остальные хеши — через Web Crypto
 
 ### v0.2.0 (18 октября 2026)
 - Тёмная чистая тема без эмодзи и анимаций; упрощённая главная страница

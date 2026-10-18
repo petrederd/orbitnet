@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Color Converter — convert between HEX, RGB and HSL color formats">
+<meta name="theme-color" content="#16161a">
+<title>Color Converter — OrbitNet</title>
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2">
+<link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../index.html#about">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> /
+      <a href="../../index.html#tools">Tools</a> /
+      <span>Color Converter</span>
+    </div>
+    <h1>Color Converter</h1>
+    <p>Convert colors between HEX, RGB and HSL. Pick a color or type a value in any of the supported formats.</p>
+  </div>
+
+  <div class="tool-layout">
+    <div class="tool-panel">
+      <h2>Input</h2>
+      <div id="errorMsg"></div>
+      <div class="input-group">
+        <label for="value">Color value</label>
+        <input type="text" id="value" value="#6ecfa0" placeholder="#6ecfa0, rgb(110,207,160), hsl(150,55%,62%)" oninput="fromText()">
+        <small>Accepts <code>#rgb</code>, <code>#rrggbb</code>, <code>rgb(...)</code> and <code>hsl(...)</code>.</small>
+      </div>
+      <div class="input-group">
+        <label for="picker">Color picker</label>
+        <input type="color" id="picker" value="#6ecfa0" oninput="fromPicker()" style="height:48px;padding:4px;">
+      </div>
+      <div id="swatch" style="height:80px;border-radius:8px;border:1px solid var(--line);background:#6ecfa0;"></div>
+    </div>
+
+    <div class="tool-panel">
+      <h2>Formats</h2>
+      <div id="results">
+        <div class="result-sub">Enter a color to convert.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="info-section">
+    <h3>Color models</h3>
+    <ul>
+      <li><strong>HEX</strong> — a base-16 representation of the red, green and blue channels (00–FF each).</li>
+      <li><strong>RGB</strong> — the three channels on a 0–255 scale.</li>
+      <li><strong>HSL</strong> — hue (0–360°), saturation and lightness (0–100%), closer to how people describe colors.</li>
+    </ul>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../index.html#about">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0;
+  const l = (max + min) / 2;
+  const d = max - min;
+  if (d !== 0) {
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  return [Math.round(h), Math.round(s * 100), Math.round(l * 100)];
+}
+
+function hslToRgb(h, s, l) {
+  h = ((h % 360) + 360) % 360;
+  s /= 100; l /= 100;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const m = l - c / 2;
+  let r = 0, g = 0, b = 0;
+  if (h < 60) { r = c; g = x; }
+  else if (h < 120) { r = x; g = c; }
+  else if (h < 180) { g = c; b = x; }
+  else if (h < 240) { g = x; b = c; }
+  else if (h < 300) { r = x; b = c; }
+  else { r = c; b = x; }
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
+}
+
+function parseColor(str) {
+  str = str.trim().toLowerCase();
+  let m;
+  if ((m = str.match(/^#?([0-9a-f]{3})$/))) {
+    const h = m[1];
+    return [parseInt(h[0] + h[0], 16), parseInt(h[1] + h[1], 16), parseInt(h[2] + h[2], 16)];
+  }
+  if ((m = str.match(/^#?([0-9a-f]{6})$/))) {
+    const h = m[1];
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  }
+  if ((m = str.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/))) {
+    return [clamp(+m[1], 0, 255), clamp(+m[2], 0, 255), clamp(+m[3], 0, 255)];
+  }
+  if ((m = str.match(/^hsla?\(\s*([\d.]+)\s*,\s*([\d.]+)%?\s*,\s*([\d.]+)%?/))) {
+    return hslToRgb(+m[1], +m[2], +m[3]);
+  }
+  return null;
+}
+
+function toHex(r, g, b) {
+  return '#' + [r, g, b].map(v => clamp(v, 0, 255).toString(16).padStart(2, '0')).join('');
+}
+
+function render(rgb, updateText) {
+  const [r, g, b] = rgb;
+  const hex = toHex(r, g, b);
+  const [h, s, l] = rgbToHsl(r, g, b);
+  document.getElementById('swatch').style.background = hex;
+  document.getElementById('picker').value = hex;
+  if (updateText) document.getElementById('value').value = hex;
+
+  const results = {
+    HEX: hex,
+    RGB: 'rgb(' + r + ', ' + g + ', ' + b + ')',
+    HSL: 'hsl(' + h + ', ' + s + '%, ' + l + '%)',
+    'RGB channels': r + ', ' + g + ', ' + b,
+    'HSL channels': h + '°, ' + s + '%, ' + l + '%',
+  };
+  document.getElementById('results').innerHTML = Object.entries(results).map(([k, v]) =>
+    '<div class="result-box"><div class="result-label">' + k + '</div><div class="result-value" style="font-size:1.05rem;">' + v + '</div></div>'
+  ).join('');
+}
+
+function fromText() {
+  const raw = document.getElementById('value').value;
+  const errEl = document.getElementById('errorMsg');
+  errEl.innerHTML = '';
+  if (!raw.trim()) { document.getElementById('results').innerHTML = '<div class="result-sub">Enter a color to convert.</div>'; return; }
+  const rgb = parseColor(raw);
+  if (!rgb) {
+    errEl.innerHTML = '<div class="error">Unrecognised color format.</div>';
+    return;
+  }
+  render(rgb, false);
+}
+
+function fromPicker() {
+  const rgb = parseColor(document.getElementById('picker').value);
+  document.getElementById('errorMsg').innerHTML = '';
+  render(rgb, true);
+}
+
+fromText();
+</script>
+</body>
+</html>

@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Case Converter — transform text to UPPER, lower, Title, Sentence, camelCase, snake_case and more">
+<meta name="theme-color" content="#16161a">
+<title>Case Converter — OrbitNet</title>
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2">
+<link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../index.html#about">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> /
+      <a href="../../index.html#tools">Tools</a> /
+      <span>Case Converter</span>
+    </div>
+    <h1>Case Converter</h1>
+    <p>Change the letter case of any text: UPPERCASE, lowercase, Title Case, Sentence case, camelCase, snake_case, kebab-case, CONSTANT_CASE and more.</p>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Text</h2>
+    <div class="input-group">
+      <label for="input">Your text</label>
+      <textarea id="input" class="text-textarea" placeholder="Type or paste text here..." oninput="applyCurrent()"></textarea>
+    </div>
+    <div class="controls" id="modes"></div>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Result</h2>
+    <div class="input-group">
+      <label for="output">Converted text</label>
+      <textarea id="output" class="text-textarea" readonly></textarea>
+    </div>
+    <div class="toolbar">
+      <button class="btn" onclick="copyOutput(this)">Copy</button>
+      <button class="btn btn-secondary" onclick="useOutput()">Use as input</button>
+      <button class="btn btn-secondary" onclick="clearAll()">Clear</button>
+    </div>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="info-section">
+    <h3>Available conversions</h3>
+    <ul>
+      <li><strong>UPPERCASE / lowercase</strong> — every letter upper or lower</li>
+      <li><strong>Title Case</strong> — first letter of every word capitalised</li>
+      <li><strong>Sentence case</strong> — first letter of each sentence capitalised</li>
+      <li><strong>camelCase / PascalCase</strong> — programming identifier styles</li>
+      <li><strong>snake_case / kebab-case / CONSTANT_CASE</strong> — common code naming conventions</li>
+      <li><strong>aLtErNaTiNg</strong> — alternating case</li>
+    </ul>
+    <p>All processing happens in your browser. Nothing is uploaded.</p>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../index.html#about">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+const MODES = [
+  ['upper', 'UPPERCASE'],
+  ['lower', 'lowercase'],
+  ['title', 'Title Case'],
+  ['sentence', 'Sentence case'],
+  ['camel', 'camelCase'],
+  ['pascal', 'PascalCase'],
+  ['snake', 'snake_case'],
+  ['kebab', 'kebab-case'],
+  ['constant', 'CONSTANT_CASE'],
+  ['alternating', 'aLtErNaTiNg'],
+  ['inverse', 'iNVERSE'],
+];
+
+let currentMode = 'title';
+
+function buildButtons() {
+  const el = document.getElementById('modes');
+  el.innerHTML = MODES.map(([key, label]) =>
+    '<button class="mode-btn' + (key === currentMode ? ' active' : '') + '" data-mode="' + key + '">' + label + '</button>'
+  ).join('');
+  el.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    currentMode = b.dataset.mode;
+    el.querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b));
+    applyCurrent();
+  }));
+}
+
+function words(text) {
+  return text.match(/[A-Za-z0-9\u00C0-\u024F]+/g) || [];
+}
+
+function convert(text, mode) {
+  switch (mode) {
+    case 'upper': return text.toUpperCase();
+    case 'lower': return text.toLowerCase();
+    case 'title': return text.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+    case 'sentence': return text.toLowerCase().replace(/(^\s*\w|[.!?]\s+\w)/g, c => c.toUpperCase());
+    case 'camel': {
+      const w = words(text).map(x => x.toLowerCase());
+      return w.map((x, i) => i === 0 ? x : x.charAt(0).toUpperCase() + x.slice(1)).join('');
+    }
+    case 'pascal': {
+      const w = words(text).map(x => x.toLowerCase());
+      return w.map(x => x.charAt(0).toUpperCase() + x.slice(1)).join('');
+    }
+    case 'snake': return words(text).map(x => x.toLowerCase()).join('_');
+    case 'kebab': return words(text).map(x => x.toLowerCase()).join('-');
+    case 'constant': return words(text).map(x => x.toUpperCase()).join('_');
+    case 'alternating': return [...text].map((c, i) => i % 2 ? c.toUpperCase() : c.toLowerCase()).join('');
+    case 'inverse': return [...text].map(c => c === c.toLowerCase() ? c.toUpperCase() : c.toLowerCase()).join('');
+    default: return text;
+  }
+}
+
+function applyCurrent() {
+  const input = document.getElementById('input').value;
+  const out = convert(input, currentMode);
+  document.getElementById('output').value = out;
+  updateStats(input, out);
+}
+
+function updateStats(input, out) {
+  const chars = input.length;
+  const w = words(input).length;
+  const lines = input ? input.split(/\r?\n/).length : 0;
+  document.getElementById('stats').innerHTML =
+    '<span>' + chars + '</span> characters · <span>' + w + '</span> words · <span>' + lines + '</span> lines';
+}
+
+function copyOutput(btn) {
+  const out = document.getElementById('output');
+  if (!out.value) return;
+  navigator.clipboard.writeText(out.value).then(() => flash(btn, 'Copied'));
+}
+
+function useOutput() {
+  const out = document.getElementById('output').value;
+  document.getElementById('input').value = out;
+  applyCurrent();
+  document.getElementById('input').focus();
+}
+
+function clearAll() {
+  document.getElementById('input').value = '';
+  applyCurrent();
+}
+
+function flash(btn, text) {
+  const old = btn.textContent;
+  btn.textContent = text;
+  setTimeout(() => { btn.textContent = old; }, 1200);
+}
+
+buildButtons();
+applyCurrent();
+</script>
+</body>
+</html>
