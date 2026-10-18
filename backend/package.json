@@ -1,0 +1,11 @@
+{
+  "name": "orbitnet-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "OrbitNet API backend",
+  "main": "server.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  }
+}

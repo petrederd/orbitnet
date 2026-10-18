@@ -30,29 +30,38 @@ orbitnet/
 │       │
 │       ├── networks/              # Сетевые инструменты
 │       │   ├── subnet-calculator.html       Готов
-│       │   ├── ip-binary-converter.html     Запланирован
-│       │   └── mac-address-guide.html       Запланирован
+│       │   ├── ip-lookup.html               Готов
+│       │   ├── dns-lookup.html              Готов
+│       │   ├── port-checker.html            Готов
+│       │   ├── ip-info.html                 Готов
+│       │   └── site-info.html               Готов
 │       │
 │       ├── developer/             #  Инструменты разработчика
 │       │   ├── json-formatter.html          Готов
-│       │   ├── base64.html                  Запланирован
-│       │   ├── uuid-generator.html          Запланирован
-│       │   └── hash-generator.html          Запланирован
+│       │   ├── base64.html                  Готов
+│       │   ├── uuid-generator.html          Готов
+│       │   └── password-generator.html      Готов
 │       │
 │       ├── electricity/           # Электроника
-│       │   ├── resistor-color.html          Запланирован
-│       │   ├── ohms-law.html                Запланирован
-│       │   └── led-resistor.html            Запланирован
+│       │   ├── ohms-law.html                Готов
+│       │   └── ne555-calculator.html        Готов
 │       │
 │       ├── math/                  # Математика
-│       │   ├── unit-converter.html          Запланирован
-│       │   └── scientific-notation.html     Запланирован
+│       │   ├── quadratic-solver.html        Готов
+│       │   ├── percentage-calculator.html   Готов
+│       │   └── unit-converter.html          Готов
 │       │
 │       └── text/                  # Текст и данные
 │           ├── case-converter.html          Запланирован
 │           └── word-counter.html            Запланирован
 │
-├── docker-compose.yml             # Docker конфигурация (nginx:alpine)
+├── backend/                       # Node.js API-бэкенд (без внешних зависимостей)
+│   ├── server.js                  # HTTP-сервер: /api/ip, /api/dns, /api/port, /api/whois, /api/site
+│   ├── package.json
+│   └── Dockerfile                 # node:20-alpine
+│
+├── nginx.conf                     # Раздача статики + проксирование /api/ на backend
+├── docker-compose.yml             # Docker конфигурация (site + api)
 ├── README.md                      # Основная документация
 ├── ROADMAP.md                     # Дорожная карта развития
 └── STRUCTURE.md                   # Этот файл
@@ -89,11 +98,15 @@ orbitnet/
 
 **Цветовая схема**:
 ```css
---paper: #111110      /* Фон */
---ink: #f0eee9        /* Текст */
---orange: #d46b15     /* Акцент */
---line: #393631       /* Границы */
---card: #1a1917       /* Карточки */
+--paper: #16161a      /* Фон */
+--paper-2: #1e1e24    /* Вторичный фон */
+--ink: #e8e8ea        /* Текст */
+--muted: #9a9aa2      /* Приглушённый текст */
+--accent: #6ecfa0     /* Акцент (зелёный) */
+--accent-dim: #14382a /* Приглушённый акцент */
+--line: #2c2c33       /* Границы */
+--card: #1c1c21       /* Карточки */
+--radius: 8px         /* Радиус скругления */
 ```
 
 ---
@@ -146,7 +159,41 @@ orbitnet/
 
 ---
 
-### 6. Шаблон инструмента (`site/tools/_template.html`)
+### 6. Сетевые инструменты (Networks)
+**Статус**: Готовы
+**Пути**: `site/tools/networks/*.html`
+
+- **IP Lookup** (`ip-lookup.html`) — публичный IP клиента и reverse DNS (через `/api/ip`)
+- **DNS Lookup** (`dns-lookup.html`) — записи A, AAAA, MX, TXT, NS, CNAME, SOA, CAA (через `/api/dns`)
+- **Port Checker** (`port-checker.html`) — проверка TCP-порта (через `/api/port`)
+- **IP & Domain Info** (`ip-info.html`) — DNS, reverse DNS и whois (через `/api/dns`, `/api/whois`)
+- **Site Info** (`site-info.html`) — IP, HTTP-статус, сервер, заголовок, время отклика (через `/api/site`)
+
+---
+
+### 7. Инструменты разработчика (дополнительно)
+**Статус**: Готовы
+**Пути**: `site/tools/developer/*.html`
+
+- **Base64 Encoder/Decoder** (`base64.html`) — клиентское кодирование/декодирование
+- **UUID Generator** (`uuid-generator.html`) — генерация UUID
+- **Password Generator** (`password-generator.html`) — генерация паролей и оценка стойкости (энтропия, время подбора); полностью клиентский
+
+---
+
+### 8. API-бэкенд (`backend/server.js`)
+**Статус**: Готов
+
+**Возможности**:
+- HTTP-сервер только на встроенных модулях Node (`http`, `dns`, `net`, `https`)
+- Эндпоинты: `/health`, `/api/ip`, `/api/dns`, `/api/port`, `/api/whois`, `/api/site`
+- Валидация хостов и портов, таймауты, ограничение размера ответа whois
+- CORS, `Cache-Control: no-store`
+- Без внешних зависимостей и сторонних сервисов
+
+---
+
+### 9. Шаблон инструмента (`site/tools/_template.html`)
 **Статус**: Готов
 
 **Использование**: Копировать и адаптировать для новых инструментов
@@ -168,9 +215,11 @@ orbitnet/
 ```bash
 docker-compose up -d
 ```
-- Использует `nginx:alpine`
-- Монтирует `./site` как read-only
-- Доступен на `localhost:8081`
+- `orbitnet-site`: `nginx:alpine`, монтирует `./site` read-only и `./nginx.conf`
+- `orbitnet-api`: `backend/Dockerfile` (node:20-alpine), слушает порт 3000
+- nginx проксирует `/api/` на `http://orbitnet-api:3000/api/`
+- Оба контейнера в сети `caddy_net` (external)
+- Сайт доступен на `localhost:8081`
 
 ### GitHub Actions
 **Файл**: `.github/workflows/deploy.yml`
@@ -224,7 +273,7 @@ cp site/tools/_template.html site/tools/[category]/[tool-name].html
   <p>[Description]</p>
   <div class="tool-bottom">
     <span class="status-label">Ready</span>
-    <a class="open" href="tools/[category]/[tool-name].html">Open ↗</a>
+    <a class="open" href="tools/[category]/[tool-name].html">Open</a>
   </div>
 </article>
 ```
@@ -239,17 +288,18 @@ cp site/tools/_template.html site/tools/[category]/[tool-name].html
 
 ### Статистика кода (оценка)
 ```
-HTML:  ~800 строк  (главная + 2 инструмента + шаблон)
-CSS:   ~1200 строк (темная тема, компоненты)
-JS:    ~400 строк  (главная + инструменты)
+HTML:  ~2200 строк (главная + 15 инструментов + шаблон)
+CSS:   ~600 строк  (темная тема, компоненты)
+JS:    ~900 строк  (главная + инструменты)
+Node:  ~300 строк  (бэкенд)
 ───────────────────
-Всего: ~2400 строк кода
+Всего: ~4000 строк кода
 ```
 
 ### Готовность инструментов
--  **2 готовых** (IPv4 Subnet, JSON Formatter)
--  **10 запланированных**
--  **Цель**: 12+ к концу 2026 года
+-  **15 готовых** (6 networks, 4 developer, 2 electricity, 3 math)
+-  **Запланированы**: text-инструменты, hash generator, regex tester и др.
+-  **Цель**: 20+ к концу 2026 года
 
 ### Производительность
 - Главная страница: ~100KB (HTML + CSS + JS)
@@ -264,7 +314,7 @@ JS:    ~400 строк  (главная + инструменты)
 ### Принципы архитектуры
 1. **No Build Step** — прямой запуск из браузера
 2. **Vanilla JS** — без фреймворков и зависимостей
-3. **Client-side only** — все вычисления в браузере
+3. **Client-side first** — большинство вычислений в браузере; сетевые проверки (DNS, порты, whois, IP) — через собственный бэкенд без сторонних сервисов
 4. **Progressive Enhancement** — работает без JS (статическая версия)
 5. **Mobile First** — адаптивность из коробки
 
@@ -293,6 +343,13 @@ JS:    ~400 строк  (главная + инструменты)
 
 ## 🔄 История изменений
 
+### v0.2.0 (18 октября 2026)
+- Тёмная чистая тема без эмодзи и анимаций; упрощённая главная страница
+- Добавлен Node.js API-бэкенд (`/api/ip`, `/api/dns`, `/api/port`, `/api/whois`, `/api/site`)
+- Добавлены инструменты: IP Lookup, DNS Lookup, Port Checker, IP & Domain Info, Site Info, Password Generator
+- `nginx.conf` с проксированием `/api/`; `docker-compose` обновлён (site + api)
+- IP-виджет на главной и IP Lookup переведены на собственный бэкенд (убран `ipapi.co`)
+
 ### v0.1.0 (17 октября 2026)
 - Создана модульная структура проекта
 - Разделены HTML, CSS, JS
@@ -302,5 +359,5 @@ JS:    ~400 строк  (главная + инструменты)
 
 ---
 
-**Последнее обновление**: 17 октября 2026
+**Последнее обновление**: 18 октября 2026
 **Автор**: PetrederdS

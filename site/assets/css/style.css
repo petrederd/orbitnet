@@ -1,19 +1,21 @@
-/* OrbitNet — clean, no-nonsense styles */
+/* OrbitNet — dark, clean, no-nonsense styles */
 
 :root {
-  --paper: #f5f5f4;
-  --paper-2: #eaeaea;
-  --ink: #1c1c1c;
-  --muted: #6b6b6b;
-  --line: #d4d4d4;
-  --accent: #2f6f4f;
-  --card: #ffffff;
+  --paper: #16161a;
+  --paper-2: #1e1e24;
+  --ink: #e8e8ea;
+  --muted: #9a9aa2;
+  --line: #2c2c33;
+  --accent: #6ecfa0;
+  --accent-dim: #14382a;
+  --card: #1c1c21;
+  --danger: #f28b82;
+  --warning: #f5c66b;
   --radius: 8px;
 }
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html { scroll-behavior: auto; }
 
 body {
   margin: 0;
@@ -38,7 +40,6 @@ button { cursor: pointer; }
   padding: 18px 0;
   border-bottom: 1px solid var(--line);
 }
-
 .brand {
   display: inline-flex;
   align-items: center;
@@ -48,9 +49,7 @@ button { cursor: pointer; }
   font-size: 1.2rem;
   color: var(--ink);
 }
-
 .brand-mark { display: none; }
-
 .nav { display: flex; align-items: center; gap: 18px; font-size: .9rem; }
 .nav a { text-decoration: none; color: var(--ink); }
 .nav a:hover { text-decoration: underline; }
@@ -72,7 +71,7 @@ button { cursor: pointer; }
 .ip-card .ip-title { font-weight: 700; margin: 0 0 4px; }
 .ip-card .ip-value { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 1.5rem; font-weight: 700; }
 .ip-card .ip-meta { margin: 6px 0 0; color: var(--muted); font-size: .88rem; }
-.ip-card .ip-error { color: #b3261e; font-size: .9rem; }
+.ip-card .ip-error { color: var(--danger); font-size: .9rem; }
 
 /* Search */
 .searchbox {
@@ -87,7 +86,7 @@ button { cursor: pointer; }
 }
 .searchbox .magnify, .searchbox .key { display: none; }
 .searchbox input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; padding: 8px; color: var(--ink); }
-.searchbox button { border: 0; border-radius: 6px; padding: 9px 16px; background: var(--accent); color: #fff; font-weight: 600; }
+.searchbox button { border: 0; border-radius: 6px; padding: 9px 16px; background: var(--accent); color: #0d1310; font-weight: 600; }
 
 /* Tools section */
 section#tools { margin-top: 34px; }
@@ -114,7 +113,7 @@ section#tools { margin-top: 34px; }
   font-size: .88rem;
 }
 .filter-btn:hover { background: var(--paper-2); }
-.filter-btn.active { background: var(--accent); color: #fff; font-weight: 600; }
+.filter-btn.active { background: var(--accent-dim); color: var(--accent); font-weight: 600; }
 .filter-btn .filter-icon { width: 20px; font-size: .9rem; text-align: center; }
 .filter-count { margin-left: auto; font-size: .78rem; opacity: .7; }
 .filter-note { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: .8rem; }
@@ -197,16 +196,16 @@ section#tools { margin-top: 34px; }
   display: inline-block;
   padding: 10px 20px;
   background: var(--accent);
-  color: #fff;
+  color: #0d1310;
   border: 0;
   border-radius: 6px;
   font-weight: 600;
   cursor: pointer;
   font-size: .92rem;
 }
-.btn:hover { filter: brightness(1.05); }
+.btn:hover { filter: brightness(1.1); }
 .btn-secondary { background: var(--paper-2); color: var(--ink); border: 1px solid var(--line); }
-.btn-success { background: #1f9d55; color: #fff; }
+.btn-success { background: var(--accent); color: #0d1310; }
 
 .result-box { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-bottom: 12px; }
 .result-box.highlight { border-color: var(--accent); }
@@ -218,9 +217,9 @@ section#tools { margin-top: 34px; }
 .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 
 .error, .success, .info { padding: 11px 14px; border-radius: 6px; margin-bottom: 16px; font-size: .9rem; }
-.error { color: #b3261e; background: #fdecea; border: 1px solid #f5b5b0; }
-.success { color: #166534; background: #e7f6ec; border: 1px solid #bbe7c8; }
-.info { color: #1c4ed8; background: #eaf1fe; border: 1px solid #bcd4fb; }
+.error { color: var(--danger); background: rgba(242,139,130,.12); border: 1px solid rgba(242,139,130,.4); }
+.success { color: var(--accent); background: rgba(110,207,160,.12); border: 1px solid rgba(110,207,160,.4); }
+.info { color: #8ab4f8; background: rgba(138,180,248,.12); border: 1px solid rgba(138,180,248,.4); }
 
 .info-section { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; margin-top: 24px; }
 .info-section h3 { font-size: 1.05rem; margin: 0 0 10px; }
@@ -230,7 +229,7 @@ section#tools { margin-top: 34px; }
 .mode-btn, .cat-btn {
   padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); font-weight: 600; cursor: pointer; font-size: .85rem;
 }
-.mode-btn.active, .cat-btn.active { border-color: var(--accent); background: var(--card); }
+.mode-btn.active, .cat-btn.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
 
 /* Tool-specific components */
 .mode-selector, .category-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px; }
@@ -251,8 +250,8 @@ section#tools { margin-top: 34px; }
 .stats span { font-weight: 700; color: var(--ink); }
 
 .status-box { margin-top: 14px; padding: 11px 14px; border-radius: 6px; font-size: .88rem; }
-.status-box.success { background: #e7f6ec; border: 1px solid #bbe7c8; color: #166534; }
-.status-box.error { background: #fdecea; border: 1px solid #f5b5b0; color: #b3261e; }
+.status-box.success { background: rgba(110,207,160,.12); border: 1px solid rgba(110,207,160,.4); color: var(--accent); }
+.status-box.error { background: rgba(242,139,130,.12); border: 1px solid rgba(242,139,130,.4); color: var(--danger); }
 .error-detail { font-family: monospace; margin-top: 8px; font-size: .8rem; opacity: .9; }
 
 .uuid-display { background: var(--paper); border: 1px solid var(--accent); border-radius: 8px; padding: 18px; margin-bottom: 18px; text-align: center; }
@@ -291,6 +290,7 @@ section#tools { margin-top: 34px; }
   .nav .optional { display: none; }
   .tool-grid { grid-template-columns: 1fr; }
   .grid-2 { grid-template-columns: 1fr; }
+  .category-selector { grid-template-columns: repeat(2, 1fr); }
   .below { grid-template-columns: 1fr; }
   .footer { display: block; }
   .footer-links { margin-top: 10px; flex-wrap: wrap; }

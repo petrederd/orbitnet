@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="DNS Lookup — query A, AAAA, MX, TXT, NS, CNAME and SOA records">
+<meta name="theme-color" content="#16161a">
+<title>DNS Lookup — OrbitNet</title>
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2">
+<link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../index.html#about">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> /
+      <a href="../../index.html#tools">Tools</a> /
+      <span>DNS Lookup</span>
+    </div>
+    <h1>DNS Lookup</h1>
+    <p>Query DNS records for a domain: A, AAAA, MX, TXT, NS, CNAME, SOA and CAA.</p>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Lookup</h2>
+    <div id="errorMsg"></div>
+
+    <div class="input-group">
+      <label for="host">Domain</label>
+      <input type="text" id="host" placeholder="example.com" value="example.com">
+    </div>
+
+    <div class="input-group">
+      <label for="type">Record type</label>
+      <select id="type">
+        <option value="A">A</option>
+        <option value="AAAA">AAAA</option>
+        <option value="MX">MX</option>
+        <option value="TXT">TXT</option>
+        <option value="NS">NS</option>
+        <option value="CNAME">CNAME</option>
+        <option value="SOA">SOA</option>
+        <option value="CAA">CAA</option>
+      </select>
+    </div>
+
+    <button class="btn" onclick="lookup()">Lookup</button>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Results</h2>
+    <div id="results">
+      <div style="text-align: center; padding: 40px 20px; color: var(--muted);">Enter a domain and click Lookup</div>
+    </div>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../index.html#about">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+function clearError() { document.getElementById('errorMsg').innerHTML = ''; }
+function showError(m) { document.getElementById('errorMsg').innerHTML = '<div class="error">' + m + '</div>'; }
+
+function lookup() {
+  clearError();
+  const host = document.getElementById('host').value.trim();
+  const type = document.getElementById('type').value;
+  if (!host) { showError('Please enter a domain'); return; }
+
+  document.getElementById('results').innerHTML = '<div class="loading">Looking up ' + host + '...</div>';
+
+  fetch('/api/dns?host=' + encodeURIComponent(host) + '&type=' + type)
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) throw new Error(data.error);
+      let html = '';
+      data.records.forEach(rec => {
+        html += '<div class="result-box"><div class="result-label">' + type +
+          '</div><div class="result-value">' + formatRecord(type, rec) + '</div></div>';
+      });
+      document.getElementById('results').innerHTML = html || '<div class="info">No records found.</div>';
+    })
+    .catch(e => {
+      document.getElementById('results').innerHTML = '';
+      showError(e.message);
+    });
+}
+
+function formatRecord(type, rec) {
+  if (type === 'MX') return rec.priority + '  ' + rec.host;
+  if (type === 'SOA') return JSON.stringify(rec, null, 1);
+  if (type === 'CAA') return rec.flag + ' ' + rec.tag + ' ' + rec.value;
+  return String(rec);
+}
+</script>
+</body>
+</html>

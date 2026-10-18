@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="A growing collection of free, practical online tools for networking, electronics, development, mathematics and everyday tasks.">
-<meta name="theme-color" content="#f5f5f4">
+<meta name="theme-color" content="#16161a">
 <title>OrbitNet — Open tools, no noise</title>
 <link rel="stylesheet" href="assets/css/style.css">
 <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2">
@@ -51,10 +51,10 @@
       <aside class="filters" aria-label="Filter tools by category">
         <h3>Toolboxes</h3>
         <div class="filter-list" id="filterList">
-          <button class="filter-btn active" data-filter="all"><span class="filter-icon">◈</span> All tools <span class="filter-count">10</span></button>
-          <button class="filter-btn" data-filter="networks"><span class="filter-icon">⌘</span> Networks <span class="filter-count">2</span></button>
+          <button class="filter-btn active" data-filter="all"><span class="filter-icon">◈</span> All tools <span class="filter-count">15</span></button>
+          <button class="filter-btn" data-filter="networks"><span class="filter-icon">⌘</span> Networks <span class="filter-count">6</span></button>
           <button class="filter-btn" data-filter="electricity"><span class="filter-icon">ϟ</span> Electricity <span class="filter-count">2</span></button>
-          <button class="filter-btn" data-filter="developer"><span class="filter-icon">{ }</span> Developer <span class="filter-count">3</span></button>
+          <button class="filter-btn" data-filter="developer"><span class="filter-icon">{ }</span> Developer <span class="filter-count">4</span></button>
           <button class="filter-btn" data-filter="math"><span class="filter-icon">∑</span> Math <span class="filter-count">3</span></button>
           <button class="filter-btn" data-filter="text"><span class="filter-icon">Aa</span> Text <span class="filter-count">0</span></button>
         </div>
@@ -62,7 +62,7 @@
 
       <div class="tools-area">
         <div class="tools-toolbar">
-          <div class="results-count" id="resultsCount" aria-live="polite">Showing all 10 tools</div>
+          <div class="results-count" id="resultsCount" aria-live="polite">Showing all 15 tools</div>
           <select class="sort" id="sortSelect" aria-label="Sort tools">
             <option value="featured">Sort: Default</option>
             <option value="az">Name: A to Z</option>
@@ -82,8 +82,8 @@
             <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/developer/json-formatter.html">Open</a></div>
           </article>
           <article class="tool-card" data-category="networks" data-name="IP Lookup" data-order="3">
-            <div class="tool-top"><span class="tool-icon">🌍</span><span class="pill">Networks</span></div>
-            <h3>IP Lookup</h3><p>Discover your public IP address, location, ISP and network information instantly.</p>
+            <div class="tool-top"><span class="tool-icon">◎</span><span class="pill">Networks</span></div>
+            <h3>IP Lookup</h3><p>Discover your public IP address and its reverse DNS name, resolved on our own server.</p>
             <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/networks/ip-lookup.html">Open</a></div>
           </article>
           <article class="tool-card" data-category="electricity" data-name="Ohm's Law Calculator" data-order="4">
@@ -92,7 +92,7 @@
             <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/electricity/ohms-law.html">Open</a></div>
           </article>
           <article class="tool-card" data-category="electricity" data-name="NE555 Timer Calculator" data-order="5">
-            <div class="tool-top"><span class="tool-icon">⏱</span><span class="pill">Electricity</span></div>
+            <div class="tool-top"><span class="tool-icon">◷</span><span class="pill">Electricity</span></div>
             <h3>NE555 Timer Calculator</h3><p>Calculate resistor and capacitor values for 555 timer circuits in astable and monostable modes.</p>
             <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/electricity/ne555-calculator.html">Open</a></div>
           </article>
@@ -120,6 +120,31 @@
             <div class="tool-top"><span class="tool-icon">⇄</span><span class="pill">Math</span></div>
             <h3>Unit Converter</h3><p>Convert between different units of length, weight, temperature, area, volume and speed.</p>
             <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/math/unit-converter.html">Open</a></div>
+          </article>
+          <article class="tool-card" data-category="networks" data-name="DNS Lookup" data-order="11">
+            <div class="tool-top"><span class="tool-icon">⌗</span><span class="pill">Networks</span></div>
+            <h3>DNS Lookup</h3><p>Query A, AAAA, MX, TXT, NS, CNAME, SOA and CAA records for any domain.</p>
+            <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/networks/dns-lookup.html">Open</a></div>
+          </article>
+          <article class="tool-card" data-category="networks" data-name="Port Checker" data-order="12">
+            <div class="tool-top"><span class="tool-icon">⊞</span><span class="pill">Networks</span></div>
+            <h3>Port Checker</h3><p>Check whether a TCP port is open on a host, straight from our server.</p>
+            <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/networks/port-checker.html">Open</a></div>
+          </article>
+          <article class="tool-card" data-category="networks" data-name="IP &amp; Domain Info" data-order="13">
+            <div class="tool-top"><span class="tool-icon">⊙</span><span class="pill">Networks</span></div>
+            <h3>IP &amp; Domain Info</h3><p>Look up DNS records, reverse DNS and whois registration data for any IP or domain.</p>
+            <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/networks/ip-info.html">Open</a></div>
+          </article>
+          <article class="tool-card" data-category="networks" data-name="Site Info" data-order="14">
+            <div class="tool-top"><span class="tool-icon">⌂</span><span class="pill">Networks</span></div>
+            <h3>Site Info</h3><p>Inspect a website: resolved IP, HTTP status, server, page title and response time.</p>
+            <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/networks/site-info.html">Open</a></div>
+          </article>
+          <article class="tool-card" data-category="developer" data-name="Password Generator" data-order="15">
+            <div class="tool-top"><span class="tool-icon">❖</span><span class="pill">Developer</span></div>
+            <h3>Password Generator</h3><p>Generate strong random passwords and estimate their resistance to brute-force attacks.</p>
+            <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/developer/password-generator.html">Open</a></div>
           </article>
         </div>
         <div class="empty" id="emptyState"><strong>No tools found.</strong>Try another search term or choose a different category.</div>

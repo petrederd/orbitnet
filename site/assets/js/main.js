@@ -91,16 +91,14 @@
     const valueEl = document.getElementById('ipValue');
     const metaEl = document.getElementById('ipMeta');
 
-    fetch('https://ipapi.co/json/')
+    fetch('/api/ip')
       .then(r => r.json())
       .then(data => {
+        if (data.error) throw new Error(data.error);
         valueEl.textContent = data.ip || 'Unknown';
         const parts = [];
-        if (data.city) parts.push(data.city);
-        if (data.region) parts.push(data.region);
-        if (data.country_name) parts.push(data.country_name);
-        if (data.org) parts.push(data.org);
-        if (data.timezone) parts.push('Timezone: ' + data.timezone);
+        parts.push('IPv' + data.version);
+        if (data.hostname) parts.push(data.hostname);
         metaEl.textContent = parts.join(' · ');
       })
       .catch(() => {

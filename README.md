@@ -14,7 +14,7 @@
 - ✅ **Без трекинга** — ваши данные не собираются и не отправляются на серверы
 - ✅ **Без регистрации** — все инструменты доступны сразу
 - ✅ **Open source** — весь код открыт для изучения и улучшения
-- ✅ **Работа в браузере** — данные обрабатываются локально
+- ✅ **Приватность** — вычисления выполняются локально, а сетевые проверки (DNS, порты, whois) идут через собственный бэкенд, без сторонних сервисов
 
 ## 🚀 Живая демо
 
@@ -24,27 +24,34 @@
 
 ### 🌐 Сетевые инструменты (Networks)
 - [x] **IPv4 Subnet Calculator** — расчет подсетей, маски, диапазонов хостов
-- [ ] IP to Binary Converter
+- [x] **IP Lookup** — ваш публичный IP и reverse DNS (через собственный бэкенд)
+- [x] **DNS Lookup** — записи A, AAAA, MX, TXT, NS, CNAME, SOA, CAA
+- [x] **Port Checker** — проверка TCP-порта на хосте
+- [x] **IP & Domain Info** — DNS-записи, reverse DNS и whois для IP/домена
+- [x] **Site Info** — IP, HTTP-статус, сервер, заголовок и время отклика сайта
 - [ ] MAC Address Guide
 - [ ] CIDR/Netmask Converter
 
 ### 💻 Инструменты разработчика (Developer Tools)
 - [x] **JSON Formatter & Validator** — форматирование и валидация JSON
-- [ ] Base64 Encoder/Decoder
-- [ ] UUID Generator
+- [x] **Base64 Encoder/Decoder**
+- [x] **UUID Generator**
+- [x] **Password Generator** — генерация паролей и оценка стойкости
 - [ ] Hash Generator (MD5, SHA-1, SHA-256)
 - [ ] Regex Tester
 
 ### ⚡ Электроника (Electronics)
+- [x] **Ohm's Law Calculator**
+- [x] **NE555 Timer Calculator**
 - [ ] Resistor Color Code Calculator
-- [ ] Ohm's Law Calculator
 - [ ] LED Resistor Calculator
 - [ ] Voltage Divider Calculator
 
 ### 🔢 Математика и наука (Math & Science)
-- [ ] Unit Converter
+- [x] **Quadratic Equation Solver**
+- [x] **Percentage Calculator**
+- [x] **Unit Converter**
 - [ ] Scientific Notation Converter
-- [ ] Percentage Calculator
 - [ ] Binary/Hex/Decimal Converter
 
 ### 📝 Текст и данные (Text & Data)
@@ -57,23 +64,29 @@
 
 ```
 orbitnet/
-├── site/                          # Frontend приложение
+├── site/                          # Frontend приложение (nginx)
 │   ├── index.html                 # Главная страница
 │   ├── assets/
 │   │   ├── css/
 │   │   │   └── style.css         # Общие стили (темная тема)
 │   │   └── js/
-│   │       └── main.js           # Главная логика (поиск, фильтры)
+│   │       └── main.js           # Главная логика (поиск, фильтры, IP-виджет)
 │   └── tools/                     # Инструменты
 │       ├── networks/              # Сетевые инструменты
 │       ├── developer/             # Инструменты разработчика
 │       ├── electricity/           # Электроника
 │       ├── math/                  # Математика
 │       └── text/                  # Текст и данные
-├── docker-compose.yml             # Docker для деплоя
+├── backend/                       # Node.js API (DNS, порты, whois, site info)
+│   ├── server.js                  # HTTP-сервер без внешних зависимостей
+│   ├── package.json
+│   └── Dockerfile
+├── nginx.conf                     # Конфиг nginx (статика + прокси /api/)
+├── docker-compose.yml             # Docker для деплоя (site + api)
 ├── .github/workflows/
 │   └── deploy.yml                 # CI/CD автодеплой
 ├── README.md                      # Этот файл
+├── STRUCTURE.md                   # Структура проекта
 └── ROADMAP.md                     # План развития
 ```
 
@@ -82,13 +95,28 @@ orbitnet/
 - **Vanilla JavaScript** — без фреймворков, чистый JS
 - **Modern CSS** — CSS Grid, Custom Properties, темная тема
 - **Semantic HTML5** — доступность и SEO
+- **Node.js** — легкий API-бэкенд только на встроенных модулях (dns, net, http, https)
+- **nginx** — раздача статики и проксирование `/api/` на бэкенд
 - **Docker** — контейнеризация для деплоя
 - **GitHub Actions** — автоматический деплой
+
+## 🔌 API бэкенда
+
+Бэкенд не использует внешних зависимостей и отдаёт JSON:
+
+| Endpoint | Описание |
+|----------|----------|
+| `GET /health` | проверка доступности |
+| `GET /api/ip` | IP клиента, версия и reverse DNS |
+| `GET /api/dns?host=&type=` | DNS-записи (A, AAAA, MX, TXT, NS, CNAME, SOA, CAA) |
+| `GET /api/port?host=&port=` | проверка TCP-порта |
+| `GET /api/whois?host=` | whois-данные для домена или IP |
+| `GET /api/site?host=` | HTTP-статус, сервер, заголовок и время отклика сайта |
 
 ## 🚀 Локальный запуск
 
 ### Вариант 1: Прямо из файловой системы
-Просто откройте `site/index.html` в браузере. Всё работает без сервера!
+Просто откройте `site/index.html` в браузере. Инструменты, работающие на клиенте, будут работать сразу. Сетевые инструменты (DNS, порты, whois, site info, IP-виджет) требуют запущенного бэкенда.
 
 ### Вариант 2: Локальный веб-сервер (рекомендуется)
 
@@ -111,6 +139,16 @@ http-server -p 8000
 cd site
 php -S localhost:8000
 ```
+
+### Вариант 2b: Бэкенд (для сетевых инструментов)
+
+```bash
+cd backend
+node server.js
+# API поднимется на http://localhost:3000
+```
+
+При запуске через `docker-compose` nginx сам проксирует `/api/` на бэкенд, поэтому отдельный запуск не нужен.
 
 ### Вариант 3: Docker
 
@@ -155,10 +193,10 @@ docker-compose up -d
 ## 📋 Принципы дизайна
 
 ### Визуальный стиль
-- Темная тема с оранжевым акцентом (#d46b15)
+- Тёмная тема с зелёным акцентом (#6ecfa0)
 - Геометрические формы, четкие границы
 - Минималистичный подход
-- Читаемые шрифты, высокий контраст
+- Читаемые шрифты, высокий контраст, без эмодзи
 
 ### UX принципы
 1. Мгновенная работа без загрузки
@@ -172,13 +210,16 @@ docker-compose up -d
 Смотрите подробный план в [ROADMAP.md](ROADMAP.md)
 
 **Ближайшие цели:**
-- ✅ Главная страница с дизайн-системой
+- ✅ Главная страница с дизайн-системой (тёмная тема)
 - ✅ IPv4 Subnet Calculator
 - ✅ JSON Formatter & Validator
-- 🚧 Base64 Encoder/Decoder
-- 🚧 UUID Generator
+- ✅ Base64 Encoder/Decoder
+- ✅ UUID Generator
+- ✅ Password Generator
+- ✅ DNS Lookup, Port Checker, IP & Domain Info, Site Info
+- ✅ Node.js API-бэкенд
 - 📅 Resistor Color Code Calculator
-- 📅 12+ инструментов к концу 2026
+- 📅 20+ инструментов к концу 2026
 
 ## 📄 Лицензия
 

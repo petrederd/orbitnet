@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Site Info — HTTP status, server, page title and response time for a website">
+<meta name="theme-color" content="#16161a">
+<title>Site Info — OrbitNet</title>
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2">
+<link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../index.html#about">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> /
+      <a href="../../index.html#tools">Tools</a> /
+      <span>Site Info</span>
+    </div>
+    <h1>Site Info</h1>
+    <p>Check a website from our server: resolved IP, protocol, HTTP status, page title, server software and response time.</p>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Inspect a website</h2>
+    <div id="errorMsg"></div>
+
+    <div class="input-group">
+      <label for="host">Domain</label>
+      <input type="text" id="host" placeholder="example.com" value="example.com">
+      <small>Enter a domain without http:// or a path</small>
+    </div>
+
+    <button class="btn" onclick="inspect()">Check Site</button>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Result</h2>
+    <div id="results">
+      <div style="text-align: center; padding: 40px 20px; color: var(--muted);">Enter a domain and click Check Site</div>
+    </div>
+  </div>
+
+  <div class="info-section">
+    <h3>What is response time?</h3>
+    <p>The response time is measured from our server to the target website — the time until it returns its first full page. It is a rough indicator of how "far" the site is from this server. It is not a geographic distance, which depends on routing and cannot be derived from a simple request.</p>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../index.html#about">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+function clearError() { document.getElementById('errorMsg').innerHTML = ''; }
+function showError(m) { document.getElementById('errorMsg').innerHTML = '<div class="error">' + m + '</div>'; }
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+function inspect() {
+  clearError();
+  const host = document.getElementById('host').value.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+  if (!host) { showError('Please enter a domain'); return; }
+
+  document.getElementById('results').innerHTML = '<div class="loading">Checking ' + esc(host) + '...</div>';
+
+  fetch('/api/site?host=' + encodeURIComponent(host))
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        document.getElementById('results').innerHTML = '';
+        showError('Could not reach ' + host + ': ' + data.error);
+        return;
+      }
+      const statusText = data.status ? ('HTTP ' + data.status) : 'No response';
+      const html = `
+        <div class="grid-2">
+          <div class="result-box">
+            <div class="result-label">Resolved IP</div>
+            <div class="result-value">${esc(data.ip || 'unknown')}</div>
+          </div>
+          <div class="result-box">
+            <div class="result-label">Response time</div>
+            <div class="result-value">${data.responseMs} ms</div>
+          </div>
+          <div class="result-box">
+            <div class="result-label">HTTP status</div>
+            <div class="result-value">${esc(statusText)}</div>
+          </div>
+          <div class="result-box">
+            <div class="result-label">Server</div>
+            <div class="result-value">${esc(data.server || 'hidden')}</div>
+          </div>
+        </div>
+        <div class="result-box">
+          <div class="result-label">Page title</div>
+          <div class="result-value" style="font-size:1.05rem;">${esc(data.title || '(none)')}</div>
+        </div>
+        <div class="result-box">
+          <div class="result-label">Protocol</div>
+          <div class="result-value">${esc((data.protocol || '').toUpperCase())}</div>
+        </div>
+        ${data.redirect ? `<div class="result-box"><div class="result-label">Redirects to</div><div class="result-value" style="font-size:1rem;">${esc(data.redirect)}</div></div>` : ''}
+      `;
+      document.getElementById('results').innerHTML = html;
+    })
+    .catch(e => {
+      document.getElementById('results').innerHTML = '';
+      showError(e.message);
+    });
+}
+</script>
+</body>
+</html>
