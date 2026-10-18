@@ -19,8 +19,3 @@ services:
       - PORT=3000
     expose:
       - "3000"
-
-networks:
-  default:
-    name: caddy_net
-    external: true
