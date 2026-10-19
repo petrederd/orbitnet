@@ -279,6 +279,18 @@ section#tools { margin-top: 34px; }
 .input-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; }
 .input-group input:disabled { opacity: .5; cursor: not-allowed; background: var(--paper-2); }
 
+.captcha-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.captcha-row img {
+  display: block;
+  width: 160px;
+  height: 56px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--card);
+  cursor: pointer;
+}
+.captcha-row .btn { padding: 8px 12px; }
+
 .textarea-wrapper { flex: 1; display: flex; flex-direction: column; }
 .json-textarea, .text-textarea {
   flex: 1; width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 6px;

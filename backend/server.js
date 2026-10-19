@@ -1,10 +1,12 @@
 const http = require('http');
 const https = require('https');
 const tls = require('tls');
+const crypto = require('crypto');
 const dns = require('dns').promises;
 const net = require('net');
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 const maxmind = require('maxmind');
 
 const PORT = process.env.PORT || 3000;
@@ -591,25 +593,217 @@ function createLimiter(max, maxQueue) {
 const outbound = createLimiter(MAX_CONCURRENT, MAX_QUEUE);
 
 const rateHits = new Map();
+const portHits = new Map();
+const PORT_RATE_MAX = 3;
 let lastRatePrune = Date.now();
-function isRateLimited(ip) {
+function isRateLimited(ip, store = rateHits, max = RATE_MAX) {
   const now = Date.now();
-  if (now - lastRatePrune > RATE_WINDOW_MS || rateHits.size > RATE_MAX_ENTRIES) {
-    for (const [key, rec] of rateHits) {
-      if (now - rec.start > RATE_WINDOW_MS) rateHits.delete(key);
+  if (now - lastRatePrune > RATE_WINDOW_MS) {
+    for (const map of [rateHits, portHits]) {
+      for (const [key, rec] of map) {
+        if (now - rec.start > RATE_WINDOW_MS) map.delete(key);
+      }
     }
     lastRatePrune = now;
   }
-  let rec = rateHits.get(ip);
+  if (store.size > RATE_MAX_ENTRIES) {
+    for (const [key, rec] of store) {
+      if (now - rec.start > RATE_WINDOW_MS) store.delete(key);
+    }
+  }
+  let rec = store.get(ip);
   if (!rec || now - rec.start > RATE_WINDOW_MS) {
     // Keep the table bounded: once it is full of active clients, shed new ones
     // instead of wiping every counter at once.
-    if (!rec && rateHits.size >= RATE_MAX_ENTRIES) return true;
+    if (!rec && store.size >= RATE_MAX_ENTRIES) return true;
     rec = { start: now, count: 0 };
-    rateHits.set(ip, rec);
+    store.set(ip, rec);
   }
   rec.count++;
-  return rec.count > RATE_MAX;
+  return rec.count > max;
+}
+
+// ---------- captcha ----------
+// A self-contained numeric captcha. The answer never leaves the server: the
+// client only receives an SVG image and an opaque id. Answers are single-use,
+// expire after five minutes and are tied to the requesting IP.
+const CAPTCHA_TTL = 5 * 60 * 1000;
+const CAPTCHA_MAX_ENTRIES = 5000;
+const captchas = new Map();
+let lastCaptchaPrune = Date.now();
+
+const SEGMENT_LINES = {
+  a: [4, 2, 20, 2],
+  b: [21, 3, 21, 19],
+  c: [21, 21, 21, 37],
+  d: [4, 38, 20, 38],
+  e: [3, 21, 3, 37],
+  f: [3, 3, 3, 19],
+  g: [4, 20, 20, 20]
+};
+const DIGIT_SEGMENTS = {
+  0: ['a', 'b', 'c', 'd', 'e', 'f'],
+  1: ['b', 'c'],
+  2: ['a', 'b', 'g', 'e', 'd'],
+  3: ['a', 'b', 'g', 'c', 'd'],
+  4: ['f', 'g', 'b', 'c'],
+  5: ['a', 'f', 'g', 'c', 'd'],
+  6: ['a', 'f', 'g', 'e', 'c', 'd'],
+  7: ['a', 'b', 'c'],
+  8: ['a', 'b', 'c', 'd', 'e', 'f', 'g'],
+  9: ['a', 'b', 'c', 'd', 'f', 'g']
+};
+
+function crc32(buf) {
+  let crc = 0xffffffff;
+  for (let n = 0; n < buf.length; n++) {
+    crc ^= buf[n];
+    for (let k = 0; k < 8; k++) {
+      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function pngChunk(type, data) {
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length, 0);
+  const typeBuf = Buffer.from(type, 'ascii');
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(Buffer.concat([typeBuf, data])), 0);
+  return Buffer.concat([length, typeBuf, data, crc]);
+}
+
+function encodePng(width, height, rgb) {
+  const stride = width * 3;
+  const raw = Buffer.alloc((stride + 1) * height);
+  for (let y = 0; y < height; y++) {
+    raw[y * (stride + 1)] = 0;
+    rgb.copy(raw, y * (stride + 1) + 1, y * stride, (y + 1) * stride);
+  }
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8;  // bit depth
+  ihdr[9] = 2;  // color type: truecolor
+  ihdr[10] = 0; // compression
+  ihdr[11] = 0; // filter
+  ihdr[12] = 0; // interlace
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pngChunk('IHDR', ihdr),
+    pngChunk('IDAT', zlib.deflateSync(raw)),
+    pngChunk('IEND', Buffer.alloc(0))
+  ]);
+}
+
+function drawPixel(buf, width, height, x, y, color, alpha) {
+  x = Math.round(x);
+  y = Math.round(y);
+  if (x < 0 || y < 0 || x >= width || y >= height) return;
+  const i = (y * width + x) * 3;
+  const a = alpha == null ? 1 : alpha;
+  buf[i] = Math.round(buf[i] * (1 - a) + color[0] * a);
+  buf[i + 1] = Math.round(buf[i + 1] * (1 - a) + color[1] * a);
+  buf[i + 2] = Math.round(buf[i + 2] * (1 - a) + color[2] * a);
+}
+
+function drawLine(buf, width, height, x1, y1, x2, y2, color, thickness, alpha) {
+  const steps = Math.max(1, Math.ceil(Math.hypot(x2 - x1, y2 - y1)));
+  const radius = thickness / 2;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const cx = x1 + (x2 - x1) * t;
+    const cy = y1 + (y2 - y1) * t;
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        if (dx * dx + dy * dy <= radius * radius) {
+          drawPixel(buf, width, height, cx + dx, cy + dy, color, alpha);
+        }
+      }
+    }
+  }
+}
+
+function captchaPng(digits) {
+  const width = 320;
+  const height = 112;
+  const bg = [28, 28, 33];
+  const buf = Buffer.alloc(width * height * 3);
+  for (let i = 0; i < width * height; i++) {
+    buf[i * 3] = bg[0];
+    buf[i * 3 + 1] = bg[1];
+    buf[i * 3 + 2] = bg[2];
+  }
+
+  for (let i = 0; i < 14; i++) {
+    drawLine(buf, width, height,
+      Math.random() * width, Math.random() * height,
+      Math.random() * width, Math.random() * height,
+      [60, 90, 75], 1.5, 0.35);
+  }
+  for (let i = 0; i < 90; i++) {
+    drawPixel(buf, width, height,
+      Math.random() * width, Math.random() * height,
+      [80, 80, 95], Math.random() * 0.5 + 0.15);
+  }
+
+  const colors = [
+    [232, 232, 234], [232, 232, 234], [232, 232, 234],
+    [110, 207, 160], [245, 198, 107], [138, 180, 248]
+  ];
+  const jitter = (amount) => (Math.random() * 2 - 1) * amount;
+
+  for (let i = 0; i < digits.length; i++) {
+    const ox = 32 + i * 68;
+    const oy = 16 + jitter(4);
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    const thickness = 6 + Math.random() * 2;
+    for (const name of DIGIT_SEGMENTS[digits[i]]) {
+      const [x1, y1, x2, y2] = SEGMENT_LINES[name];
+      drawLine(buf, width, height,
+        ox + x1 * 2 + jitter(2), oy + y1 * 2 + jitter(2),
+        ox + x2 * 2 + jitter(2), oy + y2 * 2 + jitter(2),
+        color, thickness, 1);
+    }
+  }
+
+  return encodePng(width, height, buf);
+}
+
+function createCaptcha(ip) {
+  const now = Date.now();
+  if (now - lastCaptchaPrune > 60000 || captchas.size >= CAPTCHA_MAX_ENTRIES) {
+    for (const [key, rec] of captchas) {
+      if (rec.expires <= now) captchas.delete(key);
+    }
+    lastCaptchaPrune = now;
+  }
+  if (captchas.size >= CAPTCHA_MAX_ENTRIES) {
+    const oldest = captchas.keys().next().value;
+    if (oldest) captchas.delete(oldest);
+  }
+
+  const answer = String(crypto.randomInt(1000, 10000));
+  const id = crypto.randomBytes(16).toString('hex');
+  captchas.set(id, { answer, ip, expires: now + CAPTCHA_TTL });
+  const png = captchaPng(answer);
+
+  return {
+    id,
+    image: 'data:image/png;base64,' + png.toString('base64'),
+    expiresIn: CAPTCHA_TTL
+  };
+}
+
+function verifyCaptcha(id, answer, ip) {
+  if (!/^[a-f0-9]{32}$/.test(id || '')) return false;
+  const rec = captchas.get(id);
+  if (!rec) return false;
+  captchas.delete(id);
+  if (rec.expires <= Date.now()) return false;
+  if (rec.ip !== ip) return false;
+  return rec.answer === String(answer || '');
 }
 
 // ---------- validation ----------
@@ -1030,7 +1224,7 @@ const server = http.createServer(async (req, res) => {
 
   const ip = clientIp(req);
   const limited = path === '/api/ip' || path === '/api/geo' || path === '/api/dns' ||
-    path === '/api/port' || path === '/api/whois' || path === '/api/site' ||
+    path === '/api/port' || path === '/api/captcha' || path === '/api/whois' || path === '/api/site' ||
     path === '/api/tls' || path === '/api/headers' || path === '/api/email' ||
     path === '/api/propagation' || path === '/api/redirect' ||
     path === '/api/anonymity' || path === '/api/anonymity/ports' ||
@@ -1078,6 +1272,10 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { host, type, records });
     }
 
+    if (path === '/api/captcha') {
+      return send(res, 200, createCaptcha(ip));
+    }
+
     if (path === '/api/port') {
       const host = query.get('host') || '';
       const portStr = query.get('port') || '';
@@ -1085,6 +1283,12 @@ const server = http.createServer(async (req, res) => {
       const port = parseInt(portStr, 10);
       if (!isValidHost(host) && !net.isIP(normalizeIp(host))) return bad(res, 'Invalid hostname');
       if (port < 1 || port > 65535) return bad(res, 'Port must be 1-65535');
+      if (!verifyCaptcha(query.get('captcha') || '', query.get('answer') || '', ip)) {
+        return send(res, 403, { error: 'Captcha failed, request a new one' });
+      }
+      if (isRateLimited(ip, portHits, PORT_RATE_MAX)) {
+        return send(res, 429, { error: 'Too many port checks, wait a minute' });
+      }
       const ips = await resolvePublic(host);
       const target = pickAddress(ips);
       const result = await outbound(() => checkPort(target, port));

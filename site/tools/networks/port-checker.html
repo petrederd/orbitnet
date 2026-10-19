@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Port Checker — check whether a port on a host is open or closed">
+<meta name="description" content="Port Checker — check whether a TCP port on a host or IP is open or closed">
 <meta name="theme-color" content="#16161a">
 <title>Port Checker — OrbitNet</title>
 <link rel="canonical" href="https://orbitnet.ru/tools/networks/port-checker.html">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="OrbitNet">
 <meta property="og:title" content="Port Checker — OrbitNet">
-<meta property="og:description" content="Port Checker — check whether a port on a host is open or closed">
+<meta property="og:description" content="Port Checker — check whether a TCP port on a host or IP is open or closed">
 <meta property="og:url" content="https://orbitnet.ru/tools/networks/port-checker.html">
 <meta property="og:locale" content="en_US">
 <meta property="og:image" content="https://orbitnet.ru/assets/og-image.png">
@@ -20,7 +20,7 @@
 <meta property="og:image:alt" content="OrbitNet — open tools, no noise">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Port Checker — OrbitNet">
-<meta name="twitter:description" content="Port Checker — check whether a port on a host is open or closed">
+<meta name="twitter:description" content="Port Checker — check whether a TCP port on a host or IP is open or closed">
 <meta name="twitter:image" content="https://orbitnet.ru/assets/og-image.png">
 <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2">
 <style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>
@@ -54,7 +54,7 @@
     <div id="errorMsg"></div>
 
     <div class="input-group">
-      <label for="host">Host</label>
+      <label for="host">Host or IP</label>
       <input type="text" id="host" placeholder="example.com or 1.2.3.4" value="127.0.0.1">
     </div>
 
@@ -63,7 +63,17 @@
       <input type="number" id="port" placeholder="e.g. 443" value="443" min="1" max="65535">
     </div>
 
+    <div class="input-group">
+      <label for="captchaAnswer">Captcha</label>
+      <div class="captcha-row">
+        <img id="captchaImg" alt="Captcha" title="Click to refresh" width="160" height="56" onclick="loadCaptcha()">
+        <button type="button" class="btn btn-secondary" onclick="loadCaptcha()">New code</button>
+      </div>
+      <input type="text" id="captchaAnswer" inputmode="numeric" autocomplete="off" maxlength="4" placeholder="4 digits">
+    </div>
+
     <button class="btn" onclick="check()">Check Port</button>
+    <p style="margin: 10px 0 0; color: var(--muted); font-size: .8rem;">Limit: 3 checks per minute per IP. TCP only.</p>
   </div>
 
   <div class="tool-panel">
@@ -95,16 +105,41 @@ function showError(m) {
   el.appendChild(div);
 }
 
+let captchaId = '';
+
+function loadCaptcha() {
+  const img = document.getElementById('captchaImg');
+  const field = document.getElementById('captchaAnswer');
+  img.removeAttribute('src');
+  field.value = '';
+
+  fetch('/api/captcha')
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) throw new Error(data.error);
+      captchaId = data.id;
+      img.src = data.image;
+    })
+    .catch(e => {
+      captchaId = '';
+      img.alt = 'Captcha unavailable';
+      showError(e.message);
+    });
+}
+
 function check() {
   clearError();
   const host = document.getElementById('host').value.trim();
   const port = parseInt(document.getElementById('port').value, 10);
+  const answer = document.getElementById('captchaAnswer').value.trim();
   if (!host) { showError('Please enter a host'); return; }
   if (isNaN(port) || port < 1 || port > 65535) { showError('Port must be 1-65535'); return; }
+  if (!captchaId || !/^\d{4}$/.test(answer)) { showError('Enter the 4 digits from the captcha'); return; }
 
   document.getElementById('results').innerHTML = '<div class="loading">Checking ' + esc(host) + ':' + port + '...</div>';
 
-  fetch('/api/port?host=' + encodeURIComponent(host) + '&port=' + port)
+  fetch('/api/port?host=' + encodeURIComponent(host) + '&port=' + port +
+    '&captcha=' + encodeURIComponent(captchaId) + '&answer=' + encodeURIComponent(answer))
     .then(r => r.json())
     .then(data => {
       if (data.error) throw new Error(data.error);
@@ -119,8 +154,11 @@ function check() {
     .catch(e => {
       document.getElementById('results').innerHTML = '';
       showError(e.message);
-    });
+    })
+    .finally(loadCaptcha);
 }
+
+loadCaptcha();
 </script>
 </body>
 </html>
