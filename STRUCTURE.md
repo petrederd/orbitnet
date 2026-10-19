@@ -1,468 +1,302 @@
 # OrbitNet — Структура проекта
 
-> Документация по организации кодовой базы
+> Организация кода, соглашения и точки расширения.
 
-**Дата**: 17 октября 2026
-**Версия**: 0.1.0
+**Обновлено:** 19 октября 2026
+**Версия:** 0.4.0
 
----
+## Общая схема
 
-## Структура каталогов
+```
+Пользователь
+    │
+    ▼
+nginx  ──► site/ (статические HTML, CSS, JS)
+    │
+    └── /api/* ──► backend/server.js
+                       ├── dns / net / tls / http / https
+                       ├── whois
+                       └── MaxMind GeoLite2 (data/geoip/)
+```
+
+Проект намеренно разделён на статический фронтенд и небольшой API. Клиентские инструменты работают без бэкенда; сетевые функции обращаются к `/api/`.
+
+## Дерево репозитория
 
 ```
 orbitnet/
-├── .git/                          # Git репозиторий
 ├── .github/
 │   └── workflows/
-│       └── deploy.yml             # CI/CD автодеплой на сервер
+│       └── deploy.yml             # Деплой по push в main через SSH
 │
-├── site/                          # Frontend приложение (публичная директория)
-│   ├── index.html                 # Главная страница
+├── site/                          # Публичная директория nginx
+│   ├── index.html                 # Каталог 40 инструментов + IP-виджет
+│   ├── about.html                 # О проекте
+│   ├── robots.txt                 # Индексация и ссылка на sitemap
+│   ├── sitemap.xml                # 42 URL: главная, about, 40 инструментов
 │   │
-│   ├── assets/                    # Статические ресурсы
+│   ├── icons/
+│   │   └── favicon.svg
+│   │
+│   ├── assets/
 │   │   ├── css/
-│   │   │   └── style.css         # Общие стили (темная тема, компоненты)
-│   │   └── js/
-│   │       └── main.js           # Логика главной страницы (фильтры, поиск)
+│   │   │   └── style.css          # Общая тема и UI-компоненты
+│   │   ├── js/
+│   │   │   └── main.js            # Поиск, фильтры, сортировка, IP-виджет
+│   │   └── og-image.png           # Превью 1200×630 для Open Graph
 │   │
-│   └── tools/                     # Коллекция инструментов
-│       ├── _template.html         # Шаблон для новых инструментов
+│   └── tools/
+│       ├── _template.html         # Шаблон новой страницы
 │       │
-│       ├── networks/              # Сетевые инструменты
-│       │   ├── subnet-calculator.html       Готов
-│       │   ├── ip-lookup.html               Готов
-│       │   ├── dns-lookup.html              Готов
-│       │   ├── port-checker.html            Готов
-│       │   ├── ip-info.html                 Готов
-│       │   ├── site-info.html               Готов
-│       │   ├── cidr-netmask.html            Готов
-│       │   ├── ip-binary-converter.html     Готов
-│       │   ├── mac-converter.html           Готов
-│       │   └── reverse-ip.html              Готов
+│       ├── networks/              # 18 инструментов
+│       │   ├── subnet-calculator.html
+│       │   ├── ip-lookup.html
+│       │   ├── ip-info.html
+│       │   ├── dns-lookup.html
+│       │   ├── reverse-ip.html
+│       │   ├── port-checker.html
+│       │   ├── site-info.html
+│       │   ├── cidr-netmask.html
+│       │   ├── ip-binary-converter.html
+│       │   ├── mac-converter.html
+│       │   ├── ssl-checker.html
+│       │   ├── http-headers.html
+│       │   ├── email-dns-checker.html
+│       │   ├── email-deliverability.html
+│       │   ├── dns-propagation.html
+│       │   ├── redirect-checker.html
+│       │   ├── website-health.html
+│       │   └── network-diagnostics.html
 │       │
-│       ├── developer/             #  Инструменты разработчика
-│       │   ├── json-formatter.html          Готов
-│       │   ├── base64.html                  Готов
-│       │   ├── uuid-generator.html          Готов
-│       │   ├── password-generator.html      Готов
-│       │   ├── hash-generator.html          Готов
-│       │   ├── timestamp-converter.html     Готов
-│       │   ├── regex-tester.html            Готов
-│       │   └── color-converter.html         Готов
+│       ├── developer/             # 9 инструментов
+│       │   ├── json-formatter.html
+│       │   ├── base64.html
+│       │   ├── uuid-generator.html
+│       │   ├── password-generator.html
+│       │   ├── hash-generator.html
+│       │   ├── timestamp-converter.html
+│       │   ├── regex-tester.html
+│       │   ├── color-converter.html
+│       │   └── jwt-decoder.html
 │       │
-│       ├── electricity/           # Электроника
-│       │   ├── ohms-law.html                Готов
-│       │   └── ne555-calculator.html        Готов
+│       ├── math/                  # 7 инструментов
+│       │   ├── quadratic-solver.html
+│       │   ├── percentage-calculator.html
+│       │   ├── unit-converter.html
+│       │   ├── number-base-converter.html
+│       │   ├── scientific-notation.html
+│       │   ├── statistics-calculator.html
+│       │   └── prime-checker.html
 │       │
-│       ├── math/                  # Математика
-│       │   ├── quadratic-solver.html        Готов
-│       │   ├── percentage-calculator.html   Готов
-│       │   ├── unit-converter.html          Готов
-│       │   ├── number-base-converter.html   Готов
-│       │   ├── scientific-notation.html     Готов
-│       │   ├── statistics-calculator.html   Готов
-│       │   └── prime-checker.html           Готов
+│       ├── text/                  # 4 инструмента
+│       │   ├── case-converter.html
+│       │   ├── word-counter.html
+│       │   ├── text-diff-checker.html
+│       │   └── lorem-ipsum-generator.html
 │       │
-│       └── text/                  # Текст и данные
-│           ├── case-converter.html          Готов
-│           ├── word-counter.html            Готов
-│           ├── text-diff-checker.html       Готов
-│           └── lorem-ipsum-generator.html   Готов
+│       └── electricity/           # 2 инструмента
+│           ├── ohms-law.html
+│           └── ne555-calculator.html
 │
-├── backend/                       # Node.js API-бэкенд (зависимость только maxmind)
-│   ├── server.js                  # HTTP-сервер: 12 эндпоинтов (ip, geo, dns, port, whois, site, headers, tls, email, propagation, redirect, health)
-│   ├── package.json
+├── backend/
+│   ├── server.js                  # HTTP API, 12 маршрутов
+│   ├── package.json               # Единственная зависимость: maxmind
+│   ├── package-lock.json
 │   └── Dockerfile                 # node:20-alpine
 │
-├── data/geoip/                    # GeoLite2 базы (не в git)
-│   ├── GeoLite2-City.mmdb
-│   └── GeoLite2-ASN.mmdb
-├── nginx.conf                     # Раздача статики + проксирование /api/ на backend
-├── docker-compose.yml             # Docker конфигурация (site + api + geoip-updater)
+├── data/
+│   └── geoip/                     # GeoLite2, не коммитится
+│       ├── GeoLite2-City.mmdb
+│       └── GeoLite2-ASN.mmdb
+│
+├── nginx.conf                     # Статика + proxy_pass /api/
+├── docker-compose.yml             # site + api + geoip-updater (profile)
 ├── .env.example                   # Шаблон ключей MaxMind
-├── README.md                      # Основная документация
-├── ROADMAP.md                     # Дорожная карта развития
+├── .gitignore
+├── LICENSE
+├── README.md                      # Обзор проекта и запуск
+├── ROADMAP.md                     # Планы развития
 └── STRUCTURE.md                   # Этот файл
 ```
 
----
+## Frontend
 
-##  Реализованные компоненты
+### Страница инструмента
 
-### 1. Главная страница (`site/index.html`)
-**Статус**:  Готова
+Каждый инструмент — самостоятельный HTML-файл. Общая структура:
 
-**Возможности**:
-- Hero секция с поиском
-- Фильтрация по категориям (сети, электроника, разработка, математика, текст)
-- Карточки инструментов с живым поиском
-- Сортировка (Featured, A-Z, Category)
-- Адаптивный дизайн (мобильные, планшеты, десктоп)
-- Клавиатурные шорткаты (`/` для поиска, `Esc` для сброса)
+1. `<!doctype html>` и `<html lang="en">`.
+2. `<head>`: кодировка, viewport, description, theme-color, title.
+3. SEO-блок: canonical, Open Graph, Twitter Card.
+4. Favicon и общий `style.css`.
+5. Шапка с навигацией.
+6. `main.tool-page`:
+   - breadcrumb;
+   - заголовок и краткое описание;
+   - панель ввода;
+   - панель результата;
+   - информационный блок с пояснениями.
+7. Подвал с годом и ссылками.
+8. Встроенный `<script>` с логикой инструмента.
 
-**Технологии**: HTML5, Vanilla JS, CSS Grid
+### Обязательный SEO-блок
 
----
+После `</title>` должны идти:
 
-### 2. Общие стили (`site/assets/css/style.css`)
-**Статус**:  Готовы
-
-**Возможности**:
-- Темная тема по умолчанию
-- CSS переменные для кастомизации
-- Компоненты: карточки, кнопки, формы, панели результатов
-- Responsive breakpoints (850px, 580px)
-- Accessibility (focus states, semantic HTML)
-
-**Цветовая схема**:
-```css
---paper: #16161a      /* Фон */
---paper-2: #1e1e24    /* Вторичный фон */
---ink: #e8e8ea        /* Текст */
---muted: #9a9aa2      /* Приглушённый текст */
---accent: #6ecfa0     /* Акцент (зелёный) */
---accent-dim: #14382a /* Приглушённый акцент */
---line: #2c2c33       /* Границы */
---card: #1c1c21       /* Карточки */
---radius: 8px         /* Радиус скругления */
-```
-
----
-
-### 3. Главная логика (`site/assets/js/main.js`)
-**Статус**:  Готова
-
-**Функции**:
-- `update()` — обновление списка инструментов по фильтрам/поиску
-- Обработка фильтров категорий
-- Сортировка инструментов (Featured, A-Z, Category)
-- Клавиатурные шорткаты
-- Динамический счетчик результатов
-
----
-
-### 4. IPv4 Subnet Calculator
-**Статус**:  Готов
-**Путь**: `site/tools/networks/subnet-calculator.html`
-
-**Возможности**:
-- Расчет сетевого адреса
-- Broadcast адрес
-- Первый/последний используемый хост
-- Количество хостов (всего и используемых)
-- Конвертация CIDR ↔ Subnet Mask
-- Валидация входных данных
-
-**Алгоритмы**:
-- Побитовые операции для расчета сетей
-- Поддержка всех CIDR префиксов (/0 - /32)
-- Обработка edge cases (/31, /32)
-
----
-
-### 5. JSON Formatter & Validator
-**Статус**:  Готов
-**Путь**: `site/tools/developer/json-formatter.html`
-
-**Возможности**:
-- Валидация JSON синтаксиса
-- Форматирование с настройкой отступов (2/4 spaces, tab)
-- Минификация JSON
-- Копирование в буфер обмена
-- Скачивание файла
-- Статистика (строки, символы, байты, объекты, массивы)
-- Auto-format при вводе
-
-**Безопасность**: Вся обработка в браузере, данные не отправляются на сервер
-
----
-
-### 6. Сетевые инструменты (Networks)
-**Статус**: Готовы
-**Пути**: `site/tools/networks/*.html`
-
-- **IPv4 Subnet Calculator** (`subnet-calculator.html`) — подсети, маски, хосты (клиентский)
-- **IP Lookup** (`ip-lookup.html`) — публичный IP, геолокация, провайдер и reverse DNS (через `/api/ip`)
-- **DNS Lookup** (`dns-lookup.html`) — записи A, AAAA, MX, TXT, NS, CNAME, SOA, CAA (через `/api/dns`)
-- **Port Checker** (`port-checker.html`) — проверка TCP-порта (через `/api/port`)
-- **IP & Domain Info** (`ip-info.html`) — DNS, reverse DNS, whois, геолокация и провайдер (через `/api/dns`, `/api/whois`, `/api/geo`)
-- **Site Info** (`site-info.html`) — IP, HTTP-статус, сервер, заголовок, время отклика (через `/api/site`)
-- **CIDR / Netmask Converter** (`cidr-netmask.html`) — prefix ↔ маска ↔ wildcard, таблица префиксов (клиентский)
-- **IP / Binary Converter** (`ip-binary-converter.html`) — IPv4 ↔ binary/decimal/hex (клиентский)
-- **MAC Address Converter** (`mac-converter.html`) — форматы MAC, I/G и U/L биты, OUI (клиентский)
-- **Reverse IP Lookup** (`reverse-ip.html`) — PTR-запись для IP/домена (через `/api/dns?type=PTR`)
-- **SSL/TLS Checker** (`ssl-checker.html`) — срок, издатель, SAN, цепочка, совпадение имени (через `/api/tls`)
-- **HTTP Headers Inspector** (`http-headers.html`) — заголовки ответа и предупреждения по security-заголовкам (через `/api/headers`)
-- **Email DNS Checker** (`email-dns-checker.html`) — MX, SPF, DMARC, DKIM и PTR (через `/api/email`)
-- **DNS Propagation Checker** (`dns-propagation.html`) — ответы нескольких публичных резолверов (через `/api/propagation`)
-- **Redirect Checker** (`redirect-checker.html`) — цепочка перенаправлений и конечный адрес (через `/api/redirect`)
-- **Website Health Check** (`website-health.html`) — объединённый отчёт DNS/TLS/доступность/заголовки (через `/api/dns`, `/api/site`, `/api/tls`, `/api/headers`)
-- **Network Diagnostics** (`network-diagnostics.html`) — прямой/обратный DNS и TCP-порт (через `/api/ip`, `/api/dns`, `/api/port`)
-- **Email Deliverability Check** (`email-deliverability.html`) — разбор почтовых DNS-настроек с пояснениями (через `/api/email`)
-
----
-
-### 7. Инструменты разработчика (дополнительно)
-**Статус**: Готовы
-**Пути**: `site/tools/developer/*.html`
-
-- **Base64 Encoder/Decoder** (`base64.html`) — клиентское кодирование/декодирование
-- **UUID Generator** (`uuid-generator.html`) — генерация UUID
-- **Password Generator** (`password-generator.html`) — генерация паролей и оценка стойкости (энтропия, время подбора)
-- **Hash Generator** (`hash-generator.html`) — MD5 (собственная реализация) + SHA-1/256/384/512 (Web Crypto)
-- **Timestamp Converter** (`timestamp-converter.html`) — Unix ↔ ISO 8601 ↔ локальное время, live-часы
-- **Regex Tester** (`regex-tester.html`) — тест регулярок с флагами, подсветкой и группами
-- **Color Converter** (`color-converter.html`) — HEX ↔ RGB ↔ HSL
-- **JWT Decoder** (`jwt-decoder.html`) — разбор header/payload/claims JWT локально в браузере (клиентский, без отправки токена)
-
----
-
-### 7b. Математика и текст (дополнительно)
-**Статус**: Готовы
-
-- Math: `number-base-converter.html`, `scientific-notation.html`, `statistics-calculator.html`, `prime-checker.html`
-- Text: `case-converter.html`, `word-counter.html`, `text-diff-checker.html`, `lorem-ipsum-generator.html`
-
----
-
-### 8. API-бэкенд (`backend/server.js`)
-**Статус**: Готов
-
-**Возможности**:
-- HTTP-сервер на встроенных модулях Node (`http`, `https`, `tls`, `dns`, `net`) + `maxmind` для GeoLite2
-- Эндпоинты: `/health`, `/api/ip` (IP, reverse DNS, гео, провайдер), `/api/geo` (гео и ASN для IP/домена), `/api/dns` (A, AAAA, MX, TXT, NS, CNAME, SOA, CAA, PTR для IP), `/api/port`, `/api/whois`, `/api/site`, `/api/headers`, `/api/tls`, `/api/email`, `/api/propagation`, `/api/redirect`
-- GeoIP: чтение `GeoLite2-City.mmdb`/`GeoLite2-ASN.mmdb` из `GEOIP_DIR`; ленивая загрузка и перечитывание при изменении mtime (раз в `GEO_RECHECK_MS`, по умолчанию 60 000 мс) — обновление баз не требует перезапуска
-- Защита от SSRF: разрешены только валидные домены и публичные IP; отклоняются loopback, RFC 1918, link-local, CGNAT, multicast, Teredo, 6to4, NAT64, IPv4-mapped/-compatible и другие непубличные диапазоны IPv4/IPv6 через `net.BlockList`; проверяются все адреса из DNS; соединение идёт на проверенный IP (защита от DNS-rebinding); в `/api/redirect` каждый переход проверяется отдельно и приватный адрес прерывает цепочку
-- Редиректы в `/api/site` и `/api/headers` не следуются, небезопасные схемы отбрасываются
-- TLS-сертификаты проверяются штатно (без `rejectUnauthorized: false`) для `/api/site` и `/api/headers`; `/api/tls` намеренно подключается без проверки, чтобы показать просроченные/самоподписанные сертификаты, и явно сообщает результат (`authorized`, `authorizationError`, совпадение имени, срок)
-- Таймауты (включая DNS-запросы `/api/email`), ограничение числа одновременных исходящих проверок с ограниченной очередью (503) и лимит частоты запросов (429), включая `/api/ip`; `MAX_CONCURRENT`/`MAX_QUEUE` валидируются при старте
-- Строгая валидация порта (1-65535, только цифры) и DKIM-селектора
-- `/api/propagation` опрашивает фиксированный список публичных резолверов (не пользовательский)
-- IPv4-mapped IPv6 нормализуется в IPv4 в любой нотации (защита от обхода блок-листа)
-- Определение IP клиента по `X-Real-IP` (выставляет nginx); в продакшене цепочка `Cloudflare → Caddy → nginx`, реальный IP берётся из `CF-Connecting-IP` (`real_ip_header`) с доверием диапазонам Cloudflare и локальным прокси; `X-Forwarded-For` — только запасной вариант
-- Валидация хостов, ограничение размера ответа whois
-- CORS, `Cache-Control: no-store`
-- Без обращений к сторонним сервисам: GeoIP считается локально по базам MaxMind GeoLite2
-
----
-
-### 9. Шаблон инструмента (`site/tools/_template.html`)
-**Статус**: Готов
-
-**Использование**: Копировать и адаптировать для новых инструментов
-
-**Включает**:
-- Готовую разметку (header, breadcrumbs, panels)
-- Стили для форм, результатов, ошибок
-- JavaScript скелет с функциями:
-  - `calculate()` — основная логика
-  - `displayResults()` — отображение результатов
-  - `showError()` — обработка ошибок
-  - `reset()` — сброс состояния
-
----
-
-##  Deployment
-
-### Docker
-```bash
-docker compose up -d
-# с автообновлением GeoLite2 (нужны ключи MaxMind в .env):
-docker compose --profile geoip up -d
-```
-- `orbitnet-site`: `nginx:alpine`, монтирует `./site` read-only и `./nginx.conf`
-- `orbitnet-api`: `backend/Dockerfile` (node:20-alpine), слушает порт 3000, монтирует `./data/geoip` в `/data/geoip:ro`
-- `geoip-updater`: `ghcr.io/maxmind/geoipupdate` (профиль `geoip`), обновляет `GeoLite2-City`/`GeoLite2-ASN` каждые 24 ч в `./data/geoip`
-- nginx проксирует `/api/` на `http://orbitnet-api:3000/api/`, выставляет `X-Real-IP` и базовые защитные заголовки
-- Оба контейнера в дефолтной сети проекта (внешняя `caddy_net` не навязывается)
-- Сайт доступен на `localhost:8081`
-
-### GitHub Actions
-**Файл**: `.github/workflows/deploy.yml`
-
-**Триггер**: Push в `main` ветку
-
-**Процесс**:
-1. SSH подключение к серверу
-2. `git pull origin main`
-3. `docker compose up -d --force-recreate`
-4. Если в серверном `.env` есть непустые `MAXMIND_ACCOUNT_ID`/`MAXMIND_LICENSE_KEY` — `docker compose --profile geoip up -d` (обновление GeoLite2), иначе шаг пропускается
-
-**Секреты** (нужно настроить в GitHub):
-- `SERVER_HOST`
-- `SERVER_USER`
-- `SERVER_SSH_KEY`
-
-**Секреты на сервере** (не в git, создаются вручную рядом с `docker-compose.yml`):
-- `.env` с `MAXMIND_ACCOUNT_ID` и `MAXMIND_LICENSE_KEY` (для `geoip-updater`)
-
----
-
-## 🛠️ Как добавить новый инструмент
-
-### Шаг 1: Копировать шаблон
-```bash
-cp site/tools/_template.html site/tools/[category]/[tool-name].html
-```
-
-### Шаг 2: Настроить метаданные
-- Обновить `<title>`, `<meta name="description">`
-- Изменить breadcrumb path
-- Добавить название инструмента в `<h1>`
-
-### Шаг 3: Создать UI
-- Добавить поля ввода в "Input" панель
-- Настроить кнопки (Calculate, Reset, Copy, etc.)
-- Определить структуру результатов
-
-### Шаг 4: Реализовать логику
-- Написать функцию `calculate()`
-- Добавить валидацию входных данных
-- Реализовать основной алгоритм
-- Отобразить результаты через `displayResults()`
-
-### Шаг 5: Добавить на главную
-В `site/index.html` добавить карточку:
 ```html
-<article class="tool-card" data-category="[category]" data-name="[Tool Name]" data-order="[number]">
-  <div class="tool-top">
-    <span class="tool-icon">[icon]</span>
-    <span class="pill">[Category]</span>
-  </div>
-  <h3>[Tool Name]</h3>
-  <p>[Description]</p>
-  <div class="tool-bottom">
-    <span class="status-label">Ready</span>
-    <a class="open" href="tools/[category]/[tool-name].html">Open</a>
-  </div>
-</article>
+<link rel="canonical" href="https://orbitnet.ru/tools/<category>/<tool>.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OrbitNet">
+<meta property="og:title" content="<title>">
+<meta property="og:description" content="<description>">
+<meta property="og:url" content="https://orbitnet.ru/tools/<category>/<tool>.html">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://orbitnet.ru/assets/og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="OrbitNet — open tools, no noise">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="<title>">
+<meta name="twitter:description" content="<description>">
+<meta name="twitter:image" content="https://orbitnet.ru/assets/og-image.png">
 ```
 
-### Шаг 6: Обновить счетчики
-- Обновить счетчик категории в фильтрах
-- Обновить общий счетчик инструментов
+Для главной canonical — `https://orbitnet.ru/`, для `about.html` — `https://orbitnet.ru/about.html`. В `_template.html` URL нужно заменить на реальный путь нового инструмента.
 
----
+### Стили
 
-## 📊 Текущий статус
+`site/assets/css/style.css` содержит:
 
-### Статистика кода (оценка)
+- CSS-переменные темы;
+- сетку и контейнеры;
+- карточки, кнопки, поля, панели результатов;
+- адаптивные breakpoints;
+- состояния ошибок, предупреждений и успеха.
+
+Основные переменные:
+
+```css
+--paper: #16161a;
+--paper-2: #1e1e24;
+--ink: #e8e8ea;
+--muted: #9a9aa2;
+--line: #2c2c33;
+--accent: #6ecfa0;
+--accent-dim: #14382a;
+--card: #1c1c21;
+--danger: #f28b82;
+--warning: #f5c66b;
+--radius: 8px;
 ```
-HTML:  ~6000 строк (главная + 40 инструментов + шаблон)
-CSS:   ~600 строк  (темная тема, компоненты)
-JS:    ~3000 строк (главная + инструменты)
-Node:  ~600 строк  (бэкенд)
-───────────────────
-Всего: ~10200 строк кода
-```
 
-### Готовность инструментов
--  **40 готовых** (18 networks, 9 developer, 2 electricity, 7 math, 4 text)
--  **Запланированы**: electronics-инструменты (resistor, LED, voltage divider) и др.
--  **Цель**: 40+ к концу 2026 года (достигнута)
+Новые инструменты не должны вводить собственные цвета вне этих переменных без необходимости.
 
-### Производительность
-- Главная страница: ~100KB (HTML + CSS + JS)
-- Инструменты: ~50-80KB каждый
-- Время загрузки: <1 секунда
-- Lighthouse Score: 95+ (цель)
+### Главная страница
 
----
+`site/assets/js/main.js`:
 
-## 🔧 Технические детали
+- ищет карточки `.tool-card`;
+- фильтрует по `data-category`;
+- сортирует по `data-order`, имени или категории;
+- обрабатывает `/` для фокуса поиска и `Esc` для сброса;
+- загружает IP-виджет через `/api/ip`;
+- обновляет год в подвале.
 
-### Принципы архитектуры
-1. **No Build Step** — прямой запуск из браузера
-2. **Vanilla JS** — без фреймворков и зависимостей
-3. **Client-side first** — большинство вычислений в браузере; сетевые проверки (DNS, порты, whois, IP) — через собственный бэкенд без сторонних сервисов
-4. **Progressive Enhancement** — работает без JS (статическая версия)
-5. **Mobile First** — адаптивность из коробки
+Карточки инструментов добавляются в `site/index.html` вручную.
 
-### Стандарты кода
-- **HTML**: Semantic HTML5, ARIA labels
-- **CSS**: BEM-like naming, CSS Grid/Flexbox
-- **JavaScript**: ES6+, strict mode, JSDoc комментарии
-- **Accessibility**: WCAG 2.1 Level AA
+## Backend
 
-### Браузерная поддержка
-- Chrome 90+
-- Firefox 88+
-- Safari 14+
-- Edge 90+
+`backend/server.js` — CommonJS-приложение на встроенных модулях Node.js. Внешняя зависимость только `maxmind`.
 
----
+### Маршруты
 
-## 📚 Полезные ссылки
+| Маршрут | Модули | Назначение |
+|---|---|---|
+| `GET /health` | — | Healthcheck |
+| `GET /api/ip` | dns, geo | IP клиента, PTR, геолокация, ASN |
+| `GET /api/geo` | dns, maxmind | Геолокация по IP или домену |
+| `GET /api/dns` | dns | DNS-записи |
+| `GET /api/port` | net | TCP-проверка |
+| `GET /api/whois` | net | whois-запрос |
+| `GET /api/site` | http/https | Статус, сервер, title, время ответа |
+| `GET /api/headers` | http/https | Заголовки ответа |
+| `GET /api/tls` | tls | Сертификат и цепочка |
+| `GET /api/email` | dns | MX, SPF, DMARC, DKIM, PTR |
+| `GET /api/propagation` | dns | Несколько публичных резолверов |
+| `GET /api/redirect` | http/https | Цепочка редиректов |
 
-- [README.md](README.md) — основная документация
-- [ROADMAP.md](ROADMAP.md) — план развития
-- [Главная страница](site/index.html) — точка входа
-- [Шаблон инструмента](site/tools/_template.html) — для разработки
+### Защита
 
----
+- Проверка публичности IP до соединения.
+- Проверка всех адресов, полученных через DNS.
+- Блокировка приватных и служебных диапазонов.
+- Отдельная проверка каждого шага редиректа.
+- Таймауты и ограниченная очередь исходящих запросов.
+- Rate limiting с ответом HTTP 429.
 
-## 🔄 История изменений
+IP клиента берётся из `X-Real-IP`, который выставляет nginx. nginx доверяет `CF-Connecting-IP` только от Cloudflare и локальных прокси.
 
-### v0.5.0 (19 октября 2026)
-- GeoIP через MaxMind GeoLite2: новый эндпоинт `/api/geo` и расширенный `/api/ip` (локация, часовой пояс, координаты, провайдер/ASN); базы читаются локально из `data/geoip` с горячим перечитыванием по mtime
-- Главная: IP-виджет показывает местоположение, часовой пояс и провайдера
-- `ip-lookup` и `ip-info`: вывод гео-данных и расширенное описание полей с атрибуцией MaxMind
-- Автообновление баз: сервис `geoip-updater` в `docker-compose.yml` (профиль `geoip`, каждые 24 ч), `.env.example` с ключами MaxMind
-- SEO: добавлены `robots.txt` и `sitemap.xml`
-- Кроссбраузерность: хардненинг CSS (`color-scheme`, `text-size-adjust`, критический инлайн-стиль), исправлен светлый `theme-color`
-- Реальный IP клиента за Cloudflare: nginx читает `CF-Connecting-IP` (`real_ip_header`) и доверяет диапазонам Cloudflare и локальным прокси (Caddy отбрасывает входящий `X-Forwarded-For`)
+### GeoIP
 
-### v0.4.0 (18 октября 2026)
-- Добавлены 9 инструментов: SSL/TLS Checker, HTTP Headers Inspector, Email DNS Checker, DNS Propagation Checker, Redirect Checker, Website Health Check, Network Diagnostics, Email Deliverability Check (Networks) и JWT Decoder (Developer)
-- Новые эндпоинты: `/api/headers`, `/api/tls`, `/api/email`, `/api/propagation`, `/api/redirect`; все под SSRF-защитой, таймаутами и rate-limit
-- `/api/tls` намеренно подключается без проверки сертификата, чтобы показывать проблемные сертификаты, и явно сообщает результат проверки
-- `/api/redirect` проверяет каждую точку перенаправления отдельно (до 10 хопов), приватные адреса прерывают цепочку
-- `/api/propagation` опрашивает 7 фиксированных публичных резолверов параллельно
-- DNS-запросы `/api/email` ограничены таймаутом
-- Главная страница: 40 карточек, счётчики all=40, networks=18, developer=9
+- `GEOIP_DIR` задаёт каталог с `.mmdb`.
+- В Docker это `/data/geoip`.
+- При изменении mtime файлы перечитываются без рестарта.
+- `geoip-updater` — опциональный сервис Docker Compose с профилем `geoip`.
 
-### v0.3.3 (18 октября 2026)
-- `normalizeIp` схлопывает IPv4-mapped IPv6 в любой нотации (включая полную форму `0:0:0:0:0:ffff:c0a8:0101`)
-- `MAX_CONCURRENT`/`MAX_QUEUE` валидируются при старте (положительные целые, иначе выход с ошибкой)
-- Rate-limit: удаляются только просроченные записи; при заполнении таблицы новые клиенты отсекаются без сброса всех счётчиков
+## Docker и деплой
 
-### v0.3.2 (18 октября 2026)
-- SSRF: проверка IPv6 переведена на `net.BlockList` (добавлены Teredo, 6to4, NAT64, IPv4-mapped/-compatible, ORCHID, discard-only и др.; hex-форма IPv4-mapped нормализуется)
-- Ограничена очередь исходящих запросов (503 при переполнении), `/api/ip` включён в лимит частоты
-- Строгая валидация порта (только цифры, 1-65535); PTR-запросы поддерживают IPv6
-- Доверие к IP клиента: nginx через `real_ip` выставляет `X-Real-IP`, который и используется бэкендом
-- nginx: базовые защитные заголовки (`X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`)
-- Шаблон инструмента: экранирование вывода и безопасный `showError`
-- `reverse-ip` распознаёт IPv6; формулировки о приватности в `ip-lookup` согласованы с README
-- GitHub Actions: `appleboy/ssh-action` закреплён по commit SHA
+`docker-compose.yml`:
 
-### v0.3.1 (18 октября 2026)
-- Безопасность бэкенда: защита от SSRF в `/api/port` и `/api/site` (только публичные адреса, проверка всех DNS-адресов, подключение к проверенному IP), отключены следование редиректам и `rejectUnauthorized: false`
-- Добавлены таймауты, ограничение одновременных проверок и лимит частоты запросов
-- Исправлено определение IP посетителя по `X-Forwarded-For`
-- Экранирование данных в сетевых инструментах (`dns-lookup`, `port-checker`, `site-info`, `ip-info`) — вывод через `textContent`/экранирование
-- README: убраны эмодзи, уточнены приватность и лицензия, добавлен раздел о безопасности
+- `orbitnet-site` — nginx, статика из `./site`, порт `127.0.0.1:8081`.
+- `orbitnet-api` — Node.js, внутренний порт `3000`.
+- `geoip-updater` — профиль `geoip`, обновляет базы раз в 24 часа.
 
-### v0.3.0 (18 октября 2026)
-- Добавлены 16 инструментов: Text (case, word count, diff, lorem), Math (number base, scientific, statistics, prime), Networks (CIDR/netmask, IP/binary, MAC, reverse IP), Developer (hash, timestamp, regex, color)
-- Обновлены главная страница (31 карточка) и счётчики фильтров
-- MD5 реализован вручную, остальные хеши — через Web Crypto
+`nginx.conf`:
 
-### v0.2.0 (18 октября 2026)
-- Тёмная чистая тема без эмодзи и анимаций; упрощённая главная страница
-- Добавлен Node.js API-бэкенд (`/api/ip`, `/api/dns`, `/api/port`, `/api/whois`, `/api/site`)
-- Добавлены инструменты: IP Lookup, DNS Lookup, Port Checker, IP & Domain Info, Site Info, Password Generator
-- `nginx.conf` с проксированием `/api/`; `docker-compose` обновлён (site + api)
-- IP-виджет на главной и IP Lookup переведены на собственный бэкенд (убран `ipapi.co`)
+- отдаёт статику;
+- проксирует `/api/` на `orbitnet-api:3000`;
+- добавляет базовые security-заголовки;
+- корректно определяет реальный IP.
 
-### v0.1.0 (17 октября 2026)
-- Создана модульная структура проекта
-- Разделены HTML, CSS, JS
-- Реализованы IPv4 Subnet Calculator и JSON Formatter
-- Создан шаблон для новых инструментов
-- Написана документация (README, ROADMAP, STRUCTURE)
+`.github/workflows/deploy.yml` по push в `main`:
 
----
+1. подключается к серверу по SSH;
+2. делает `git pull`;
+3. пересобирает контейнеры;
+4. запускает `geoip-updater`, если в `.env` есть ключи MaxMind.
 
-**Последнее обновление**: 19 октября 2026
-**Автор**: PetrederdS
+## SEO и индексация
+
+- `site/sitemap.xml` содержит главную, `about.html` и все 40 инструментов.
+- `site/robots.txt` разрешает индексацию и указывает на sitemap.
+- У всех страниц есть canonical и Open Graph.
+- Общее превью — `site/assets/og-image.png` (1200×630).
+
+При добавлении страницы:
+
+1. добавьте canonical с её реальным URL;
+2. заполните `og:title`, `og:description`, `og:url`;
+3. добавьте URL в `sitemap.xml`;
+4. проверьте, что карточка есть на главной.
+
+## Соглашения для нового инструмента
+
+1. Скопируйте `site/tools/_template.html` в нужную категорию.
+2. Назовите файл в kebab-case: `led-resistor.html`.
+3. Заполните title, description, canonical и Open Graph.
+4. Переиспользуйте классы `tool-panel`, `input-group`, `result-box`, `btn`.
+5. Валидируйте входные данные и показывайте понятные ошибки.
+6. Не отправляйте пользовательские данные на сервер без необходимости.
+7. Для тяжёлых алгоритмов задавайте лимиты по размеру ввода и времени.
+8. Проверьте мобильную вёрстку, клавиатуру и консоль браузера.
+9. Добавьте карточку в `site/index.html` и URL в `site/sitemap.xml`.
+
+## Что стоит знать перед изменениями
+
+- Фронтенд не использует сборщик: пути к CSS и ассетам относительные от страницы.
+- В `site/tools/**` путь к общим ассетам — `../../assets/...`.
+- Все страницы должны оставаться рабочими при прямом открытии через локальный HTTP-сервер.
+- Сетевые инструменты без Docker требуют отдельного проксирования `/api/`.
+- Backend не хранит пользовательские данные; логи инфраструктуры — ответственность хостинга.
+- При изменении API обновите таблицу маршрутов здесь и раздел API в README.

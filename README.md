@@ -1,345 +1,261 @@
 # OrbitNet
 
-> **Open tools, no noise** — коллекция бесплатных практичных веб-инструментов для сетей, электроники, разработки и математики
+> **Open tools, no noise** — коллекция бесплатных практичных веб-инструментов для сетей, разработки, математики, текста и электроники.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-orange.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-active-success.svg)]()
 
+**Сайт:** [orbitnet.ru](https://orbitnet.ru)
+
 ## О проекте
 
-**OrbitNet** — это open-source коллекция полезных веб-инструментов, созданная для специалистов и любознательных людей. Проект построен на простых принципах:
+OrbitNet — открытый набор небольших инструментов, которые решают конкретные задачи без регистрации, рекламы и лишнего интерфейса.
 
-- **Без рекламы** — никаких баннеров или спонсорских размещений
-- **Без трекинга** — приложение не ведёт базу пользовательских данных и не использует сторонние сервисы аналитики
-- **Без регистрации** — все инструменты доступны сразу
-- **Open source** — весь код открыт для изучения и улучшения
-- **Приватность** — вычисления выполняются локально, а сетевые проверки (DNS, порты, whois) идут через собственный бэкенд, без сторонних сервисов
+- **Без рекламы** — никаких баннеров и спонсорских блоков.
+- **Без трекинга** — нет пользовательских профилей и сторонней аналитики.
+- **Без регистрации** — инструменты доступны сразу.
+- **Приватность** — вычисления выполняются локально в браузере; сетевые проверки идут через собственный бэкенд.
+- **Open source** — код открыт для изучения, форка и улучшений.
 
-> Оговорка по приватности: приложение не собирает и не хранит пользовательские данные. При этом
-> веб-сервер, reverse-proxy и контейнерная платформа могут вести технические логи запросов
-> (например, IP-адрес, время, путь запроса) — это стандартные логи хостинга, а не профилирование.
+> Технические логи веб-сервера, reverse-proxy и хостинга могут содержать IP-адрес, время и путь запроса. Это стандартные логи инфраструктуры, а не профилирование пользователей.
 
-## Живая демо
+## Что уже работает
 
-[orbitnet.ru](https://orbitnet.ru) (скоро будет доступен)
+Сейчас в коллекции **40 инструментов** в пяти категориях.
 
-## Доступные инструменты
+### Сети — 18
 
-### Сетевые инструменты (Networks)
-- [x] **IPv4 Subnet Calculator** — расчет подсетей, маски, диапазонов хостов
-- [x] **IP Lookup** — ваш публичный IP, примерное местоположение, провайдер и reverse DNS (через собственный бэкенд)
-- [x] **DNS Lookup** — записи A, AAAA, MX, TXT, NS, CNAME, SOA, CAA
-- [x] **Port Checker** — проверка TCP-порта на хосте
-- [x] **IP & Domain Info** — DNS-записи, reverse DNS, whois, геолокация и провайдер для IP/домена
-- [x] **Site Info** — IP, HTTP-статус, сервер, заголовок и время отклика сайта
-- [x] **CIDR / Netmask Converter** — конвертация prefix ↔ маска ↔ wildcard
-- [x] **IP / Binary Converter** — IPv4 ↔ binary/decimal/hex
-- [x] **MAC Address Converter** — форматы MAC, тип адреса и OUI
-- [x] **Reverse IP Lookup** — PTR-запись для IP (через бэкенд)
-- [x] **SSL/TLS Checker** — срок, издатель, SAN, цепочка и совпадение имени (через бэкенд)
-- [x] **HTTP Headers Inspector** — заголовки ответа и предупреждения по security-заголовкам
-- [x] **Email DNS Checker** — MX, SPF, DMARC, DKIM (по селектору) и PTR
-- [x] **DNS Propagation Checker** — сравнение ответов нескольких публичных резолверов
-- [x] **Redirect Checker** — цепочка перенаправлений, коды и конечный адрес
-- [x] **Website Health Check** — объединённый отчёт: DNS, TLS, доступность, заголовки
-- [x] **Network Diagnostics** — прямой/обратный DNS и проверка TCP-порта на одной странице
-- [x] **Email Deliverability Check** — разбор почтовых DNS-настроек с пояснением ошибок
+| Инструмент | Что делает |
+|---|---|
+| IPv4 Subnet Calculator | Network/broadcast, маска, диапазон и количество хостов |
+| IP Lookup | Публичный IP, reverse DNS, геолокация и провайдер |
+| IP & Domain Info | DNS, PTR, whois, геолокация и ASN |
+| DNS Lookup | Записи A, AAAA, MX, TXT, NS, CNAME, SOA, CAA |
+| Reverse IP Lookup | PTR-запись для IP-адреса |
+| Port Checker | Проверка TCP-порта на доступность |
+| Site Info | HTTP-статус, сервер, заголовок и время ответа |
+| CIDR / Netmask Converter | CIDR ↔ маска ↔ wildcard |
+| IP / Binary Converter | IPv4 ↔ binary/decimal/hex |
+| MAC Address Converter | Форматы MAC, тип адреса и OUI |
+| SSL/TLS Checker | Срок сертификата, издатель, SAN, цепочка и имя |
+| HTTP Headers Inspector | Заголовки ответа и security-подсказки |
+| Email DNS Checker | MX, SPF, DMARC, DKIM и PTR |
+| Email Deliverability Check | Разбор почтовых DNS-настроек и ошибок |
+| DNS Propagation Checker | Сравнение ответов нескольких резолверов |
+| Redirect Checker | Цепочка редиректов, коды и конечный адрес |
+| Website Health Check | DNS + TLS + доступность + заголовки одним отчётом |
+| Network Diagnostics | Прямой/обратный DNS и проверка порта на одной странице |
 
-### Инструменты разработчика (Developer Tools)
-- [x] **JSON Formatter & Validator** — форматирование и валидация JSON
-- [x] **Base64 Encoder/Decoder**
-- [x] **UUID Generator**
-- [x] **Password Generator** — генерация паролей и оценка стойкости
-- [x] **Hash Generator** — MD5, SHA-1, SHA-256, SHA-384, SHA-512
-- [x] **Timestamp Converter** — Unix ↔ ISO 8601 ↔ локальное время
-- [x] **Regex Tester** — проверка регулярок с флагами и группами
-- [x] **Color Converter** — HEX ↔ RGB ↔ HSL
-- [x] **JWT Decoder** — разбор header/payload и claims JWT локально в браузере
+### Разработка — 9
 
-### Электроника (Electronics)
-- [x] **Ohm's Law Calculator**
-- [x] **NE555 Timer Calculator**
-- [ ] Resistor Color Code Calculator
-- [ ] LED Resistor Calculator
-- [ ] Voltage Divider Calculator
+JSON Formatter & Validator, Base64 Encoder/Decoder, UUID Generator, Password Generator, Hash Generator (MD5/SHA-1/SHA-256/SHA-384/SHA-512), Timestamp Converter, Regex Tester, Color Converter (HEX/RGB/HSL), JWT Decoder.
 
-### Математика и наука (Math & Science)
-- [x] **Quadratic Equation Solver**
-- [x] **Percentage Calculator**
-- [x] **Unit Converter**
-- [x] **Number Base Converter** — binary/octal/decimal/hex
-- [x] **Scientific Notation Converter** — scientific и engineering notation
-- [x] **Statistics Calculator** — mean, median, mode, variance, quartiles
-- [x] **Prime Number Checker** — простота, факторизация, ближайшие простые
+### Математика — 7
 
-### Текст и данные (Text & Data)
-- [x] **Case Converter** — регистр, camelCase, snake_case, kebab-case и др.
-- [x] **Word Counter** — слова, символы, время чтения, частые слова
-- [x] **Text Diff Checker** — построчное сравнение двух текстов
-- [x] **Lorem Ipsum Generator** — placeholder-текст
+Quadratic Equation Solver, Percentage Calculator, Unit Converter, Number Base Converter, Scientific Notation Converter, Statistics Calculator, Prime Number Checker.
 
-## Структура проекта
+### Текст — 4
+
+Case Converter, Word Counter, Text Diff Checker, Lorem Ipsum Generator.
+
+### Электроника — 2
+
+Ohm's Law Calculator, NE555 Timer Calculator.
+
+## Архитектура
+
+```
+Браузер
+  ├── статические HTML/CSS/JS  ──► nginx (site/)
+  └── fetch('/api/...')        ──► nginx ──► Node.js API (backend/)
+                                            ├── DNS / TCP / TLS / HTTP
+                                            ├── whois
+                                            └── MaxMind GeoLite2 (data/geoip/)
+```
+
+- **Frontend** — статические страницы без сборщика и фреймворков. Каждый инструмент — отдельный HTML-файл с общим `assets/css/style.css`.
+- **Backend** — небольшой HTTP-сервис на встроенных модулях Node.js. Единственная внешняя зависимость — `maxmind` для чтения GeoLite2.
+- **nginx** — раздаёт статику и проксирует `/api/` на бэкенд.
+- **Docker Compose** — поднимает `site`, `api` и опциональный `geoip-updater`.
+
+## Структура репозитория
 
 ```
 orbitnet/
-├── site/                          # Frontend приложение (nginx)
-│   ├── index.html                 # Главная страница
+├── site/                          # Публичная статика
+│   ├── index.html                 # Каталог инструментов
+│   ├── about.html
+│   ├── robots.txt
+│   ├── sitemap.xml
+│   ├── icons/favicon.svg
 │   ├── assets/
-│   │   ├── css/
-│   │   │   └── style.css         # Общие стили (темная тема)
-│   │   └── js/
-│   │       └── main.js           # Главная логика (поиск, фильтры, IP-виджет)
-│   └── tools/                     # Инструменты
-│       ├── networks/              # Сетевые инструменты
-│       ├── developer/             # Инструменты разработчика
-│       ├── electricity/           # Электроника
-│       ├── math/                  # Математика
-│       └── text/                  # Текст и данные
-├── backend/                       # Node.js API (DNS, порты, whois, site info, GeoIP)
-│   ├── server.js                  # HTTP-сервер (единственная зависимость — maxmind)
+│   │   ├── css/style.css
+│   │   ├── js/main.js             # Поиск, фильтры, сортировка, IP-виджет
+│   │   └── og-image.png           # Open Graph превью
+│   └── tools/
+│       ├── _template.html         # Шаблон нового инструмента
+│       ├── networks/              # 18 инструментов
+│       ├── developer/             # 9 инструментов
+│       ├── math/                  # 7 инструментов
+│       ├── text/                  # 4 инструмента
+│       └── electricity/           # 2 инструмента
+├── backend/
+│   ├── server.js                  # API на Node.js
 │   ├── package.json
 │   └── Dockerfile
-├── data/geoip/                    # GeoLite2 базы (скачиваются, не в git)
-│   ├── GeoLite2-City.mmdb
-│   └── GeoLite2-ASN.mmdb
-├── nginx.conf                     # Конфиг nginx (статика + прокси /api/)
-├── docker-compose.yml             # Docker для деплоя (site + api + geoip-updater)
-├── .env.example                   # Шаблон ключей MaxMind для geoip-updater
-├── .github/workflows/
-│   └── deploy.yml                 # CI/CD автодеплой
-├── README.md                      # Этот файл
-├── STRUCTURE.md                   # Структура проекта
-└── ROADMAP.md                     # План развития
+├── data/geoip/                    # GeoLite2 (не коммитится)
+├── nginx.conf                     # Статика + прокси /api/
+├── docker-compose.yml
+├── .env.example
+├── .github/workflows/deploy.yml
+├── README.md
+├── ROADMAP.md
+└── STRUCTURE.md
 ```
+
+Подробное описание файлов и соглашений — в [STRUCTURE.md](STRUCTURE.md).
 
 ## Технологии
 
-- **Vanilla JavaScript** — без фреймворков, чистый JS
-- **Modern CSS** — CSS Grid, Custom Properties, темная тема
-- **Semantic HTML5** — доступность и SEO
-- **Node.js** — легкий API-бэкенд на встроенных модулях (dns, net, http, https, tls) плюс `maxmind` для чтения GeoLite2
-- **nginx** — раздача статики и проксирование `/api/` на бэкенд
-- **Docker** — контейнеризация для деплоя
-- **GitHub Actions** — автоматический деплой
-
-## API бэкенда
-
-Бэкенд почти не использует внешних зависимостей (только `maxmind` для GeoLite2) и отдаёт JSON:
-
-| Endpoint | Описание |
-|----------|----------|
-| `GET /health` | проверка доступности |
-| `GET /api/ip` | IP клиента, версия, reverse DNS, геолокация и провайдер |
-| `GET /api/geo?ip=` или `?host=` | геолокация и провайдер (ASN) для IP или домена |
-| `GET /api/dns?host=&type=` | DNS-записи (A, AAAA, MX, TXT, NS, CNAME, SOA, CAA, PTR для IP) |
-| `GET /api/port?host=&port=` | проверка TCP-порта |
-| `GET /api/whois?host=` | whois-данные для домена или IP |
-| `GET /api/site?host=` | HTTP-статус, сервер, заголовок и время отклика сайта |
-| `GET /api/headers?host=` | заголовки HTTP-ответа (статус, тип, кэш, security-заголовки) |
-| `GET /api/tls?host=&port=` | сертификат TLS: срок, издатель, SAN, цепочка, совпадение имени |
-| `GET /api/email?host=&selector=` | MX, SPF, DMARC, DKIM и PTR для почтовой конфигурации |
-| `GET /api/propagation?host=&type=` | ответы нескольких публичных DNS-резолверов |
-| `GET /api/redirect?host=` | цепочка перенаправлений и конечный адрес |
-
-### Безопасность сетевых проверок
-
-Так как `/api/port`, `/api/site`, `/api/headers`, `/api/tls` и `/api/redirect` инициируют соединения
-по запросу посетителя, бэкенд защищён от SSRF:
-
-- разрешены только корректные доменные имена и публичные IP-адреса;
-- отклоняются loopback, приватные (RFC 1918), link-local, CGNAT, multicast, Teredo, 6to4, NAT64,
-  IPv4-mapped/-compatible и другие непубличные диапазоны IPv4/IPv6 (через `net.BlockList`);
-- проверяются **все** адреса, полученные через DNS, а не только имя хоста (защита от DNS-rebinding:
-  соединение идёт на уже проверенный IP); в `/api/redirect` каждая точка перенаправления проверяется
-  отдельно, переход на приватный адрес прерывает цепочку;
-- редиректы не следуются, а небезопасные схемы (`javascript:` и т. п.) отбрасываются при выводе;
-- TLS-сертификаты проверяются штатно (`rejectUnauthorized` не отключается) — **кроме** `/api/tls`,
-  который намеренно подключается без проверки, чтобы показать просроченные и самоподписанные
-  сертификаты, и явно сообщает результат проверки;
-- заданы таймауты, ограничение одновременных исходящих проверок с ограниченной очередью и лимит
-  частоты запросов (HTTP 429), включая `/api/ip` (запускающий reverse DNS).
-
-IP-адрес посетителя определяется по `X-Real-IP`, который выставляет nginx. В продакшене трафик идёт
-`Cloudflare → Caddy (хост) → nginx`. Caddy по умолчанию отбрасывает входящий `X-Forwarded-For`, но
-пробрасывает `CF-Connecting-IP`, поэтому nginx вычисляет реальный IP из этого заголовка
-(`real_ip_header CF-Connecting-IP`) и доверяет только адресам Cloudflare и локальным прокси
-(`set_real_ip_from`); произвольный клиентский `X-Forwarded-For` не считается достоверным.
-Диапазоны Cloudflare при необходимости обновляются по https://www.cloudflare.com/ips-v4 и `/ips-v6`.
-nginx также отдаёт базовые защитные заголовки (`X-Content-Type-Options`, `Referrer-Policy`,
-`X-Frame-Options`).
-
-## GeoIP (MaxMind GeoLite2)
-
-Геолокация и определение провайдера (ASN) выполняются локально по базам MaxMind GeoLite2,
-без обращения к сторонним сервисам.
-
-- Базы лежат в `data/geoip/` и **не коммитятся в git** (см. `.gitignore`).
-- Путь задаётся переменной `GEOIP_DIR` (по умолчанию `../data/geoip` относительно `backend/`,
-  в Docker — `/data/geoip`).
-- Бэкенд сам перечитывает базы: если файл `.mmdb` обновился (mtime изменился), он
-  подхватывает новую версию без перезапуска.
-
-### Обновление баз
-
-MaxMind требует обновлять GeoLite2 не реже, чем раз в **30 дней**. Для этого в
-`docker-compose.yml` есть опциональный сервис `geoip-updater`, который обновляет базы каждые 24 часа:
-
-```bash
-cp .env.example .env      # укажите MAXMIND_ACCOUNT_ID и MAXMIND_LICENSE_KEY
-docker compose --profile geoip up -d
-```
-
-Ключи берутся из бесплатного аккаунта MaxMind
-(https://www.maxmind.com/en/geolite2/signup → Manage License Keys).
-`GEOIPUPDATE_FREQUENCY=24` задаётся в **часах**, то есть обновление раз в сутки.
-
-`.env` содержит секреты и **не коммитится** в git: на сервере его нужно создать
-один раз вручную (рядом с `docker-compose.yml`). При деплое сервис `geoip-updater`
-запускается автоматически, если в `.env` есть непустые `MAXMIND_ACCOUNT_ID` и
-`MAXMIND_LICENSE_KEY`; иначе шаг просто пропускается (см. `.github/workflows/deploy.yml`).
-
-Без Docker базы можно обновить официальной утилитой
-[`geoipupdate`](https://github.com/maxmind/geoipupdate) или вручную скачав
-`GeoLite2-City` и `GeoLite2-ASN` в `data/geoip/`.
-
-> В проекте используется GeoLite2. This product includes GeoLite2 data created by
-> MaxMind, available from https://www.maxmind.com.
+- Vanilla JavaScript, HTML5, современный CSS (Grid, Custom Properties).
+- Node.js без фреймворков; `maxmind` для GeoIP.
+- nginx, Docker Compose, GitHub Actions.
+- SEO: `canonical`, Open Graph, Twitter Card, `sitemap.xml`, `robots.txt`.
 
 ## Локальный запуск
 
-### Вариант 1: Прямо из файловой системы
-Просто откройте `site/index.html` в браузере. Инструменты, работающие на клиенте, будут работать сразу. Сетевые инструменты (DNS, порты, whois, site info, IP-виджет) требуют запущенного бэкенда.
+### Только статические инструменты
 
-### Вариант 2: Локальный веб-сервер (рекомендуется)
-
-**Python:**
 ```bash
 cd site
 python3 -m http.server 8000
-# Откройте http://localhost:8000
+# http://localhost:8000
 ```
 
-**Node.js:**
-```bash
-npm install -g http-server
-cd site
-http-server -p 8000
-```
+Так работают клиентские инструменты. Сетевые проверки требуют бэкенда и проксирования `/api/`.
 
-**PHP:**
-```bash
-cd site
-php -S localhost:8000
-```
-
-### Вариант 2b: Бэкенд (для сетевых инструментов)
+### Бэкенд отдельно
 
 ```bash
 cd backend
+npm install
 node server.js
-# API поднимется на http://localhost:3000
+# API: http://localhost:3000
 ```
 
-При запуске через `docker-compose` nginx сам проксирует `/api/` на бэкенд, поэтому отдельный запуск не нужен.
-
-### Вариант 3: Docker
+### Docker (рекомендуется)
 
 ```bash
-docker compose up -d
-# Откройте http://localhost:8081
+docker compose up -d --build
+# Сайт: http://localhost:8081
+```
 
-# Для автообновления GeoIP-баз (нужны ключи MaxMind в .env):
+В этом режиме nginx сам проксирует `/api/` на бэкенд. Для сетевых инструментов положите базы GeoLite2 в `data/geoip/` или включите автообновление:
+
+```bash
+cp .env.example .env
+# укажите MAXMIND_ACCOUNT_ID и MAXMIND_LICENSE_KEY
 docker compose --profile geoip up -d
 ```
 
-Перед первым запуском положите базы `GeoLite2-City.mmdb` и `GeoLite2-ASN.mmdb`
-в `data/geoip/` — либо дайте сервису `geoip-updater` скачать их сам (см. раздел GeoIP).
+## API
 
-## Как внести вклад
+| Endpoint | Назначение |
+|---|---|
+| `GET /health` | Проверка доступности API |
+| `GET /api/ip` | IP клиента, версия, reverse DNS, геолокация, ASN |
+| `GET /api/geo?ip=` / `?host=` | Геолокация и провайдер |
+| `GET /api/dns?host=&type=` | DNS-записи |
+| `GET /api/port?host=&port=` | Проверка TCP-порта |
+| `GET /api/whois?host=` | whois для домена или IP |
+| `GET /api/site?host=` | HTTP-статус, сервер, заголовок, время ответа |
+| `GET /api/headers?host=` | Заголовки HTTP-ответа |
+| `GET /api/tls?host=&port=` | Данные TLS-сертификата |
+| `GET /api/email?host=&selector=` | MX, SPF, DMARC, DKIM, PTR |
+| `GET /api/propagation?host=&type=` | Ответы нескольких DNS-резолверов |
+| `GET /api/redirect?host=` | Цепочка перенаправлений |
 
-Мы приветствуем любые улучшения! Вот как можно помочь:
+Ответы — JSON. Для исходящих проверок действуют таймауты, ограничение очереди и лимит частоты запросов.
 
-### 1. Сообщить об ошибке (Bug Report)
-Создайте [issue](https://github.com/petrederd/orbitnet/issues) с описанием проблемы.
+## Безопасность сетевых проверок
 
-### 2. Предложить новый инструмент
-1. Проверьте [ROADMAP.md](ROADMAP.md) — возможно, идея уже запланирована
-2. Создайте issue с описанием:
-   - Какую проблему решает инструмент?
-   - Кто целевая аудитория?
-   - Примеры использования
+`/api/port`, `/api/site`, `/api/headers`, `/api/tls` и `/api/redirect` инициируют соединения по запросу посетителя, поэтому бэкенд защищён от SSRF:
 
-### 3. Добавить код
-1. Форкните репозиторий
-2. Создайте ветку: `git checkout -b feature/new-tool`
-3. Следуйте структуре существующих инструментов:
-   - Используйте общий CSS из `assets/css/style.css`
-   - Vanilla JavaScript (без зависимостей)
-   - Мобильный responsive дизайн
-   - Добавьте документацию прямо на странице инструмента
-4. Протестируйте на мобильных и десктопе
-5. Коммит: `git commit -am 'Add: New Tool Name'`
-6. Пуш: `git push origin feature/new-tool`
-7. Создайте Pull Request
+- принимаются только корректные доменные имена и публичные IP;
+- блокируются loopback, приватные сети (RFC 1918), link-local, CGNAT, multicast, Teredo, 6to4, NAT64, IPv4-mapped/-compatible и другие непубличные диапазоны;
+- проверяются все IP, полученные через DNS, а не только имя хоста;
+- в цепочке редиректов каждая точка проверяется отдельно;
+- небезопасные схемы отбрасываются;
+- TLS проверяется штатно, кроме `/api/tls`, который намеренно показывает просроченные и самоподписанные сертификаты;
+- действуют таймауты и rate limiting.
+
+IP посетителя определяется по `X-Real-IP`, который выставляет nginx. В продакшене цепочка выглядит так: `Cloudflare → Caddy → nginx → API`. nginx доверяет `CF-Connecting-IP` только от диапазонов Cloudflare и локальных прокси.
+
+## GeoIP
+
+Геолокация и ASN определяются локально по базам MaxMind GeoLite2 — без сторонних геосервисов.
+
+- Базы лежат в `data/geoip/` и не коммитятся.
+- Путь задаётся через `GEOIP_DIR`.
+- API автоматически подхватывает обновлённые `.mmdb` без перезапуска.
+- MaxMind требует обновлять GeoLite2 не реже одного раза в 30 дней.
+- Сервис `geoip-updater` обновляет базы каждые 24 часа.
+
+> This product includes GeoLite2 data created by MaxMind, available from https://www.maxmind.com.
+
+## SEO
+
+У всех публичных страниц есть:
+
+- `<link rel="canonical">`;
+- Open Graph (`og:title`, `og:description`, `og:url`, `og:image`);
+- Twitter Card;
+- общий `site/sitemap.xml`, включённый в `robots.txt`.
+
+При добавлении страницы обновите `sitemap.xml` и используйте блок метатегов из `site/tools/_template.html`.
+
+## Разработка
+
+### Добавить инструмент
+
+1. Скопируйте `site/tools/_template.html` в нужную категорию.
+2. Заполните `<title>`, `description`, `canonical` и Open Graph.
+3. Используйте общий CSS и существующие компоненты.
+4. Добавьте карточку инструмента в `site/index.html`.
+5. Проверьте мобильные размеры, клавиатурную навигацию и обработку ошибок.
+6. Добавьте URL в `site/sitemap.xml`.
 
 ### Стиль кода
-- **JavaScript**: используйте современный ES6+, избегайте jQuery
-- **CSS**: следуйте существующим CSS-переменным для цветов
-- **HTML**: семантичные теги, ARIA-метки для доступности
-- **Комментарии**: документируйте сложную логику
 
-## Принципы дизайна
+- ES6+, без jQuery и тяжёлых зависимостей.
+- Чистые функции для вычислений, понятные сообщения об ошибках.
+- Семантический HTML и ARIA-атрибуты там, где это нужно.
+- Цвета и отступы — через CSS-переменные.
 
-### Визуальный стиль
-- Тёмная тема с зелёным акцентом (#6ecfa0)
-- Геометрические формы, четкие границы
-- Минималистичный подход
-- Читаемые шрифты, высокий контраст, без эмодзи
+### Git
 
-### UX принципы
-1. Мгновенная работа без загрузки
-2. Клиент-сайд обработка (приватность)
-3. Кнопки копирования для результатов
-4. Клавиатурные шорткаты где уместно
-5. Понятные сообщения об ошибках
+```bash
+git checkout -b feature/tool-name
+git commit -m "feat: add Tool Name"
+git push origin feature/tool-name
+```
 
-## Дорожная карта
+Перед PR стоит проверить страницу в браузере и убедиться, что инструмент не ломает существующие стили.
 
-Смотрите подробный план в [ROADMAP.md](ROADMAP.md)
+## Планы
 
-**Ближайшие цели:**
-- [x] Главная страница с дизайн-системой (тёмная тема)
-- [x] Базовая коллекция: Subnet, JSON, Base64, UUID, Password
-- [x] Сетевые: DNS Lookup, Port Checker, IP & Domain Info, Site Info, CIDR/Netmask, IP/Binary, MAC, Reverse IP
-- [x] Developer: Hash Generator, Timestamp Converter, Regex Tester, Color Converter
-- [x] Math: Number Base, Scientific Notation, Statistics, Prime Checker
-- [x] Text: Case Converter, Word Counter, Text Diff, Lorem Ipsum
-- [x] Node.js API-бэкенд
-- [x] Networks: SSL/TLS Checker, HTTP Headers, Email DNS, DNS Propagation, Redirect Checker
-- [x] Combined: Website Health, Network Diagnostics, Email Deliverability; Developer: JWT Decoder
-- [ ] Resistor Color Code Calculator
-- [x] 40 инструментов к концу 2026
+Ближайшие задачи и технический долг — в [ROADMAP.md](ROADMAP.md). Структура и правила разработки — в [STRUCTURE.md](STRUCTURE.md).
 
 ## Лицензия
 
-Проект распространяется под лицензией **MIT** — см. файл [LICENSE](LICENSE). Вы можете свободно
-использовать, изменять и распространять код при условии сохранения уведомления об авторских правах.
-
-## Поддержка проекта
-
-Если проект полезен для вас:
-- Поставьте звезду на GitHub
-- Расскажите друзьям и коллегам
-- Предложите новый инструмент или улучшение
-- Оставьте отзыв в issues
+MIT — см. [LICENSE](LICENSE).
 
 ## Контакты
 
-- **Website**: [orbitnet.ru](https://orbitnet.ru)
-- **Issues**: [GitHub Issues](https://github.com/petrederd/orbitnet/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/petrederd/orbitnet/discussions)
+- Сайт: [orbitnet.ru](https://orbitnet.ru)
+- Issues: [github.com/petrederd/orbitnet/issues](https://github.com/petrederd/orbitnet/issues)
+- Discussions: [github.com/petrederd/orbitnet/discussions](https://github.com/petrederd/orbitnet/discussions)
 
 ---
 
-**Made by OrbitNet Team**
-*Open source. No ads. No tracking.*
+**OrbitNet** — open source. No ads. No tracking.

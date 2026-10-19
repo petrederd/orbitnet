@@ -5,6 +5,22 @@
     <title>
       IPv4 Subnet Calculator — OrbitNet
     </title>
+<link rel="canonical" href="https://orbitnet.ru/tools/networks/subnet-calculator.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OrbitNet">
+<meta property="og:title" content="IPv4 Subnet Calculator — OrbitNet">
+<meta property="og:description" content="IPv4 Subnet Calculator — calculate network address, broadcast, usable hosts and subnet mask">
+<meta property="og:url" content="https://orbitnet.ru/tools/networks/subnet-calculator.html">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://orbitnet.ru/assets/og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="OrbitNet — open tools, no noise">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="IPv4 Subnet Calculator — OrbitNet">
+<meta name="twitter:description" content="IPv4 Subnet Calculator — calculate network address, broadcast, usable hosts and subnet mask">
+<meta name="twitter:image" content="https://orbitnet.ru/assets/og-image.png">
     <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2">
     <style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>
 <link rel="stylesheet" href="../../assets/css/style.css">
@@ -158,7 +174,8 @@ document.getElementById('subnetType').addEventListener('change', function() {
 
 function ipToInt(ip) {
   const parts = ip.split('.').map(Number);
-  return (parts[0] << 24) + (parts[1] << 16) + (parts[2] << 8) + parts[3];
+  // Shift operations return a signed 32-bit integer; >>> 0 makes it unsigned.
+  return ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
 }
 
 function intToIp(int) {
@@ -171,14 +188,13 @@ function intToIp(int) {
 }
 
 function cidrToMask(cidr) {
-  const mask = -1 << (32 - cidr);
-  return intToIp(mask >>> 0);
+  const mask = cidr === 0 ? 0 : (0xFFFFFFFF << (32 - cidr)) >>> 0;
+  return intToIp(mask);
 }
 
 function maskToCidr(mask) {
-  const parts = mask.split('.').map(Number);
-  const binary = (parts[0] << 24) + (parts[1] << 16) + (parts[2] << 8) + parts[3];
-  return binary.toString(2).split('1').length - 1;
+  const binary = ipToInt(mask).toString(2);
+  return binary.split('1').length - 1;
 }
 
 function validateIP(ip) {
@@ -221,9 +237,9 @@ function calculate() {
   let subnetMask;
   
   if (subnetType === 'cidr') {
-    cidr = parseInt(document.getElementById('cidr').value);
-    if (cidr < 0 || cidr > 32) {
-      showError('CIDR must be between 0 and 32');
+    cidr = parseInt(document.getElementById('cidr').value, 10);
+    if (!Number.isInteger(cidr) || cidr < 0 || cidr > 32) {
+      showError('CIDR must be an integer between 0 and 32');
       return;
     }
     subnetMask = cidrToMask(cidr);
@@ -239,8 +255,8 @@ function calculate() {
   // Calculate network details
   const ipInt = ipToInt(ipAddress);
   const maskInt = ipToInt(subnetMask);
-  const networkInt = ipInt & maskInt;
-  const broadcastInt = networkInt | (~maskInt >>> 0);
+  const networkInt = (ipInt & maskInt) >>> 0;
+  const broadcastInt = (networkInt | (~maskInt >>> 0)) >>> 0;
   const firstHostInt = networkInt + 1;
   const lastHostInt = broadcastInt - 1;
   
@@ -249,8 +265,8 @@ function calculate() {
   
   const networkAddr = intToIp(networkInt);
   const broadcastAddr = intToIp(broadcastInt);
-  const firstHost = cidr === 32 ? networkAddr : intToIp(firstHostInt);
-  const lastHost = cidr === 32 ? networkAddr : intToIp(lastHostInt);
+  const firstHost = cidr >= 31 ? networkAddr : intToIp(firstHostInt);
+  const lastHost = cidr >= 31 ? broadcastAddr : intToIp(lastHostInt);
   
   // Display results
   const resultsHTML = `
