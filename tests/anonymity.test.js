@@ -26,6 +26,8 @@ const emptyReport = {
 test('timezone offsets are calculated in minutes east of UTC', () => {
   const context = load();
   assert.equal(run(context, "timezoneOffset('UTC')"), 0);
+  assert.equal(run(context, "timezoneOffset('Etc/UTC')"), 0);
+  assert.equal(run(context, "timezoneOffset('Africa/Abidjan')"), 0);
   assert.equal(run(context, "timezoneOffset('Asia/Kolkata')"), 330);
   assert.equal(run(context, "timezoneOffset('Not/AZone')"), null);
 });
@@ -37,7 +39,15 @@ test('private and public WebRTC addresses are classified', () => {
   assert.equal(run(context, "isPrivateAddress('172.20.1.1')"), true);
   assert.equal(run(context, "isPrivateAddress('fe80::1')"), true);
   assert.equal(run(context, "isPrivateAddress('::ffff:192.168.1.20')"), true);
+  assert.equal(run(context, "isPrivateAddress('100.64.0.1')"), true);
+  assert.equal(run(context, "isPrivateAddress('100.127.255.255')"), true);
+  assert.equal(run(context, "isPrivateAddress('192.0.2.1')"), true);
+  assert.equal(run(context, "isPrivateAddress('198.18.5.4')"), true);
+  assert.equal(run(context, "isPrivateAddress('203.0.113.9')"), true);
+  assert.equal(run(context, "isPrivateAddress('224.0.0.1')"), true);
+  assert.equal(run(context, "isPrivateAddress('2001:db8::1')"), true);
   assert.equal(run(context, "isPrivateAddress('8.8.8.8')"), false);
+  assert.equal(run(context, "isPrivateAddress('100.128.0.1')"), false);
   assert.equal(run(context, "isPrivateAddress('2001:4860:4860::8888')"), false);
 });
 
@@ -52,8 +62,11 @@ test('the score adds independent proxy, Tor and leak signals', () => {
   const torReport = { ...emptyReport, tor: { available: true, listed: true } };
   assert.equal(run(context, `calcScore(${JSON.stringify(torReport)}, null, null, null).score`), 100);
 
-  const webrtc = { public: ['8.8.8.8'], local: [] };
+  const webrtc = { public: ['8.8.8.8'], local: [], stun: true };
   assert.equal(run(context, `calcScore(${JSON.stringify(emptyReport)}, ${JSON.stringify(webrtc)}, null, null).score`), 35);
+
+  const matchingReport = { ...emptyReport, ip: '8.8.8.8' };
+  assert.equal(run(context, `calcScore(${JSON.stringify(matchingReport)}, ${JSON.stringify(webrtc)}, null, null).score`), 0);
 
   const ports = { groups: { httpProxy: [{ open: true }], webProxy: [], vpn: [] } };
   assert.equal(run(context, `calcScore(${JSON.stringify(emptyReport)}, null, null, ${JSON.stringify(ports)}).score`), 25);
@@ -63,6 +76,7 @@ test('WebRTC collection resolves safely when WebRTC is unavailable', async () =>
   const context = load();
   const result = await run(context, 'collectWebRTC(10)');
   assert.equal(result.supported, false);
+  assert.equal(result.stun, false);
   assert.equal(result.public.length, 0);
 });
 
@@ -86,7 +100,7 @@ test('the full report renders with passive and active signals', () => {
     },
     hostnameSignals: { score: 20, reasons: ['Hosting/server keyword in PTR'], matches: ['vps'] }
   };
-  const webrtc = { supported: true, public: ['8.8.8.8'], local: ['192.168.1.2'], candidates: [] };
+  const webrtc = { supported: true, stun: true, public: ['8.8.8.8'], local: ['192.168.1.2'], candidates: [] };
   const timing = { samples: [40, 55, 80], median: 55, jitter: 40 };
   const ports = {
     groups: {
@@ -98,7 +112,7 @@ test('the full report renders with passive and active signals', () => {
 
   run(context, `state.report = ${JSON.stringify(report)}; state.webrtc = ${JSON.stringify(webrtc)}; state.timing = ${JSON.stringify(timing)}; state.ports = ${JSON.stringify(ports)}; render();`);
 
-  assert.match(context.document.getElementById('summaryBox').innerHTML, /Anonymity signal score/);
+  assert.match(context.document.getElementById('summaryBox').innerHTML, /Proxy \/ VPN \/ Tor signals/);
   assert.match(context.document.getElementById('checks').innerHTML, /HTTP proxy headers/);
   assert.match(context.document.getElementById('checks').innerHTML, /Open ports: HTTP proxy/);
   assert.match(context.document.getElementById('checks').innerHTML, /VPN fingerprint/);
