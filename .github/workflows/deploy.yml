@@ -8,6 +8,17 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run tests
+        run: npm test
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262 # v1.0.3
         with:
@@ -27,3 +38,6 @@ jobs:
             else
               echo "geoLite2 updater skipped: no MaxMind credentials in .env"
             fi
+
+      - name: Verify published site
+        run: npm run test:live

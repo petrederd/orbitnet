@@ -232,6 +232,18 @@ IP посетителя определяется по `X-Real-IP`, которы�
 - Семантический HTML и ARIA-атрибуты там, где это нужно.
 - Цвета и отступы — через CSS-переменные.
 
+### Тесты и pre-push
+
+```bash
+npm test          # быстрые локальные проверки
+npm run test:live # проверка опубликованного сайта и og-image.png
+npm run hooks:install
+```
+
+`npm run hooks:install` включает локальный Git-хук `.githooks/pre-push`, который автоматически запускает `npm test` перед каждым `git push`. Тесты проверяют Subnet Calculator (`/0`, `/24`, `/31`, `/32`, режим маски), Password Generator (обычный, распространённый и длинный пароль), Prime Checker (0, 1, 2, 97, 561, большие простые и составные числа), canonical/Open Graph, sitemap и параметры `og-image.png`.
+
+`npm run test:live` обращается к `https://orbitnet.ru`, проверяет доступность всех canonical URL и `og-image.png`. Он запускается в CI после деплоя и требует сети.
+
 ### Git
 
 ```bash

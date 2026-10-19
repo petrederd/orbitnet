@@ -27,7 +27,19 @@ nginx  ──► site/ (статические HTML, CSS, JS)
 orbitnet/
 ├── .github/
 │   └── workflows/
-│       └── deploy.yml             # Деплой по push в main через SSH
+│       └── deploy.yml             # Тесты → деплой по push в main → live-проверка
+│
+├── .githooks/
+│   └── pre-push                   # Локальный запуск npm test перед push
+│
+├── tests/
+│   ├── helpers.js                 # Загрузка inline-скриптов инструментов в vm
+│   ├── subnet.test.js             # /0, /24, /31, /32 и режим маски
+│   ├── password.test.js           # обычный, распространённый и длинный пароль
+│   ├── prime.test.js              # 0, 1, 2, 97, 561, большие числа
+│   ├── uuid.test.js               # crypto fallback для UUID
+│   ├── seo.test.js                # canonical, OG, sitemap, og-image.png
+│   └── live-check.js              # проверка опубликованного сайта
 │
 ├── site/                          # Публичная директория nginx
 │   ├── index.html                 # Каталог 40 инструментов + IP-виджет
@@ -114,10 +126,30 @@ orbitnet/
 ├── .env.example                   # Шаблон ключей MaxMind
 ├── .gitignore
 ├── LICENSE
+├── package.json                   # npm test, test:live, hooks:install
 ├── README.md                      # Обзор проекта и запуск
 ├── ROADMAP.md                     # Планы развития
 └── STRUCTURE.md                   # Этот файл
 ```
+
+## Тесты
+
+Тесты используют встроенный `node:test` и не требуют зависимостей.
+
+```bash
+npm test          # unit + локальные SEO-проверки
+npm run test:live # canonical URL и og-image.png на orbitnet.ru
+npm run hooks:install
+```
+
+- `tests/subnet.test.js` загружает inline-скрипт Subnet Calculator в `vm` и проверяет `/0`, `/24`, `/31`, `/32` и ввод маски `255.255.255.0`.
+- `tests/password.test.js` проверяет обычный пароль, список распространённых паролей и длинный случайный пароль.
+- `tests/prime.test.js` проверяет 0, 1, 2, 97, 561, большое простое и большое составное число, факторизацию и отображение соседних простых.
+- `tests/uuid.test.js` проверяет, что fallback UUID использует `crypto.getRandomValues()`, а не `Math.random()`.
+- `tests/seo.test.js` проверяет canonical и OG на каждой странице, уникальность URL, соответствие sitemap и размеры `og-image.png`.
+- `tests/live-check.js` проверяет доступность всех canonical URL и `og-image.png` на опубликованном сайте.
+
+`.githooks/pre-push` запускает `npm test` перед `git push`. Хук включается командой `npm run hooks:install` (устанавливает `core.hooksPath`). CI-workflow запускает те же локальные тесты до деплоя и `test:live` после него.
 
 ## Frontend
 
