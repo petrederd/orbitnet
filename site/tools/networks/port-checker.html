@@ -166,14 +166,19 @@ function check() {
     return;
   }
 
-  let url = '/api/port?host=' + encodeURIComponent(host) + '&port=' + port;
+  const payload = { host, port };
   if (!group.hidden && captchaId) {
-    url += '&captcha=' + encodeURIComponent(captchaId) + '&answer=' + encodeURIComponent(answer);
+    payload.captcha = captchaId;
+    payload.answer = answer;
   }
 
   document.getElementById('results').innerHTML = '<div class="loading">Checking ' + esc(host) + ':' + port + '...</div>';
 
-  fetch(url)
+  fetch('/api/port', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
     .then(r => r.json())
     .then(data => {
       if (data.captchaRequired) {

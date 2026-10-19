@@ -50,6 +50,49 @@ function httpError(status, message) {
   return e;
 }
 
+// Reads and parses a small JSON request body. Used by POST endpoints so
+// sensitive values (captcha answers) never appear in URLs or access logs.
+function readJsonBody(req, limit = 8192) {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    let done = false;
+    const chunks = [];
+
+    req.on('data', chunk => {
+      if (done) return;
+      size += chunk.length;
+      if (size > limit) {
+        done = true;
+        req.resume();
+        reject(httpError(413, 'Payload too large'));
+        return;
+      }
+      chunks.push(chunk);
+    });
+
+    req.on('end', () => {
+      if (done) return;
+      done = true;
+      if (!size) return resolve({});
+      try {
+        const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          return reject(httpError(400, 'Invalid JSON body'));
+        }
+        resolve(parsed);
+      } catch (e) {
+        reject(httpError(400, 'Invalid JSON body'));
+      }
+    });
+
+    req.on('error', err => {
+      if (done) return;
+      done = true;
+      reject(err);
+    });
+  });
+}
+
 // ---------- IP helpers ----------
 // Expands a valid IPv6 string into 8 numeric groups (handles "::" and a
 // trailing embedded IPv4). Returns null if it cannot be parsed.
@@ -1252,6 +1295,8 @@ const server = http.createServer(async (req, res) => {
   const query = parsed.searchParams;
 
   res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
     res.end();
@@ -1313,8 +1358,14 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (path === '/api/port') {
-      const host = query.get('host') || '';
-      const portStr = query.get('port') || '';
+      if (req.method !== 'POST') {
+        return send(res, 405, { error: 'Use POST with a JSON body' });
+      }
+      const body = await readJsonBody(req);
+      const host = String(body.host || '').trim();
+      const portStr = String(body.port == null ? '' : body.port).trim();
+      const captchaId = String(body.captcha || '');
+      const captchaAnswer = String(body.answer || '');
       if (!/^\d{1,5}$/.test(portStr)) return bad(res, 'Port must be 1-65535');
       const port = parseInt(portStr, 10);
       if (!isValidHost(host) && !net.isIP(normalizeIp(host))) return bad(res, 'Invalid hostname');
@@ -1323,14 +1374,13 @@ const server = http.createServer(async (req, res) => {
       const attempt = getPortAttempt(ip);
       const needCaptcha = (attempt.count + 1) % PORT_ATTEMPT_EVERY === 0;
       if (needCaptcha) {
-        const captchaId = query.get('captcha') || '';
         if (!captchaId) {
           return send(res, 403, {
             error: 'Captcha required for this check',
             captchaRequired: true
           });
         }
-        if (!verifyCaptcha(captchaId, query.get('answer') || '', ip)) {
+        if (!verifyCaptcha(captchaId, captchaAnswer, ip)) {
           return send(res, 403, {
             error: 'Captcha failed, request a new one',
             captchaRequired: true
