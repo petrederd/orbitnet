@@ -38,14 +38,15 @@ orbitnet/
 │   ├── password.test.js           # обычный, распространённый и длинный пароль
 │   ├── prime.test.js              # 0, 1, 2, 97, 561, большие числа
 │   ├── uuid.test.js               # crypto fallback для UUID
+│   ├── anonymity.test.js          # timezone, private IP, score, WebRTC
 │   ├── seo.test.js                # canonical, OG, sitemap, og-image.png
 │   └── live-check.js              # проверка опубликованного сайта
 │
 ├── site/                          # Публичная директория nginx
-│   ├── index.html                 # Каталог 40 инструментов + IP-виджет
+│   ├── index.html                 # Каталог 41 инструмента + IP-виджет
 │   ├── about.html                 # О проекте
 │   ├── robots.txt                 # Индексация и ссылка на sitemap
-│   ├── sitemap.xml                # 42 URL: главная, about, 40 инструментов
+│   ├── sitemap.xml                # 43 URL: главная, about, 41 инструмент
 │   │
 │   ├── icons/
 │   │   └── favicon.svg
@@ -60,7 +61,7 @@ orbitnet/
 │   └── tools/
 │       ├── _template.html         # Шаблон новой страницы
 │       │
-│       ├── networks/              # 18 инструментов
+│       ├── networks/              # 19 инструментов
 │       │   ├── subnet-calculator.html
 │       │   ├── ip-lookup.html
 │       │   ├── ip-info.html
@@ -78,7 +79,8 @@ orbitnet/
 │       │   ├── dns-propagation.html
 │       │   ├── redirect-checker.html
 │       │   ├── website-health.html
-│       │   └── network-diagnostics.html
+│       │   ├── network-diagnostics.html
+│       │   └── anonymity-check.html
 │       │
 │       ├── developer/             # 9 инструментов
 │       │   ├── json-formatter.html
@@ -111,7 +113,7 @@ orbitnet/
 │           └── ne555-calculator.html
 │
 ├── backend/
-│   ├── server.js                  # HTTP API, 12 маршрутов
+│   ├── server.js                  # HTTP API, 15 маршрутов
 │   ├── package.json               # Единственная зависимость: maxmind
 │   ├── package-lock.json
 │   └── Dockerfile                 # node:20-alpine
@@ -146,6 +148,7 @@ npm run hooks:install
 - `tests/password.test.js` проверяет обычный пароль, список распространённых паролей и длинный случайный пароль.
 - `tests/prime.test.js` проверяет 0, 1, 2, 97, 561, большое простое и большое составное число, факторизацию и отображение соседних простых.
 - `tests/uuid.test.js` проверяет, что fallback UUID использует `crypto.getRandomValues()`, а не `Math.random()`.
+- `tests/anonymity.test.js` проверяет расчёт часовых поясов, классификацию приватных IP, вклад сигналов в score, безопасное поведение без WebRTC, а также backend-эвристики для hosting/PTR/proxy-заголовков.
 - `tests/seo.test.js` проверяет canonical и OG на каждой странице, уникальность URL, соответствие sitemap и размеры `og-image.png`.
 - `tests/live-check.js` проверяет доступность всех canonical URL и `og-image.png` на опубликованном сайте.
 
@@ -300,7 +303,7 @@ IP клиента берётся из `X-Real-IP`, который выставл
 
 ## SEO и индексация
 
-- `site/sitemap.xml` содержит главную, `about.html` и все 40 инструментов.
+- `site/sitemap.xml` содержит главную, `about.html` и все 41 инструмент.
 - `site/robots.txt` разрешает индексацию и указывает на sitemap.
 - У всех страниц есть canonical и Open Graph.
 - Общее превью — `site/assets/og-image.png` (1200×630).

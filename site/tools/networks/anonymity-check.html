@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Anonymity Check — inspect proxy headers, Tor and hosting signals, timezone mismatch, WebRTC leaks and optional proxy/VPN ports on your own IP.">
+<meta name="theme-color" content="#16161a">
+<title>Anonymity Check — OrbitNet</title>
+<link rel="canonical" href="https://orbitnet.ru/tools/networks/anonymity-check.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OrbitNet">
+<meta property="og:title" content="Anonymity Check — OrbitNet">
+<meta property="og:description" content="Inspect passive and optional active signals that may indicate a proxy, VPN, Tor or hosting network.">
+<meta property="og:url" content="https://orbitnet.ru/tools/networks/anonymity-check.html">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://orbitnet.ru/assets/og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="OrbitNet — open tools, no noise">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Anonymity Check — OrbitNet">
+<meta name="twitter:description" content="Inspect passive and optional active signals that may indicate a proxy, VPN, Tor or hosting network.">
+<meta name="twitter:image" content="https://orbitnet.ru/assets/og-image.png">
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=2">
+<style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>
+<link rel="stylesheet" href="../../assets/css/style.css">
+<style>
+  .anon-grid { display: grid; gap: 10px; }
+  .anon-check { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+  .anon-check .anon-badge { flex: 0 0 auto; min-width: 62px; text-align: center; border-radius: 999px; padding: 3px 8px; font-size: .72rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; border: 1px solid currentColor; }
+  .anon-check .anon-body { min-width: 0; }
+  .anon-check h4 { margin: 0 0 3px; font-size: .94rem; }
+  .anon-check p { margin: 0; color: var(--muted); font-size: .84rem; line-height: 1.5; }
+  .anon-badge.ok { color: var(--accent); background: rgba(110,207,160,.1); }
+  .anon-badge.warn { color: var(--warning); background: rgba(245,198,107,.1); }
+  .anon-badge.bad { color: var(--danger); background: rgba(242,139,130,.1); }
+  .anon-badge.unknown { color: var(--muted); background: rgba(154,154,162,.08); }
+  .score-bar { height: 9px; border-radius: 999px; background: var(--paper-2); border: 1px solid var(--line); overflow: hidden; margin-top: 12px; }
+  .score-bar span { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--warning), var(--danger)); transition: width .35s ease; }
+  .score-note { color: var(--muted); font-size: .82rem; margin: 8px 0 0; }
+  .mono { font-family: ui-monospace, Menlo, Consolas, monospace; word-break: break-all; }
+  .consent { display: flex; gap: 8px; align-items: flex-start; color: var(--muted); font-size: .84rem; max-width: 620px; margin-top: 10px; }
+  .consent input { margin-top: 3px; accent-color: var(--accent); }
+  .anon-list { margin: 10px 0 0; padding-left: 18px; color: var(--muted); font-size: .87rem; }
+  .anon-list li { margin: 3px 0; }
+</style>
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../about.html">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> /
+      <a href="../../index.html#tools">Tools</a> /
+      <span>Anonymity Check</span>
+    </div>
+    <h1>Anonymity Check</h1>
+    <p>See which network and browser signals suggest that your connection goes through a proxy, VPN, Tor or hosting provider. Passive checks run automatically. Active port checks are optional and only ever target your own public IP.</p>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Run the check</h2>
+    <p style="color:var(--muted);font-size:.9rem;margin-top:0;">The passive report compares request headers, reverse DNS, ASN and geolocation with what your browser reports. It does not prove that you are anonymous — it only lists observable signals.</p>
+    <div class="toolbar">
+      <button class="btn" id="runBtn" type="button">Run check</button>
+      <button class="btn btn-secondary" id="portsBtn" type="button" disabled>Check proxy/VPN ports</button>
+    </div>
+    <label class="consent">
+      <input type="checkbox" id="consent">
+      <span>I understand that the active check will make the OrbitNet server connect to my public IP on common proxy and VPN TCP ports. Only my own IP can be checked.</span>
+    </label>
+    <div id="status" class="status-box info" style="display:none;" role="status" aria-live="polite"></div>
+  </div>
+
+  <div id="summary" class="tool-panel" hidden>
+    <h2>Result</h2>
+    <div id="summaryBox"></div>
+    <div class="grid-2" id="networkBox" style="margin-top:12px;"></div>
+  </div>
+
+  <div id="checksPanel" class="tool-panel" hidden>
+    <h2>Signal details</h2>
+    <div class="anon-grid" id="checks"></div>
+  </div>
+
+  <div class="tool-panel">
+    <h2>What each check means</h2>
+    <div class="info-section" style="margin-top:0;">
+      <h3>HTTP proxy headers</h3>
+      <p>Some proxies and CDNs add headers such as <code>Via</code>, <code>Forwarded</code>, <code>Proxy-Connection</code> or <code>X-Proxy-*</code>. OrbitNet ignores its own infrastructure headers (Cloudflare/Caddy/nginx) so they are not counted as your proxy. A CDN can also add similar headers, so this is a hint rather than proof.</p>
+
+      <h3>Open proxy and VPN ports</h3>
+      <p>The active check connects to a short list of TCP ports commonly used by HTTP proxies (3128, 8080, 8000, 8118, 8888, 8889, 8123), web proxies (80, 443, 8080, 8443, 3128) and VPN services (1194, 1723, 443, 4443, 51820). A closed port proves nothing: the service may be bound to UDP, firewalled, or simply not running. An open port is also not proof of a proxy — for example, port 443 may belong to a normal web server or router. UDP-only services such as WireGuard and most IPsec VPNs cannot be detected with a TCP connect. If you are behind carrier-grade NAT or a corporate gateway, the checked address is the shared public gateway, not your device.</p>
+
+      <h3>Suspicious hostname (PTR)</h3>
+      <p>Home ISPs often give addresses names like <code>ppp-203-0-113-7.dial.example.net</code>. Hosting and privacy providers frequently use words such as <em>vps</em>, <em>server</em>, <em>cloud</em>, <em>vpn</em>, <em>proxy</em> or a provider name. A missing PTR is neutral and is not treated as a warning.</p>
+
+      <h3>Timezone difference</h3>
+      <p>The page compares your browser's IANA timezone with the timezone MaxMind associates with your public IP. A VPN endpoint in another country often creates a mismatch. Travel, a wrong device timezone, or an inaccurate geolocation database can create the same result.</p>
+
+      <h3>Tor network membership</h3>
+      <p>Your public IP is compared with the Tor Project's public bulk exit-node list. The list is cached on the server for one hour. Only exit nodes are listed: using Tor does not always mean that your traffic leaves through an exit node that is in this list at the moment of the check. If the list cannot be downloaded, the result is shown as unknown rather than “not Tor”.</p>
+
+      <h3>Hosting provider / ASN</h3>
+      <p>MaxMind's ASN organisation is matched against a list of cloud, VPS, datacenter and privacy providers. A hosting ASN means the address belongs to a server network, not necessarily that the visitor is hiding. Many people use a VPS or corporate cloud egress normally.</p>
+
+      <h3>WebRTC IP leak</h3>
+      <p>The browser is asked to gather ICE candidates locally, without any STUN server. Modern browsers may hide local addresses behind mDNS, so an empty result is normal. If a public IP appears and differs from the IP observed by the server, that is a strong sign of a proxy, VPN or split-tunnel setup. Private addresses only reveal information about the local network and are not sent to OrbitNet.</p>
+
+      <h3>Web proxy (browser-side heuristic)</h3>
+      <p>JavaScript cannot reliably detect an HTTP proxy by itself. This row combines the browser-side inconsistencies available to the page: a public WebRTC address that differs from the HTTP address and a browser/IP timezone mismatch. It is deliberately labelled as a heuristic.</p>
+
+      <h3>Tunnel detection (two-way ping)</h3>
+      <p>The page sends three small request/response probes to the OrbitNet API and measures median round-trip time and jitter. High or unstable latency can accompany a tunnel, but it is a very weak signal: Wi-Fi, mobile networks and distance produce the same effect. The WebRTC comparison is a stronger indicator.</p>
+
+      <h3>VPN fingerprint</h3>
+      <p>This row combines hosting ASN, PTR keywords, timezone mismatch, WebRTC results and open VPN ports into one summary. It is a heuristic fingerprint, not a device fingerprint and not proof of VPN use.</p>
+
+      <h3>Score and probability</h3>
+      <p>The score is a weighted sum of the signals above, capped at 100. It is best read as “how many independent anonymisation signals were visible”, not as a calibrated probability. A Tor exit listing alone produces a very high score because it is a direct membership check. Conversely, a low score does not prove that no proxy is in use.</p>
+
+      <h3>Privacy and safety</h3>
+      <p>Passive checks are resolved by the OrbitNet backend. The Tor exit list is downloaded from <a href="https://check.torproject.org/" target="_blank" rel="noopener">check.torproject.org</a> and cached for one hour. Active port checks are limited to the IP that makes the request and cannot be pointed at another host. Like any web service, the server and reverse proxy may keep standard technical access logs. No third-party analytics or advertising scripts are used.</p>
+    </div>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../about.html">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+const state = {
+  report: null,
+  webrtc: null,
+  timing: null,
+  ports: null,
+  running: false
+};
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+function setStatus(kind, text) {
+  const el = document.getElementById('status');
+  el.className = 'status-box ' + kind;
+  el.textContent = text;
+  el.style.display = 'block';
+}
+
+function clearStatus() {
+  document.getElementById('status').style.display = 'none';
+}
+
+function badge(kind, label) {
+  return '<span class="anon-badge ' + kind + '">' + esc(label) + '</span>';
+}
+
+function checkRow(title, status, detail) {
+  return '<div class="anon-check">' + badge(status.kind, status.label) +
+    '<div class="anon-body"><h4>' + esc(title) + '</h4><p>' + detail + '</p></div></div>';
+}
+
+function box(label, value, small) {
+  return '<div class="result-box"><div class="result-label">' + esc(label) + '</div>' +
+    '<div class="result-value"' + (small ? ' style="font-size:1.05rem;"' : '') + '>' +
+    value + '</div></div>';
+}
+
+function scoreLabel(score) {
+  if (score >= 80) return 'Very high';
+  if (score >= 60) return 'High';
+  if (score >= 40) return 'Moderate';
+  if (score >= 20) return 'Some signals';
+  return 'Low';
+}
+
+function timezoneOffset(timeZone) {
+  if (!timeZone) return null;
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: timeZone,
+      timeZoneName: 'shortOffset'
+    }).formatToParts(new Date());
+    const name = (parts.find(p => p.type === 'timeZoneName') || {}).value || '';
+    const m = name.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/i);
+    if (!m) return null;
+    return (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3] || 0));
+  } catch (e) {
+    return null;
+  }
+}
+
+function compareTimezones(ipTimezone) {
+  let browserTimezone = '';
+  try {
+    browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  } catch (e) { /* ignore */ }
+  const browserOffset = -new Date().getTimezoneOffset();
+  const ipOffset = timezoneOffset(ipTimezone);
+  const differ = Boolean(browserTimezone && ipTimezone && browserTimezone !== ipTimezone);
+  const offsetMismatch = ipOffset != null && Math.abs(browserOffset - ipOffset) >= 60;
+  return {
+    browserTimezone,
+    ipTimezone: ipTimezone || '',
+    browserOffset,
+    ipOffset,
+    differ,
+    offsetMismatch,
+    differenceMinutes: ipOffset == null ? null : ipOffset - browserOffset
+  };
+}
+
+function isPrivateAddress(address) {
+  const a = address.toLowerCase();
+  const mapped = a.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/);
+  if (mapped) return isPrivateAddress(mapped[1]);
+  if (/^10\./.test(a) || /^192\.168\./.test(a) || /^169\.254\./.test(a) || /^127\./.test(a)) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(a)) return true;
+  if (a === '::1' || /^fe[89ab][0-9a-f]:/i.test(a) || /^f[cd][0-9a-f]{2}:/i.test(a)) return true;
+  return false;
+}
+
+function collectWebRTC(timeout) {
+  return new Promise(resolve => {
+    const result = { supported: false, candidates: [], local: [], public: [], error: '' };
+    let pc;
+    try {
+      if (typeof RTCPeerConnection !== 'function') throw new Error('WebRTC is not available');
+      pc = new RTCPeerConnection({ iceServers: [] });
+      result.supported = true;
+    } catch (e) {
+      result.error = e.message;
+      resolve(result);
+      return;
+    }
+
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      try { pc.close(); } catch (e) { /* ignore */ }
+      result.candidates = [...new Set(result.candidates)];
+      result.local = [...new Set(result.local)];
+      result.public = [...new Set(result.public)];
+      resolve(result);
+    };
+
+    pc.onicecandidate = event => {
+      if (!event.candidate) return;
+      const candidate = event.candidate.candidate || '';
+      const parts = candidate.split(/\s+/);
+      const address = (parts[4] || '').replace(/^\[|\]$/g, '').split('%')[0];
+      if (!address || address.endsWith('.local') || !/^[0-9a-f:.]+$/i.test(address)) return;
+      result.candidates.push(address);
+      if (isPrivateAddress(address)) result.local.push(address);
+      else result.public.push(address);
+    };
+
+    try {
+      pc.createDataChannel('orbitnet-anonymity');
+      pc.createOffer()
+        .then(offer => pc.setLocalDescription(offer))
+        .catch(e => { result.error = e.message; });
+    } catch (e) {
+      result.error = e.message;
+    }
+
+    setTimeout(finish, timeout || 4000);
+  });
+}
+
+async function pingOnce(index) {
+  const nonce = 'anon-' + Date.now().toString(36) + '-' + index + '-' + Math.random().toString(36).slice(2, 8);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+  const started = performance.now();
+  try {
+    const response = await fetch('/api/anonymity/ping?nonce=' + encodeURIComponent(nonce), {
+      cache: 'no-store',
+      signal: controller.signal
+    });
+    const data = await response.json();
+    if (!response.ok || data.nonce !== nonce) throw new Error('probe failed');
+    return performance.now() - started;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function measurePing() {
+  const samples = [];
+  for (let i = 0; i < 3; i++) {
+    try { samples.push(await pingOnce(i)); } catch (e) { /* collect what works */ }
+  }
+  if (!samples.length) return { samples: [], median: null, jitter: null };
+  const sorted = [...samples].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  const jitter = Math.max(...samples) - Math.min(...samples);
+  return { samples, median, jitter };
+}
+
+function calcScore(report, webrtc, timing, ports) {
+  const reasons = [];
+  let score = 0;
+  const add = (points, reason) => {
+    if (points > 0) {
+      score += points;
+      reasons.push(reason);
+    }
+  };
+
+  const proxyHeaders = report.proxyHeaders || [];
+  if (proxyHeaders.length) {
+    add(proxyHeaders.some(h => h.strength === 'high') ? 30 : 12, 'Proxy-related HTTP header present');
+  }
+
+  if (report.tor && report.tor.listed === true) add(100, 'IP is listed as a Tor exit node');
+
+  if (report.hosting && report.hosting.score) {
+    add(Math.round(report.hosting.score * 0.35), 'Hosting/cloud provider signals in ASN or PTR');
+  }
+
+  if (report.hostnameSignals && report.hostnameSignals.score) {
+    add(Math.round(report.hostnameSignals.score * 0.25), 'Suspicious keyword in the PTR hostname');
+  }
+
+  const timezone = compareTimezones(report.geo && report.geo.timezone);
+  if (timezone.offsetMismatch) add(25, 'Browser timezone differs from the IP timezone');
+  else if (timezone.differ) add(5, 'Browser and IP timezone names differ');
+
+  if (webrtc && webrtc.public.length) {
+    if (report.ip && webrtc.public.some(ip => ip !== report.ip)) {
+      add(35, 'WebRTC exposed a public IP different from the HTTP IP');
+    } else {
+      add(10, 'WebRTC exposed a public IP');
+    }
+  } else if (webrtc && webrtc.local.length) {
+    add(5, 'WebRTC exposed a local/private IP');
+  }
+
+  if (ports) {
+    const group = ports.groups || {};
+    if (group.httpProxy && group.httpProxy.some(p => p.open)) add(25, 'An HTTP proxy port is open');
+    if (group.webProxy && group.webProxy.some(p => p.open)) add(10, 'A web proxy port is open');
+    if (group.vpn && group.vpn.some(p => p.open)) add(20, 'A VPN port is open');
+  }
+
+  if (timing && timing.median != null && (timing.median >= 300 || timing.jitter >= 150)) {
+    add(5, 'High or unstable latency (weak tunnel hint)');
+  }
+
+  score = Math.min(100, score);
+  return { score, reasons };
+}
+
+function render() {
+  const report = state.report;
+  if (!report) return;
+
+  const timezone = compareTimezones(report.geo && report.geo.timezone);
+  const score = calcScore(report, state.webrtc, state.timing, state.ports);
+  const level = scoreLabel(score.score);
+
+  const reasonsHtml = score.reasons.length
+    ? '<ul class="anon-list">' + score.reasons.map(r => '<li>' + esc(r) + '</li>').join('') + '</ul>'
+    : '<p class="score-note">No anonymisation signals were detected. This does not prove that no proxy is in use.</p>';
+
+  document.getElementById('summaryBox').innerHTML =
+    '<div class="result-box highlight">' +
+      '<div class="result-label">Anonymity signal score</div>' +
+      '<div class="result-value large">' + score.score + ' / 100 · ' + esc(level) + '</div>' +
+      '<div class="result-sub">A heuristic count of visible signals, not a calibrated probability.</div>' +
+      '<div class="score-bar"><span style="width:' + score.score + '%"></span></div>' +
+      reasonsHtml +
+    '</div>';
+
+  const place = [report.geo && report.geo.city, report.geo && report.geo.region, report.geo && report.geo.country].filter(Boolean).join(', ') || 'Unknown';
+  const provider = report.geo && report.geo.asnOrganization
+    ? esc(report.geo.asnOrganization) + (report.geo.asn ? ' (AS' + esc(report.geo.asn) + ')' : '')
+    : 'Unknown';
+
+  document.getElementById('networkBox').innerHTML =
+    box('Your public IP', '<span class="mono">' + esc(report.ip) + '</span>') +
+    box('Reverse DNS', esc(report.hostname || 'not set'), true) +
+    box('Location', esc(place), true) +
+    box('Provider', provider, true) +
+    box('IP timezone', esc((report.geo && report.geo.timezone) || 'Unknown'), true) +
+    box('Browser timezone', esc(timezone.browserTimezone || 'Unknown'), true);
+
+  const rows = [];
+
+  const proxyHeaders = report.proxyHeaders || [];
+  if (proxyHeaders.length) {
+    const strong = proxyHeaders.some(h => h.strength === 'high');
+    rows.push(checkRow('HTTP proxy headers', strong ? { kind: 'bad', label: 'Seen' } : { kind: 'warn', label: 'Possible' },
+      proxyHeaders.map(h => '<span class="mono">' + esc(h.name) + '</span>: ' + esc(h.value)).join('<br>')));
+  } else {
+    rows.push(checkRow('HTTP proxy headers', { kind: 'ok', label: 'Clear' },
+      'No proxy-specific headers were visible. OrbitNet’s own Cloudflare/Caddy/nginx headers are ignored.'));
+  }
+
+  if (report.tor) {
+    if (report.tor.listed === true) {
+      rows.push(checkRow('Tor network membership', { kind: 'bad', label: 'Listed' },
+        'Your IP is in the Tor Project bulk exit-node list.'));
+    } else if (report.tor.available) {
+      rows.push(checkRow('Tor network membership', { kind: 'ok', label: 'Not listed' },
+        'Your IP was not found in the cached Tor exit-node list. Non-exit Tor traffic is not covered by this list.'));
+    } else {
+      rows.push(checkRow('Tor network membership', { kind: 'unknown', label: 'Unknown' },
+        'The Tor exit list could not be downloaded, so membership could not be checked.'));
+    }
+  }
+
+  const hosting = report.hosting || { score: 0, reasons: [] };
+  if (hosting.likely) {
+    rows.push(checkRow('Hosting provider / ASN', hosting.score >= 60 ? { kind: 'bad', label: 'Strong' } : { kind: 'warn', label: 'Likely' },
+      esc(hosting.organization || 'Unknown organisation') +
+      (hosting.providers.length ? ' — ' + esc(hosting.providers.join(', ')) : '') +
+      (hosting.reasons.length ? '<br>' + esc(hosting.reasons.join('; ')) : '')));
+  } else {
+    rows.push(checkRow('Hosting provider / ASN', { kind: 'ok', label: 'Residential?' },
+      esc(hosting.organization || 'Unknown organisation') + '. No common hosting or privacy provider was matched.'));
+  }
+
+  const hostSignals = report.hostnameSignals || { score: 0, reasons: [] };
+  if (!report.hostname) {
+    rows.push(checkRow('Suspicious hostname (PTR)', { kind: 'unknown', label: 'No PTR' },
+      'No reverse DNS name is configured. This is neutral and common for home connections.'));
+  } else if (hostSignals.score > 0) {
+    rows.push(checkRow('Suspicious hostname (PTR)', { kind: 'warn', label: 'Keywords' },
+      '<span class="mono">' + esc(report.hostname) + '</span><br>' + esc(hostSignals.reasons.join('; '))));
+  } else {
+    rows.push(checkRow('Suspicious hostname (PTR)', { kind: 'ok', label: 'Clear' },
+      '<span class="mono">' + esc(report.hostname) + '</span> contains no obvious hosting or privacy keywords.'));
+  }
+
+  if (timezone.offsetMismatch) {
+    rows.push(checkRow('Timezone difference', { kind: 'bad', label: 'Mismatch' },
+      'Browser: ' + esc(timezone.browserTimezone) + ' (UTC' + (timezone.browserOffset >= 0 ? '+' : '') + (timezone.browserOffset / 60) +
+      '), IP: ' + esc(timezone.ipTimezone || 'unknown') + ' (UTC' + (timezone.ipOffset >= 0 ? '+' : '') + (timezone.ipOffset / 60) + ').'));
+  } else if (timezone.differ) {
+    rows.push(checkRow('Timezone difference', { kind: 'warn', label: 'Names differ' },
+      'Browser: ' + esc(timezone.browserTimezone) + ', IP: ' + esc(timezone.ipTimezone) + '. The UTC offsets match, so this is weak.'));
+  } else {
+    rows.push(checkRow('Timezone difference', { kind: 'ok', label: 'Aligned' },
+      'Browser and IP timezone are consistent.'));
+  }
+
+  const webrtc = state.webrtc;
+  if (!webrtc || !webrtc.supported) {
+    rows.push(checkRow('WebRTC IP leak', { kind: 'unknown', label: 'Unavailable' },
+      'WebRTC is not available in this browser, so local and public candidates could not be collected.'));
+  } else if (webrtc.public.length) {
+    const different = report.ip && webrtc.public.some(ip => ip !== report.ip);
+    rows.push(checkRow('WebRTC IP leak', different ? { kind: 'bad', label: 'Different IP' } : { kind: 'warn', label: 'Public IP' },
+      'Candidate public address: <span class="mono">' + esc(webrtc.public.join(', ')) + '</span>' +
+      (different ? ' — it differs from the HTTP-observed IP. This is a strong proxy/VPN or split-tunnel signal.' : '.')));
+  } else if (webrtc.local.length) {
+    rows.push(checkRow('WebRTC IP leak', { kind: 'warn', label: 'Local only' },
+      'Only local/private candidates were exposed: <span class="mono">' + esc(webrtc.local.join(', ')) + '</span>. These describe your LAN, not your public IP.'));
+  } else {
+    rows.push(checkRow('WebRTC IP leak', { kind: 'ok', label: 'No IPs' },
+      'No IP candidates were exposed (modern browsers often hide them behind mDNS).'));
+  }
+
+  const clientMismatch = (timezone.offsetMismatch || (webrtc && webrtc.public.length && report.ip && webrtc.public.some(ip => ip !== report.ip)));
+  rows.push(checkRow('Web proxy (browser-side heuristic)', clientMismatch ? { kind: 'warn', label: 'Possible' } : { kind: 'ok', label: 'No hint' },
+    clientMismatch
+      ? 'A browser-side inconsistency was found (timezone or WebRTC). JavaScript cannot reliably identify an HTTP proxy without external endpoints.'
+      : 'No browser-side proxy hint was found. This does not prove that no web proxy is active.'));
+
+  if (state.timing && state.timing.median != null) {
+    const unstable = state.timing.median >= 300 || state.timing.jitter >= 150;
+    rows.push(checkRow('Tunnel detection (two-way ping)', unstable ? { kind: 'warn', label: 'Slow/variable' } : { kind: 'ok', label: 'Stable' },
+      'Median ' + Math.round(state.timing.median) + ' ms, jitter ' + Math.round(state.timing.jitter) + ' ms across ' + state.timing.samples.length + ' probes. Latency is only a weak tunnel hint.'));
+  } else {
+    rows.push(checkRow('Tunnel detection (two-way ping)', { kind: 'unknown', label: 'No data' },
+      'The request/response probes did not complete.'));
+  }
+
+  const ports = state.ports;
+  const portRow = (title, groupName, note) => {
+    if (!ports || !ports.groups || !ports.groups[groupName]) {
+      rows.push(checkRow(title, { kind: 'unknown', label: 'Not run' }, note));
+      return;
+    }
+    const group = ports.groups[groupName];
+    const open = group.filter(p => p.open);
+    if (open.length) {
+      rows.push(checkRow(title, { kind: 'warn', label: 'Open' },
+        open.map(p => '<span class="mono">' + esc(p.port) + '/tcp</span>').join(', ') + ' open. ' + note));
+    } else {
+      rows.push(checkRow(title, { kind: 'ok', label: 'Closed' },
+        'No checked TCP port answered. ' + note));
+    }
+  };
+
+  portRow('Open ports: HTTP proxy', 'httpProxy', 'A closed port does not prove that no proxy is running.');
+  portRow('Open ports: web proxy', 'webProxy', 'Port 80/443 can belong to a normal web server or router, so this is ambiguous.');
+  portRow('Open ports: VPN', 'vpn', 'UDP-only services such as WireGuard and most IPsec VPNs cannot be detected with a TCP check.');
+
+  let vpnScore = 0;
+  if (hosting.likely) vpnScore += 35;
+  if (hostSignals.score > 0) vpnScore += 20;
+  if (timezone.offsetMismatch) vpnScore += 20;
+  if (webrtc && webrtc.public.length && report.ip && webrtc.public.some(ip => ip !== report.ip)) vpnScore += 20;
+  if (ports && ports.groups && ports.groups.vpn && ports.groups.vpn.some(p => p.open)) vpnScore += 25;
+  vpnScore = Math.min(100, vpnScore);
+  rows.push(checkRow('VPN fingerprint', vpnScore >= 50 ? { kind: 'bad', label: 'Strong' } : (vpnScore > 0 ? { kind: 'warn', label: 'Signals' } : { kind: 'ok', label: 'Weak' }),
+    'Combined heuristic: ' + vpnScore + '/100 from hosting, PTR, timezone, WebRTC and VPN ports. This is not proof of VPN use.'));
+
+  document.getElementById('checks').innerHTML = rows.join('');
+  document.getElementById('summary').hidden = false;
+  document.getElementById('checksPanel').hidden = false;
+}
+
+async function runPassive() {
+  if (state.running) return;
+  state.running = true;
+  document.getElementById('runBtn').disabled = true;
+  setStatus('info', 'Running passive checks and browser probes…');
+
+  try {
+    const [response, webrtc, timing] = await Promise.all([
+      fetch('/api/anonymity', { cache: 'no-store' }),
+      collectWebRTC(4000),
+      measurePing()
+    ]);
+    const data = await response.json();
+    if (!response.ok || data.error) throw new Error(data.error || 'The anonymity API returned an error');
+    state.report = data;
+    state.webrtc = webrtc;
+    state.timing = timing;
+    render();
+    setStatus('success', 'Passive checks complete. Active port checks are optional.');
+  } catch (error) {
+    setStatus('error', 'Check failed: ' + (error.message || 'unknown error'));
+  } finally {
+    state.running = false;
+    document.getElementById('runBtn').disabled = false;
+  }
+}
+
+async function runPorts() {
+  const consent = document.getElementById('consent');
+  if (!consent.checked) return;
+  if (!state.report || !state.report.ip) {
+    setStatus('error', 'Run the passive check first so the tool knows your public IP.');
+    return;
+  }
+
+  const button = document.getElementById('portsBtn');
+  button.disabled = true;
+  setStatus('info', 'Connecting to common proxy and VPN TCP ports on ' + state.report.ip + '…');
+
+  try {
+    const response = await fetch('/api/anonymity/ports?ip=' + encodeURIComponent(state.report.ip), { cache: 'no-store' });
+    const data = await response.json();
+    if (!response.ok || data.error) throw new Error(data.error || 'The port check returned an error');
+    state.ports = data;
+    render();
+    setStatus('success', 'Active port checks complete. ' + (data.note || ''));
+  } catch (error) {
+    setStatus('error', 'Port check failed: ' + (error.message || 'unknown error'));
+  } finally {
+    button.disabled = !consent.checked;
+  }
+}
+
+document.getElementById('runBtn').addEventListener('click', runPassive);
+document.getElementById('portsBtn').addEventListener('click', runPorts);
+document.getElementById('consent').addEventListener('change', event => {
+  document.getElementById('portsBtn').disabled = !event.target.checked;
+});
+
+runPassive();
+</script>
+</body>
+</html>

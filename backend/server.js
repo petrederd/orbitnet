@@ -304,6 +304,274 @@ function clientIp(req) {
   return norm[norm.length - 1] || '';
 }
 
+// ---------- anonymity helpers ----------
+// Proxy-related request headers that are not part of OrbitNet's own
+// Cloudflare -> Caddy -> nginx chain. Infrastructure headers are ignored so
+// the report does not flag our own proxies as the visitor's proxy.
+const IGNORED_PROXY_HEADERS = new Set([
+  'x-real-ip', 'x-forwarded-for', 'x-forwarded-proto', 'x-forwarded-host',
+  'x-forwarded-port', 'cf-connecting-ip', 'cf-ipcountry', 'cf-ray',
+  'cf-visitor', 'cf-cache-status', 'cdn-loop', 'true-client-ip',
+  'proxy-authorization', 'cookie', 'authorization'
+]);
+
+function proxyHeaderSignals(req) {
+  const signals = [];
+  for (const [rawName, rawValue] of Object.entries(req.headers)) {
+    const name = rawName.toLowerCase();
+    if (IGNORED_PROXY_HEADERS.has(name)) continue;
+
+    let strength = '';
+    let reason = '';
+    if (name === 'proxy-connection' || name === 'proxy-agent' ||
+        name.startsWith('x-proxy-') || name === 'x-squid-error' ||
+        name === 'x-bluecoat-via') {
+      strength = 'high';
+      reason = 'Header is commonly added by an explicit HTTP proxy.';
+    } else if (name === 'via' || name === 'forwarded' ||
+               name === 'x-forwarded-server' || name === 'x-cache' ||
+               name === 'x-cache-lookup' || name === 'x-varnish') {
+      strength = 'medium';
+      reason = 'Header may come from a proxy or CDN intermediary.';
+    } else if (name === 'x-client-ip' || name === 'x-originating-ip' ||
+               name === 'x-remote-ip' || name === 'client-ip') {
+      strength = 'medium';
+      reason = 'Header suggests an intermediary forwarded the client address.';
+    }
+
+    if (strength) {
+      signals.push({
+        name,
+        value: String(rawValue).slice(0, 200),
+        strength,
+        reason
+      });
+    }
+  }
+  return signals;
+}
+
+const HOSTING_PROVIDERS = [
+  { name: 'Amazon AWS', re: /\b(amazon|aws)\b/i },
+  { name: 'Google Cloud', re: /\b(google cloud|google llc)\b/i },
+  { name: 'Microsoft Azure', re: /\b(microsoft|azure)\b/i },
+  { name: 'Oracle Cloud', re: /\b(oracle cloud|oracle corporation)\b/i },
+  { name: 'Cloudflare', re: /\bcloudflare\b/i },
+  { name: 'DigitalOcean', re: /\bdigitalocean\b/i },
+  { name: 'Linode / Akamai', re: /\b(linode|akamai)\b/i },
+  { name: 'Vultr', re: /\bvultr\b/i },
+  { name: 'Hetzner', re: /\bhetzner\b/i },
+  { name: 'OVH', re: /\bovh\b/i },
+  { name: 'Scaleway', re: /\bscaleway\b/i },
+  { name: 'Contabo', re: /\bcontabo\b/i },
+  { name: 'Leaseweb', re: /\bleaseweb\b/i },
+  { name: 'M247', re: /\bm247\b/i },
+  { name: 'Choopa / Vultr', re: /\bchoopa\b/i },
+  { name: 'Psychz Networks', re: /\bpsychz\b/i },
+  { name: 'QuadraNet', re: /\bquadranet\b/i },
+  { name: 'ColoCrossing', re: /\bcolocrossing\b/i },
+  { name: 'Mullvad VPN', re: /\bmullvad\b/i },
+  { name: 'NordVPN', re: /\bnordvpn\b/i },
+  { name: 'ExpressVPN', re: /\bexpressvpn\b/i },
+  { name: 'Surfshark', re: /\bsurfshark\b/i },
+  { name: 'CyberGhost', re: /\bcyberghost\b/i },
+  { name: 'Private Internet Access', re: /\bprivate internet access\b/i },
+  { name: 'Proton VPN', re: /\bproton\s*vpn\b/i },
+  { name: 'Windscribe', re: /\bwindscribe\b/i },
+  { name: 'IPVanish', re: /\bipvanish\b/i },
+  { name: 'TorGuard', re: /\btorguard\b/i },
+  { name: 'PureVPN', re: /\bpurevpn\b/i }
+];
+
+const HOSTING_GENERIC = [
+  { re: /\b(hosting|datacenter|data center|colocation|colo|vps|virtual server|dedicated server)\b/i, label: 'Hosting or datacenter keyword in ASN/PTR', score: 25 },
+  { re: /\b(cloud|server)\b/i, label: 'Cloud/server keyword in ASN/PTR', score: 15 },
+  { re: /\b(vpn|proxy|privacy|anonymous|tor exit|tor relay)\b/i, label: 'VPN, proxy or privacy keyword in ASN/PTR', score: 35 }
+];
+
+const HOSTNAME_PATTERNS = [
+  { re: /\b(vpn|proxy|tor|exit|relay|anonym)\b/i, label: 'VPN, proxy, Tor or anonymity keyword in PTR', score: 35 },
+  { re: /\b(host|hosting|server|vps|dedicated|cloud|datacenter|data-center|colo)\b/i, label: 'Hosting/server keyword in PTR', score: 20 },
+  { re: /(amazonaws|cloudfront|googleusercontent|azure|digitalocean|linode|vultr|hetzner|ovh|contabo|scaleway|leaseweb|m247|choopa|psychz|quadranet|colocrossing)/i, label: 'Known provider name in PTR', score: 35 }
+];
+
+function hostingSignals(geo, hostname) {
+  const organization = (geo && geo.asnOrganization) || '';
+  const text = (organization + ' ' + hostname).toLowerCase();
+  const providers = [];
+  const reasons = [];
+  let score = 0;
+
+  for (const provider of HOSTING_PROVIDERS) {
+    if (provider.re.test(text)) {
+      providers.push(provider.name);
+      score += 40;
+      reasons.push('ASN or PTR matches ' + provider.name);
+    }
+  }
+  for (const generic of HOSTING_GENERIC) {
+    if (generic.re.test(text)) {
+      score += generic.score;
+      reasons.push(generic.label);
+    }
+  }
+
+  return {
+    score: Math.min(100, score),
+    likely: score >= 30,
+    providers: [...new Set(providers)],
+    reasons: [...new Set(reasons)],
+    organization,
+    asn: (geo && geo.asn) || null
+  };
+}
+
+function hostnameSignals(hostname) {
+  if (!hostname) {
+    return { score: 0, matches: [], reasons: ['No PTR record for this address'] };
+  }
+
+  const matches = [];
+  const reasons = [];
+  let score = 0;
+  for (const pattern of HOSTNAME_PATTERNS) {
+    if (pattern.re.test(hostname)) {
+      score += pattern.score;
+      matches.push(hostname);
+      reasons.push(pattern.label);
+    }
+  }
+  return {
+    score: Math.min(100, score),
+    matches: [...new Set(matches)],
+    reasons: [...new Set(reasons)]
+  };
+}
+
+const TOR_LIST_URL = 'https://check.torproject.org/torbulkexitlist';
+const TOR_CACHE_MS = 60 * 60 * 1000;
+let torCache = { set: null, fetchedAt: 0, loading: null };
+
+function fetchText(url, timeout) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, {
+      headers: { 'User-Agent': 'OrbitNet/1.0 (+https://orbitnet.ru)' }
+    }, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        res.resume();
+        try {
+          resolve(fetchText(new URL(res.headers.location, url).href, timeout));
+        } catch (e) {
+          reject(e);
+        }
+        return;
+      }
+      if (res.statusCode !== 200) {
+        res.resume();
+        reject(new Error('HTTP ' + res.statusCode));
+        return;
+      }
+      let body = '';
+      res.setEncoding('utf8');
+      res.on('data', (chunk) => {
+        if (body.length < 5000000) body += chunk;
+      });
+      res.on('end', () => resolve(body));
+    });
+    req.setTimeout(timeout, () => req.destroy(new Error('timeout')));
+    req.on('error', reject);
+  });
+}
+
+async function torExitSet() {
+  const now = Date.now();
+  if (torCache.set && now - torCache.fetchedAt < TOR_CACHE_MS) return torCache.set;
+  if (torCache.loading) return torCache.loading;
+
+  torCache.loading = (async () => {
+    try {
+      const text = await fetchText(TOR_LIST_URL, 8000);
+      const set = new Set(
+        text.split(/\s+/).map(normalizeIp).filter(ip => net.isIP(ip))
+      );
+      if (!set.size) throw new Error('empty Tor exit list');
+      torCache = { set, fetchedAt: Date.now(), loading: null };
+      return set;
+    } catch (e) {
+      torCache.loading = null;
+      return torCache.set;
+    }
+  })();
+
+  return torCache.loading;
+}
+
+async function torStatus(ip) {
+  const set = await torExitSet();
+  if (!set) return { available: false, listed: null, error: 'Tor exit list unavailable' };
+  return {
+    available: true,
+    listed: set.has(normalizeIp(ip)),
+    updatedAt: new Date(torCache.fetchedAt).toISOString()
+  };
+}
+
+async function anonymityInfo(req) {
+  const ip = clientIp(req);
+  const version = net.isIPv6(ip) ? 6 : 4;
+  const [hostname, geo] = await Promise.all([
+    withTimeout(dns.reverse(ip), DNS_TIMEOUT, 'timeout')
+      .then(names => (names && names[0]) || '')
+      .catch(() => ''),
+    geoLookup(ip)
+  ]);
+  let tor;
+  try {
+    tor = await withTimeout(torStatus(ip), 9000, 'timeout');
+  } catch (e) {
+    tor = { available: false, listed: null, error: 'Tor exit list unavailable' };
+  }
+
+  return {
+    ip,
+    version,
+    hostname,
+    geo,
+    tor,
+    proxyHeaders: proxyHeaderSignals(req),
+    hosting: hostingSignals(geo, hostname),
+    hostnameSignals: hostnameSignals(hostname),
+    checkedAt: new Date().toISOString()
+  };
+}
+
+// Active checks are deliberately limited to the visitor's own public IP.
+const ANONYMITY_PORT_GROUPS = {
+  httpProxy: [3128, 8080, 8000, 8118, 8888, 8889, 8123],
+  webProxy: [80, 443, 8080, 8443, 3128],
+  vpn: [1194, 1723, 443, 4443, 51820]
+};
+
+async function anonymityPorts(ip) {
+  const uniquePorts = [...new Set(Object.values(ANONYMITY_PORT_GROUPS).flat())];
+  const checks = await Promise.all(uniquePorts.map(port =>
+    outbound(() => checkPort(ip, port, 1800))
+  ));
+  const byPort = new Map(checks.map(item => [item.port, item]));
+
+  const groups = {};
+  for (const [name, ports] of Object.entries(ANONYMITY_PORT_GROUPS)) {
+    groups[name] = ports.map(port => byPort.get(port));
+  }
+
+  return {
+    ip,
+    ports: checks,
+    groups,
+    note: 'TCP only. UDP services (including WireGuard and most IPsec VPNs) cannot be detected this way.'
+  };
+}
+
 // ---------- concurrency + rate limiting ----------
 function createLimiter(max, maxQueue) {
   let active = 0;
@@ -764,7 +1032,9 @@ const server = http.createServer(async (req, res) => {
   const limited = path === '/api/ip' || path === '/api/geo' || path === '/api/dns' ||
     path === '/api/port' || path === '/api/whois' || path === '/api/site' ||
     path === '/api/tls' || path === '/api/headers' || path === '/api/email' ||
-    path === '/api/propagation' || path === '/api/redirect';
+    path === '/api/propagation' || path === '/api/redirect' ||
+    path === '/api/anonymity' || path === '/api/anonymity/ports' ||
+    path === '/api/anonymity/ping';
 
   try {
     if (path === '/health') return send(res, 200, { ok: true });
@@ -874,6 +1144,25 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, await redirectChain(host));
     }
 
+    if (path === '/api/anonymity') {
+      return send(res, 200, await anonymityInfo(req));
+    }
+
+    if (path === '/api/anonymity/ports') {
+      const requested = normalizeIp(query.get('ip') || '');
+      if (!net.isIP(requested)) return bad(res, 'A valid IP address is required');
+      if (!isPublicIp(requested)) return bad(res, 'Only public IP addresses are allowed');
+      if (requested.toLowerCase() !== ip.toLowerCase()) {
+        return send(res, 403, { error: 'Active port checks are limited to your own public IP' });
+      }
+      return send(res, 200, await anonymityPorts(requested));
+    }
+
+    if (path === '/api/anonymity/ping') {
+      const nonce = String(query.get('nonce') || '').replace(/[^a-z0-9-]/gi, '').slice(0, 64);
+      return send(res, 200, { nonce, serverTime: Date.now(), ip });
+    }
+
     return send(res, 404, { error: 'Not found' });
   } catch (e) {
     return send(res, e.status || 500, { error: e.message || 'Server error' });
@@ -883,7 +1172,14 @@ const server = http.createServer(async (req, res) => {
 if (require.main === module) {
   server.listen(PORT, () => {
     console.log('OrbitNet backend listening on :' + PORT);
+    // Warm the Tor exit-list cache in the background so the first request does
+    // not have to wait for the download.
+    torExitSet().catch(() => {});
   });
 }
 
-module.exports = { normalizeIp, isPublicIp, clientIp, server, tlsInfo, headersInfo, emailInfo, propagation, redirectChain };
+module.exports = {
+  normalizeIp, isPublicIp, clientIp, server, tlsInfo, headersInfo, emailInfo,
+  propagation, redirectChain, anonymityInfo, anonymityPorts, torStatus,
+  hostingSignals, hostnameSignals, proxyHeaderSignals
+};
