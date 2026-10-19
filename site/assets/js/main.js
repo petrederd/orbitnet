@@ -9,16 +9,6 @@
 
   let activeFilter = 'all';
 
-  // Обработка клика на карточку инструмента
-  cards.forEach(card => {
-    card.addEventListener('click', () => {
-      const href = card.dataset.href;
-      if (href) {
-        window.location.href = href;
-      }
-    });
-  });
-
   function update() {
     const q = input.value.trim().toLowerCase();
     let visible = 0;

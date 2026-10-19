@@ -164,15 +164,19 @@ section#tools { margin-top: 34px; }
   padding: 16px;
   display: flex;
   flex-direction: column;
-  cursor: pointer;
-  transition: all 0.2s ease;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color .2s ease, background-color .2s ease, box-shadow .2s ease, transform .2s ease;
 }
-.tool-card:hover { 
+.tool-card:hover,
+.tool-card:focus-visible {
   border-color: var(--accent);
   background: var(--paper-2);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(110, 207, 160, 0.15);
+  outline: none;
 }
+.tool-card:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
 .tool-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .tool-icon { display: none; }
 .pill { border: 1px solid var(--line); border-radius: 999px; padding: 3px 8px; color: var(--muted); font-size: .72rem; }
