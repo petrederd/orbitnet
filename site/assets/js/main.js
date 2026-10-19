@@ -1,8 +1,3 @@
-/**
- * OrbitNet — Main application logic
- * Handles search, filtering, sorting, keyboard shortcuts, and the IP widget.
- */
-
 (() => {
   const input = document.getElementById('searchInput');
   const cards = [...document.querySelectorAll('.tool-card')];
@@ -13,6 +8,16 @@
   const sort = document.getElementById('sortSelect');
 
   let activeFilter = 'all';
+
+  // Обработка клика на карточку инструмента
+  cards.forEach(card => {
+    card.addEventListener('click', () => {
+      const href = card.dataset.href;
+      if (href) {
+        window.location.href = href;
+      }
+    });
+  });
 
   function update() {
     const q = input.value.trim().toLowerCase();

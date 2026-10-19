@@ -164,15 +164,21 @@ section#tools { margin-top: 34px; }
   padding: 16px;
   display: flex;
   flex-direction: column;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
-.tool-card:hover { border-color: var(--accent); }
+.tool-card:hover { 
+  border-color: var(--accent);
+  background: var(--paper-2);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(110, 207, 160, 0.15);
+}
 .tool-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .tool-icon { display: none; }
 .pill { border: 1px solid var(--line); border-radius: 999px; padding: 3px 8px; color: var(--muted); font-size: .72rem; }
 .tool-card h3 { margin: 10px 0 6px; font-size: 1.05rem; }
 .tool-card p { margin: 0; color: var(--muted); font-size: .88rem; flex: 1; }
 .tool-bottom { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); font-size: .85rem; }
-.tool-bottom .open { font-weight: 600; text-decoration: none; }
 .tool-bottom .status-label { color: var(--muted); }
 
 .empty { display: none; padding: 40px 20px; text-align: center; border: 1px dashed var(--line); border-radius: var(--radius); color: var(--muted); }
