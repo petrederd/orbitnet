@@ -69,13 +69,17 @@ orbitnet/
 │           ├── text-diff-checker.html       Готов
 │           └── lorem-ipsum-generator.html   Готов
 │
-├── backend/                       # Node.js API-бэкенд (без внешних зависимостей)
-│   ├── server.js                  # HTTP-сервер: 11 эндпоинтов (ip, dns, port, whois, site, headers, tls, email, propagation, redirect, health)
+├── backend/                       # Node.js API-бэкенд (зависимость только maxmind)
+│   ├── server.js                  # HTTP-сервер: 12 эндпоинтов (ip, geo, dns, port, whois, site, headers, tls, email, propagation, redirect, health)
 │   ├── package.json
 │   └── Dockerfile                 # node:20-alpine
 │
+├── data/geoip/                    # GeoLite2 базы (не в git)
+│   ├── GeoLite2-City.mmdb
+│   └── GeoLite2-ASN.mmdb
 ├── nginx.conf                     # Раздача статики + проксирование /api/ на backend
-├── docker-compose.yml             # Docker конфигурация (site + api)
+├── docker-compose.yml             # Docker конфигурация (site + api + geoip-updater)
+├── .env.example                   # Шаблон ключей MaxMind
 ├── README.md                      # Основная документация
 ├── ROADMAP.md                     # Дорожная карта развития
 └── STRUCTURE.md                   # Этот файл
@@ -178,10 +182,10 @@ orbitnet/
 **Пути**: `site/tools/networks/*.html`
 
 - **IPv4 Subnet Calculator** (`subnet-calculator.html`) — подсети, маски, хосты (клиентский)
-- **IP Lookup** (`ip-lookup.html`) — публичный IP клиента и reverse DNS (через `/api/ip`)
+- **IP Lookup** (`ip-lookup.html`) — публичный IP, геолокация, провайдер и reverse DNS (через `/api/ip`)
 - **DNS Lookup** (`dns-lookup.html`) — записи A, AAAA, MX, TXT, NS, CNAME, SOA, CAA (через `/api/dns`)
 - **Port Checker** (`port-checker.html`) — проверка TCP-порта (через `/api/port`)
-- **IP & Domain Info** (`ip-info.html`) — DNS, reverse DNS и whois (через `/api/dns`, `/api/whois`)
+- **IP & Domain Info** (`ip-info.html`) — DNS, reverse DNS, whois, геолокация и провайдер (через `/api/dns`, `/api/whois`, `/api/geo`)
 - **Site Info** (`site-info.html`) — IP, HTTP-статус, сервер, заголовок, время отклика (через `/api/site`)
 - **CIDR / Netmask Converter** (`cidr-netmask.html`) — prefix ↔ маска ↔ wildcard, таблица префиксов (клиентский)
 - **IP / Binary Converter** (`ip-binary-converter.html`) — IPv4 ↔ binary/decimal/hex (клиентский)
@@ -225,8 +229,9 @@ orbitnet/
 **Статус**: Готов
 
 **Возможности**:
-- HTTP-сервер только на встроенных модулях Node (`http`, `https`, `tls`, `dns`, `net`)
-- Эндпоинты: `/health`, `/api/ip`, `/api/dns` (A, AAAA, MX, TXT, NS, CNAME, SOA, CAA, PTR для IP), `/api/port`, `/api/whois`, `/api/site`, `/api/headers`, `/api/tls`, `/api/email`, `/api/propagation`, `/api/redirect`
+- HTTP-сервер на встроенных модулях Node (`http`, `https`, `tls`, `dns`, `net`) + `maxmind` для GeoLite2
+- Эндпоинты: `/health`, `/api/ip` (IP, reverse DNS, гео, провайдер), `/api/geo` (гео и ASN для IP/домена), `/api/dns` (A, AAAA, MX, TXT, NS, CNAME, SOA, CAA, PTR для IP), `/api/port`, `/api/whois`, `/api/site`, `/api/headers`, `/api/tls`, `/api/email`, `/api/propagation`, `/api/redirect`
+- GeoIP: чтение `GeoLite2-City.mmdb`/`GeoLite2-ASN.mmdb` из `GEOIP_DIR`; ленивая загрузка и перечитывание при изменении mtime (раз в `GEO_RECHECK_MS`, по умолчанию 60 000 мс) — обновление баз не требует перезапуска
 - Защита от SSRF: разрешены только валидные домены и публичные IP; отклоняются loopback, RFC 1918, link-local, CGNAT, multicast, Teredo, 6to4, NAT64, IPv4-mapped/-compatible и другие непубличные диапазоны IPv4/IPv6 через `net.BlockList`; проверяются все адреса из DNS; соединение идёт на проверенный IP (защита от DNS-rebinding); в `/api/redirect` каждый переход проверяется отдельно и приватный адрес прерывает цепочку
 - Редиректы в `/api/site` и `/api/headers` не следуются, небезопасные схемы отбрасываются
 - TLS-сертификаты проверяются штатно (без `rejectUnauthorized: false`) для `/api/site` и `/api/headers`; `/api/tls` намеренно подключается без проверки, чтобы показать просроченные/самоподписанные сертификаты, и явно сообщает результат (`authorized`, `authorizationError`, совпадение имени, срок)
@@ -237,7 +242,7 @@ orbitnet/
 - Определение IP клиента по `X-Real-IP` (выставляет nginx после разбора цепочки доверенных прокси); `X-Forwarded-For` — только как запасной вариант с пропуском приватных хопов
 - Валидация хостов, ограничение размера ответа whois
 - CORS, `Cache-Control: no-store`
-- Без внешних зависимостей и сторонних сервисов
+- Без обращений к сторонним сервисам: GeoIP считается локально по базам MaxMind GeoLite2
 
 ---
 
@@ -261,10 +266,13 @@ orbitnet/
 
 ### Docker
 ```bash
-docker-compose up -d
+docker compose up -d
+# с автообновлением GeoLite2 (нужны ключи MaxMind в .env):
+docker compose --profile geoip up -d
 ```
 - `orbitnet-site`: `nginx:alpine`, монтирует `./site` read-only и `./nginx.conf`
-- `orbitnet-api`: `backend/Dockerfile` (node:20-alpine), слушает порт 3000
+- `orbitnet-api`: `backend/Dockerfile` (node:20-alpine), слушает порт 3000, монтирует `./data/geoip` в `/data/geoip:ro`
+- `geoip-updater`: `ghcr.io/maxmind/geoipupdate` (профиль `geoip`), обновляет `GeoLite2-City`/`GeoLite2-ASN` каждые 24 ч в `./data/geoip`
 - nginx проксирует `/api/` на `http://orbitnet-api:3000/api/`, выставляет `X-Real-IP` и базовые защитные заголовки
 - Оба контейнера в дефолтной сети проекта (внешняя `caddy_net` не навязывается)
 - Сайт доступен на `localhost:8081`
@@ -278,11 +286,15 @@ docker-compose up -d
 1. SSH подключение к серверу
 2. `git pull origin main`
 3. `docker compose up -d --force-recreate`
+4. Если в серверном `.env` есть непустые `MAXMIND_ACCOUNT_ID`/`MAXMIND_LICENSE_KEY` — `docker compose --profile geoip up -d` (обновление GeoLite2), иначе шаг пропускается
 
 **Секреты** (нужно настроить в GitHub):
 - `SERVER_HOST`
 - `SERVER_USER`
 - `SERVER_SSH_KEY`
+
+**Секреты на сервере** (не в git, создаются вручную рядом с `docker-compose.yml`):
+- `.env` с `MAXMIND_ACCOUNT_ID` и `MAXMIND_LICENSE_KEY` (для `geoip-updater`)
 
 ---
 
@@ -391,6 +403,14 @@ Node:  ~600 строк  (бэкенд)
 
 ## 🔄 История изменений
 
+### v0.5.0 (19 октября 2026)
+- GeoIP через MaxMind GeoLite2: новый эндпоинт `/api/geo` и расширенный `/api/ip` (локация, часовой пояс, координаты, провайдер/ASN); базы читаются локально из `data/geoip` с горячим перечитыванием по mtime
+- Главная: IP-виджет показывает местоположение, часовой пояс и провайдера
+- `ip-lookup` и `ip-info`: вывод гео-данных и расширенное описание полей с атрибуцией MaxMind
+- Автообновление баз: сервис `geoip-updater` в `docker-compose.yml` (профиль `geoip`, каждые 24 ч), `.env.example` с ключами MaxMind
+- SEO: добавлены `robots.txt` и `sitemap.xml`
+- Кроссбраузерность: хардненинг CSS (`color-scheme`, `text-size-adjust`, критический инлайн-стиль), исправлен светлый `theme-color`
+
 ### v0.4.0 (18 октября 2026)
 - Добавлены 9 инструментов: SSL/TLS Checker, HTTP Headers Inspector, Email DNS Checker, DNS Propagation Checker, Redirect Checker, Website Health Check, Network Diagnostics, Email Deliverability Check (Networks) и JWT Decoder (Developer)
 - Новые эндпоинты: `/api/headers`, `/api/tls`, `/api/email`, `/api/propagation`, `/api/redirect`; все под SSRF-защитой, таймаутами и rate-limit
@@ -443,5 +463,5 @@ Node:  ~600 строк  (бэкенд)
 
 ---
 
-**Последнее обновление**: 18 октября 2026
+**Последнее обновление**: 19 октября 2026
 **Автор**: PetrederdS

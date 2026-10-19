@@ -74,11 +74,35 @@ button { cursor: pointer; }
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 18px 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 32px;
+  align-items: center;
+  justify-content: space-between;
 }
+.ip-card .ip-main { min-width: 0; }
 .ip-card .ip-title { font-weight: 700; margin: 0 0 4px; }
 .ip-card .ip-value { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 1.5rem; font-weight: 700; }
 .ip-card .ip-meta { margin: 6px 0 0; color: var(--muted); font-size: .88rem; }
 .ip-card .ip-error { color: var(--danger); font-size: .9rem; }
+
+.ip-geo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px 28px;
+  margin: 0;
+  flex: 1 1 320px;
+}
+.ip-geo .ip-geo-item { min-width: 0; }
+.ip-geo dt {
+  font-size: .72rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+  font-weight: 700;
+  margin: 0;
+}
+.ip-geo dd { margin: 3px 0 0; font-size: .92rem; color: var(--ink); word-break: break-word; }
 
 /* Search */
 .searchbox {

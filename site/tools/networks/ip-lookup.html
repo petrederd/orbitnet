@@ -30,7 +30,7 @@
       <span>IP Lookup</span>
     </div>
     <h1>IP Lookup</h1>
-    <p>Discover the public IP address that websites see when you connect, along with its reverse DNS name. Resolved on our server — no third-party trackers.</p>
+    <p>Discover the public IP address that websites see when you connect, along with its approximate location, network provider and reverse DNS name. Resolved on our server — no third-party trackers.</p>
   </div>
 
   <div class="tool-panel">
@@ -43,15 +43,24 @@
 
   <div class="info-section">
     <h3>About this tool</h3>
-    <p>This tool shows your <strong>public IP address</strong> — the address that websites and online services see when you connect to them. This is different from your local/private IP address used within your home or office network.</p>
-    <h3 style="margin-top: 20px;">Information displayed</h3>
+    <p>This tool shows your <strong>public IP address</strong> — the address that websites and online services see when you connect to them. This is different from your local/private IP address used within your home or office network. All lookups run on our own server using the MaxMind GeoLite2 databases, so no third-party geolocation service sees your request.</p>
+
+    <h3 style="margin-top: 20px;">What each value means</h3>
     <ul>
-      <li><strong>IP Address:</strong> your public IPv4 or IPv6 address</li>
-      <li><strong>IP version:</strong> whether the address is IPv4 or IPv6</li>
-      <li><strong>Reverse DNS:</strong> the PTR hostname registered for the address, if any</li>
+      <li><strong>IP address:</strong> your public IPv4 or IPv6 address.</li>
+      <li><strong>IP version:</strong> whether the address is IPv4 or IPv6.</li>
+      <li><strong>Reverse DNS:</strong> the PTR hostname registered for the address, if any. It is often missing for home connections.</li>
+      <li><strong>Location:</strong> the city, region and country the address is registered to. It is approximate and usually points at your provider, not your exact street.</li>
+      <li><strong>Provider:</strong> the organisation that owns the address (your ISP or hosting company) and its autonomous system number (ASN), e.g. <code>AS15169</code>.</li>
+      <li><strong>Timezone:</strong> the time zone associated with the detected location.</li>
+      <li><strong>Coordinates:</strong> approximate latitude and longitude of the location (opens in OpenStreetMap).</li>
+      <li><strong>Accuracy radius:</strong> how far from the coordinates the real location may be, in kilometres.</li>
+      <li><strong>Country code:</strong> the two-letter ISO country code (e.g. <code>US</code>, <code>DE</code>).</li>
     </ul>
+
     <h3 style="margin-top: 20px;">Privacy note</h3>
-    <p>No third-party geolocation service is used, and OrbitNet does not build or store user profiles. Like any web service, the server and reverse proxy may keep standard technical access logs (for example, IP address and request time). To inspect any other IP address or domain, use the <a href="ip-info.html">IP &amp; Domain Info</a> tool.</p>
+    <p>OrbitNet does not build or store user profiles. Like any web service, the server and reverse proxy may keep standard technical access logs (for example, IP address and request time). To inspect any other IP address or domain, use the <a href="ip-info.html">IP &amp; Domain Info</a> tool.</p>
+    <p style="margin-top: 14px; font-size: .82rem;">This product includes GeoLite2 data created by MaxMind, available from <a href="https://www.maxmind.com" target="_blank" rel="noopener">https://www.maxmind.com</a>.</p>
   </div>
 </main>
 
@@ -67,6 +76,42 @@ function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 }
 
+function box(label, value, small) {
+  return '<div class="result-box"><div class="result-label">' + esc(label) + '</div>' +
+    '<div class="result-value"' + (small ? ' style="font-size:1.05rem;"' : '') + '>' +
+    value + '</div></div>';
+}
+
+function geoHtml(geo) {
+  if (!geo) {
+    return '<div class="info">Geolocation data is unavailable for this address (private or reserved address, or the GeoLite2 databases are not loaded).</div>';
+  }
+
+  const place = [geo.city, geo.region, geo.country].filter(Boolean).join(', ') || 'Unknown';
+  const provider = geo.asnOrganization
+    ? esc(geo.asnOrganization) + (geo.asn ? ' (AS' + esc(geo.asn) + ')' : '')
+    : 'Unknown';
+
+  let coordinates = 'Unknown';
+  if (geo.latitude != null && geo.longitude != null) {
+    const lat = Number(geo.latitude).toFixed(4);
+    const lon = Number(geo.longitude).toFixed(4);
+    coordinates = '<a href="https://www.openstreetmap.org/?mlat=' + lat + '&mlon=' + lon +
+      '#map=9/' + lat + '/' + lon + '" target="_blank" rel="noopener">' + lat + ', ' + lon + '</a>';
+  }
+
+  const accuracy = geo.accuracyRadius != null ? '± ' + esc(geo.accuracyRadius) + ' km' : 'Unknown';
+
+  return '<div class="grid-2">' +
+    box('Location', esc(place)) +
+    box('Provider', provider) +
+    box('Timezone', esc(geo.timezone || 'Unknown')) +
+    box('Coordinates', coordinates) +
+    box('Accuracy radius', esc(accuracy)) +
+    box('Country code', esc(geo.countryCode || '—')) +
+    '</div>';
+}
+
 function loadIPInfo() {
   document.getElementById('loading').style.display = 'block';
   document.getElementById('results').style.display = 'none';
@@ -80,11 +125,12 @@ function loadIPInfo() {
         '<div class="result-box highlight">' +
           '<div class="result-label">Your IP Address</div>' +
           '<div class="result-value large">' + esc(data.ip) + '</div>' +
-          '<div class="result-sub">IPv' + data.version + '</div>' +
+          '<div class="result-sub">IPv' + data.version + (data.hostname ? ' · ' + esc(data.hostname) : '') + '</div>' +
         '</div>' +
-        '<div class="grid-2">' +
-          '<div class="result-box"><div class="result-label">IP version</div><div class="result-value">IPv' + data.version + '</div></div>' +
-          '<div class="result-box"><div class="result-label">Reverse DNS</div><div class="result-value" style="font-size:1.05rem;">' + esc(data.hostname || 'not set') + '</div></div>' +
+        geoHtml(data.geo) +
+        '<div class="grid-2" style="margin-top:12px;">' +
+          box('IP version', 'IPv' + esc(data.version)) +
+          box('Reverse DNS', esc(data.hostname || 'not set'), true) +
         '</div>';
       document.getElementById('results').innerHTML = html;
       document.getElementById('results').style.display = 'block';

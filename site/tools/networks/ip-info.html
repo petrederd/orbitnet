@@ -30,7 +30,7 @@
       <span>IP &amp; Domain Info</span>
     </div>
     <h1>IP &amp; Domain Info</h1>
-    <p>Look up an IP address or domain: DNS records, reverse DNS and whois registration data.</p>
+    <p>Look up an IP address or domain: geolocation, network provider, DNS records, reverse DNS and whois registration data.</p>
   </div>
 
   <div class="tool-panel">
@@ -52,11 +52,45 @@
     </div>
   </div>
 
+  <div class="tool-panel" id="geoPanel" style="display:none;">
+    <h2>Geolocation &amp; provider</h2>
+    <div id="geoResults"></div>
+  </div>
+
   <div class="tool-panel">
     <h2>Whois registration</h2>
     <div id="whoisResults">
       <div style="text-align: center; padding: 40px 20px; color: var(--muted);">Whois data will appear here</div>
     </div>
+  </div>
+
+  <div class="info-section">
+    <h3>About this tool</h3>
+    <p>Enter an IP address or a domain name. For a domain we resolve its DNS records and use the first public address for the geolocation and whois sections. Everything is looked up on our own server.</p>
+
+    <h3 style="margin-top: 20px;">What each value means</h3>
+    <ul>
+      <li><strong>Geolocation &amp; provider:</strong>
+        <ul>
+          <li><strong>Location:</strong> approximate city, region and country the address is registered to.</li>
+          <li><strong>Provider:</strong> the organisation (ISP or hosting company) and its autonomous system number (ASN).</li>
+          <li><strong>Timezone:</strong> time zone associated with the detected location.</li>
+          <li><strong>Coordinates / Accuracy radius:</strong> approximate latitude and longitude, plus how far off the estimate may be.</li>
+        </ul>
+      </li>
+      <li><strong>DNS records:</strong>
+        <ul>
+          <li><strong>A / AAAA:</strong> IPv4 and IPv6 addresses the name points to.</li>
+          <li><strong>MX:</strong> mail servers with their priority (lower is preferred).</li>
+          <li><strong>NS:</strong> authoritative name servers for the zone.</li>
+          <li><strong>TXT:</strong> free-form text records (SPF, verification tokens, etc.).</li>
+          <li><strong>Reverse DNS (PTR):</strong> for an IP address, the hostname registered for it.</li>
+        </ul>
+      </li>
+      <li><strong>Whois registration:</strong> registrar, creation/expiry dates, status and nameservers as published by the registry, followed by the full raw response.</li>
+    </ul>
+
+    <p style="margin-top: 14px; font-size: .82rem;">This product includes GeoLite2 data created by MaxMind, available from <a href="https://www.maxmind.com" target="_blank" rel="noopener">https://www.maxmind.com</a>.</p>
   </div>
 </main>
 
@@ -82,6 +116,40 @@ function esc(s) {
 }
 function isIp(s) { return /^\d{1,3}(\.\d{1,3}){3}$/.test(s) || s.includes(':'); }
 
+function box(label, value, small) {
+  return '<div class="result-box"><div class="result-label">' + esc(label) + '</div>' +
+    '<div class="result-value"' + (small ? ' style="font-size:1.05rem;"' : '') + '>' +
+    value + '</div></div>';
+}
+
+function geoHtml(ip, geo) {
+  if (!geo) {
+    return '<div class="info">No geolocation data is available for <strong>' + esc(ip) + '</strong> (private address, or the GeoLite2 databases are not loaded).</div>';
+  }
+
+  const place = [geo.city, geo.region, geo.country].filter(Boolean).join(', ') || 'Unknown';
+  const provider = geo.asnOrganization
+    ? esc(geo.asnOrganization) + (geo.asn ? ' (AS' + esc(geo.asn) + ')' : '')
+    : 'Unknown';
+
+  let coordinates = 'Unknown';
+  if (geo.latitude != null && geo.longitude != null) {
+    const lat = Number(geo.latitude).toFixed(4);
+    const lon = Number(geo.longitude).toFixed(4);
+    coordinates = '<a href="https://www.openstreetmap.org/?mlat=' + lat + '&mlon=' + lon +
+      '#map=9/' + lat + '/' + lon + '" target="_blank" rel="noopener">' + lat + ', ' + lon + '</a>';
+  }
+
+  return '<div class="grid-2">' +
+    box('Address', esc(ip)) +
+    box('Location', esc(place)) +
+    box('Provider', provider) +
+    box('Timezone', esc(geo.timezone || 'Unknown')) +
+    box('Coordinates', coordinates) +
+    box('Accuracy radius', geo.accuracyRadius != null ? '± ' + esc(geo.accuracyRadius) + ' km' : 'Unknown') +
+    '</div>';
+}
+
 function lookup() {
   clearError();
   const q = document.getElementById('query').value.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
@@ -89,11 +157,30 @@ function lookup() {
 
   const dnsEl = document.getElementById('dnsResults');
   const whoisEl = document.getElementById('whoisResults');
+  const geoPanel = document.getElementById('geoPanel');
+  const geoEl = document.getElementById('geoResults');
   dnsEl.innerHTML = '<div class="loading">Loading DNS records...</div>';
   whoisEl.innerHTML = '<div class="loading">Loading whois data...</div>';
+  geoEl.innerHTML = '<div class="loading">Loading geolocation...</div>';
+  geoPanel.style.display = 'block';
 
+  loadGeo(q);
   loadDns(q);
   loadWhois(q);
+}
+
+function loadGeo(q) {
+  const el = document.getElementById('geoResults');
+  const url = isIp(q)
+    ? '/api/geo?ip=' + encodeURIComponent(q)
+    : '/api/geo?host=' + encodeURIComponent(q);
+  fetch(url)
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { el.innerHTML = '<div class="error">' + esc(data.error) + '</div>'; return; }
+      el.innerHTML = geoHtml(data.ip || q, data.geo);
+    })
+    .catch(e => { el.innerHTML = '<div class="error">' + esc(e.message) + '</div>'; });
 }
 
 function loadDns(q) {

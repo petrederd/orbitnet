@@ -3,6 +3,9 @@ const https = require('https');
 const tls = require('tls');
 const dns = require('dns').promises;
 const net = require('net');
+const fs = require('fs');
+const path = require('path');
+const maxmind = require('maxmind');
 
 const PORT = process.env.PORT || 3000;
 const OUTBOUND_TIMEOUT = 8000;
@@ -131,6 +134,120 @@ function isPublicIp(ip) {
   return false;
 }
 
+// ---------- GeoIP (MaxMind GeoLite2) ----------
+// Databases live outside the image (mounted read-only) so they can be kept
+// fresh by the geoipupdate service without rebuilding the backend.
+const GEOIP_DIR = process.env.GEOIP_DIR || path.join(__dirname, '..', 'data', 'geoip');
+const CITY_DB_PATH = process.env.GEOIP_CITY_DB || path.join(GEOIP_DIR, 'GeoLite2-City.mmdb');
+const ASN_DB_PATH = process.env.GEOIP_ASN_DB || path.join(GEOIP_DIR, 'GeoLite2-ASN.mmdb');
+// How often to stat the databases for a fresh copy written by the updater.
+const GEO_RECHECK_MS = 60 * 1000;
+
+// Wraps an .mmdb file: opens it lazily and transparently reloads when the file
+// on disk changes (the updater replaces the database atomically in place).
+function createGeoDatabase(file) {
+  let reader = null;
+  let loadedMtime = -1;
+  let lastCheck = 0;
+
+  async function refresh() {
+    const now = Date.now();
+    if (now - lastCheck < GEO_RECHECK_MS) return;
+    lastCheck = now;
+    try {
+      const stat = await fs.promises.stat(file);
+      if (stat.mtimeMs === loadedMtime) return;
+      reader = await maxmind.open(file);
+      loadedMtime = stat.mtimeMs;
+      console.log('geoip: loaded ' + file);
+    } catch (e) {
+      if (reader) {
+        console.warn('geoip: keeping previously loaded ' + file + ' (' + e.message + ')');
+      } else if (!refresh.warned) {
+        refresh.warned = true;
+        console.warn('geoip: ' + file + ' unavailable (' + e.message + ')');
+      }
+    }
+  }
+
+  async function lookup(ip) {
+    await refresh();
+    if (!reader) return null;
+    try {
+      return reader.get(ip) || null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  return { lookup };
+}
+
+const cityDb = createGeoDatabase(CITY_DB_PATH);
+const asnDb = createGeoDatabase(ASN_DB_PATH);
+
+function pickName(obj) {
+  if (!obj || !obj.names) return { en: '', ru: '' };
+  return { en: obj.names.en || '', ru: obj.names.ru || '' };
+}
+
+// Normalises the raw MaxMind city/asn records into a stable, flatter shape.
+function buildGeo(city, asn) {
+  if (!city && !asn) return null;
+
+  const geo = {
+    continent: '', countryCode: '', country: '', countryLocal: '',
+    regionCode: '', region: '', regionLocal: '',
+    city: '', cityLocal: '', postal: '', timezone: '',
+    latitude: null, longitude: null, accuracyRadius: null,
+    asn: null, asnOrganization: ''
+  };
+
+  if (city) {
+    geo.continent = (city.continent && city.continent.code) || '';
+    const country = city.country || city.registered_country || {};
+    const countryNames = pickName(country);
+    geo.countryCode = country.iso_code || '';
+    geo.country = countryNames.en || geo.countryCode;
+    geo.countryLocal = countryNames.ru || geo.country;
+
+    const sub = (city.subdivisions && city.subdivisions[0]) || null;
+    if (sub) {
+      const subNames = pickName(sub);
+      geo.regionCode = sub.iso_code || '';
+      geo.region = subNames.en || geo.regionCode;
+      geo.regionLocal = subNames.ru || geo.region;
+    }
+
+    if (city.city) {
+      const cityNames = pickName(city.city);
+      geo.city = cityNames.en;
+      geo.cityLocal = cityNames.ru || cityNames.en;
+    }
+
+    geo.postal = (city.postal && city.postal.code) || '';
+
+    if (city.location) {
+      geo.timezone = city.location.time_zone || '';
+      geo.latitude = typeof city.location.latitude === 'number' ? city.location.latitude : null;
+      geo.longitude = typeof city.location.longitude === 'number' ? city.location.longitude : null;
+      geo.accuracyRadius = typeof city.location.accuracy_radius === 'number' ? city.location.accuracy_radius : null;
+    }
+  }
+
+  if (asn) {
+    geo.asn = asn.autonomous_system_number || null;
+    geo.asnOrganization = asn.autonomous_system_organization || '';
+  }
+
+  return geo;
+}
+
+async function geoLookup(ip) {
+  const [city, asn] = await Promise.all([cityDb.lookup(ip), asnDb.lookup(ip)]);
+  return buildGeo(city, asn);
+}
+
 function withTimeout(promise, ms, message) {
   let timer;
   return Promise.race([
@@ -239,14 +356,14 @@ function sanitizeType(t) {
 // ---------- /api/ip ----------
 async function ipInfo(req) {
   const ip = clientIp(req);
-  let hostname = '';
-  try {
-    const names = await withTimeout(dns.reverse(ip), DNS_TIMEOUT, 'timeout');
-    hostname = (names && names[0]) || '';
-  } catch (e) { hostname = ''; }
-
   const version = net.isIPv6(ip) ? 6 : 4;
-  return { ip, version, hostname };
+  const [hostname, geo] = await Promise.all([
+    withTimeout(dns.reverse(ip), DNS_TIMEOUT, 'timeout')
+      .then(names => (names && names[0]) || '')
+      .catch(() => ''),
+    geoLookup(ip)
+  ]);
+  return { ip, version, hostname, geo };
 }
 
 // ---------- /api/dns ----------
@@ -644,10 +761,10 @@ const server = http.createServer(async (req, res) => {
   }
 
   const ip = clientIp(req);
-  const limited = path === '/api/ip' || path === '/api/dns' || path === '/api/port' ||
-    path === '/api/whois' || path === '/api/site' || path === '/api/tls' ||
-    path === '/api/headers' || path === '/api/email' || path === '/api/propagation' ||
-    path === '/api/redirect';
+  const limited = path === '/api/ip' || path === '/api/geo' || path === '/api/dns' ||
+    path === '/api/port' || path === '/api/whois' || path === '/api/site' ||
+    path === '/api/tls' || path === '/api/headers' || path === '/api/email' ||
+    path === '/api/propagation' || path === '/api/redirect';
 
   try {
     if (path === '/health') return send(res, 200, { ok: true });
@@ -658,6 +775,18 @@ const server = http.createServer(async (req, res) => {
 
     if (path === '/api/ip') {
       return send(res, 200, await ipInfo(req));
+    }
+
+    if (path === '/api/geo') {
+      const ipParam = normalizeIp(query.get('ip') || '');
+      const hostParam = (query.get('host') || '').trim();
+      let target = ipParam;
+      if (!net.isIP(target)) {
+        if (!isValidHost(hostParam)) return bad(res, 'Provide a valid IP address or hostname');
+        const ips = await resolvePublic(hostParam);
+        target = pickAddress(ips);
+      }
+      return send(res, 200, { ip: target, geo: await geoLookup(target) });
     }
 
     if (path === '/api/dns') {

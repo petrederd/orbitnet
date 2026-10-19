@@ -1,0 +1,10 @@
+# GeoLite2 databases are downloaded at runtime, never committed to git.
+data/geoip/*.mmdb
+
+# Node dependencies
+backend/node_modules/
+
+# Local secrets (never commit real credentials)
+.env
+.env.*
+!.env.example

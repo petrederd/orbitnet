@@ -18,3 +18,12 @@ jobs:
             cd /home/user/orbitnet-site
             git pull origin main
             docker compose up -d --build --force-recreate
+
+            # Start the GeoLite2 updater only when MaxMind credentials are present
+            # in the server-side .env (which is gitignored and created manually).
+            if [ -s .env ] && grep -qE '^MAXMIND_(ACCOUNT_ID|LICENSE_KEY)=.+' .env; then
+              docker compose --profile geoip up -d
+              echo "geoip-updater started"
+            else
+              echo "geoLite2 updater skipped: no MaxMind credentials in .env"
+            fi

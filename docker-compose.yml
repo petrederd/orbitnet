@@ -17,5 +17,30 @@ services:
     restart: unless-stopped
     environment:
       - PORT=3000
+      - GEOIP_DIR=/data/geoip
+    volumes:
+      - ./data/geoip:/data/geoip:ro
     expose:
       - "3000"
+
+  # Keeps the GeoLite2 databases current. MaxMind requires updating the
+  # GeoLite2 databases at least every 30 days; this service refreshes them
+  # every 24h and the API picks up new files automatically.
+  #
+  # It is opt-in (profile "geoip") so a plain `docker compose up -d` never
+  # fails on missing credentials. To enable it:
+  #   1. copy .env.example to .env and fill in your MaxMind credentials
+  #   2. docker compose --profile geoip up -d
+  geoip-updater:
+    image: ghcr.io/maxmind/geoipupdate
+    container_name: orbitnet-geoip
+    restart: unless-stopped
+    profiles: ["geoip"]
+    environment:
+      - GEOIPUPDATE_EDITION_IDS=GeoLite2-ASN GeoLite2-City
+      - GEOIPUPDATE_FREQUENCY=24
+      - GEOIPUPDATE_DB_DIR=/data/geoip
+      - GEOIPUPDATE_ACCOUNT_ID=${MAXMIND_ACCOUNT_ID:-}
+      - GEOIPUPDATE_LICENSE_KEY=${MAXMIND_LICENSE_KEY:-}
+    volumes:
+      - ./data/geoip:/data/geoip

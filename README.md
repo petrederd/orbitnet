@@ -27,10 +27,10 @@
 
 ### Сетевые инструменты (Networks)
 - [x] **IPv4 Subnet Calculator** — расчет подсетей, маски, диапазонов хостов
-- [x] **IP Lookup** — ваш публичный IP и reverse DNS (через собственный бэкенд)
+- [x] **IP Lookup** — ваш публичный IP, примерное местоположение, провайдер и reverse DNS (через собственный бэкенд)
 - [x] **DNS Lookup** — записи A, AAAA, MX, TXT, NS, CNAME, SOA, CAA
 - [x] **Port Checker** — проверка TCP-порта на хосте
-- [x] **IP & Domain Info** — DNS-записи, reverse DNS и whois для IP/домена
+- [x] **IP & Domain Info** — DNS-записи, reverse DNS, whois, геолокация и провайдер для IP/домена
 - [x] **Site Info** — IP, HTTP-статус, сервер, заголовок и время отклика сайта
 - [x] **CIDR / Netmask Converter** — конвертация prefix ↔ маска ↔ wildcard
 - [x] **IP / Binary Converter** — IPv4 ↔ binary/decimal/hex
@@ -95,12 +95,16 @@ orbitnet/
 │       ├── electricity/           # Электроника
 │       ├── math/                  # Математика
 │       └── text/                  # Текст и данные
-├── backend/                       # Node.js API (DNS, порты, whois, site info)
-│   ├── server.js                  # HTTP-сервер без внешних зависимостей
+├── backend/                       # Node.js API (DNS, порты, whois, site info, GeoIP)
+│   ├── server.js                  # HTTP-сервер (единственная зависимость — maxmind)
 │   ├── package.json
 │   └── Dockerfile
+├── data/geoip/                    # GeoLite2 базы (скачиваются, не в git)
+│   ├── GeoLite2-City.mmdb
+│   └── GeoLite2-ASN.mmdb
 ├── nginx.conf                     # Конфиг nginx (статика + прокси /api/)
-├── docker-compose.yml             # Docker для деплоя (site + api)
+├── docker-compose.yml             # Docker для деплоя (site + api + geoip-updater)
+├── .env.example                   # Шаблон ключей MaxMind для geoip-updater
 ├── .github/workflows/
 │   └── deploy.yml                 # CI/CD автодеплой
 ├── README.md                      # Этот файл
@@ -113,19 +117,20 @@ orbitnet/
 - **Vanilla JavaScript** — без фреймворков, чистый JS
 - **Modern CSS** — CSS Grid, Custom Properties, темная тема
 - **Semantic HTML5** — доступность и SEO
-- **Node.js** — легкий API-бэкенд только на встроенных модулях (dns, net, http, https, tls)
+- **Node.js** — легкий API-бэкенд на встроенных модулях (dns, net, http, https, tls) плюс `maxmind` для чтения GeoLite2
 - **nginx** — раздача статики и проксирование `/api/` на бэкенд
 - **Docker** — контейнеризация для деплоя
 - **GitHub Actions** — автоматический деплой
 
 ## API бэкенда
 
-Бэкенд не использует внешних зависимостей и отдаёт JSON:
+Бэкенд почти не использует внешних зависимостей (только `maxmind` для GeoLite2) и отдаёт JSON:
 
 | Endpoint | Описание |
 |----------|----------|
 | `GET /health` | проверка доступности |
-| `GET /api/ip` | IP клиента, версия и reverse DNS |
+| `GET /api/ip` | IP клиента, версия, reverse DNS, геолокация и провайдер |
+| `GET /api/geo?ip=` или `?host=` | геолокация и провайдер (ASN) для IP или домена |
 | `GET /api/dns?host=&type=` | DNS-записи (A, AAAA, MX, TXT, NS, CNAME, SOA, CAA, PTR для IP) |
 | `GET /api/port?host=&port=` | проверка TCP-порта |
 | `GET /api/whois?host=` | whois-данные для домена или IP |
@@ -158,6 +163,43 @@ IP-адрес посетителя определяется по `X-Real-IP`, к
 доверенных прокси (`real_ip`); произвольный клиентский `X-Forwarded-For` не считается достоверным.
 nginx также отдаёт базовые защитные заголовки (`X-Content-Type-Options`, `Referrer-Policy`,
 `X-Frame-Options`).
+
+## GeoIP (MaxMind GeoLite2)
+
+Геолокация и определение провайдера (ASN) выполняются локально по базам MaxMind GeoLite2,
+без обращения к сторонним сервисам.
+
+- Базы лежат в `data/geoip/` и **не коммитятся в git** (см. `.gitignore`).
+- Путь задаётся переменной `GEOIP_DIR` (по умолчанию `../data/geoip` относительно `backend/`,
+  в Docker — `/data/geoip`).
+- Бэкенд сам перечитывает базы: если файл `.mmdb` обновился (mtime изменился), он
+  подхватывает новую версию без перезапуска.
+
+### Обновление баз
+
+MaxMind требует обновлять GeoLite2 не реже, чем раз в **30 дней**. Для этого в
+`docker-compose.yml` есть опциональный сервис `geoip-updater`, который обновляет базы каждые 24 часа:
+
+```bash
+cp .env.example .env      # укажите MAXMIND_ACCOUNT_ID и MAXMIND_LICENSE_KEY
+docker compose --profile geoip up -d
+```
+
+Ключи берутся из бесплатного аккаунта MaxMind
+(https://www.maxmind.com/en/geolite2/signup → Manage License Keys).
+`GEOIPUPDATE_FREQUENCY=24` задаётся в **часах**, то есть обновление раз в сутки.
+
+`.env` содержит секреты и **не коммитится** в git: на сервере его нужно создать
+один раз вручную (рядом с `docker-compose.yml`). При деплое сервис `geoip-updater`
+запускается автоматически, если в `.env` есть непустые `MAXMIND_ACCOUNT_ID` и
+`MAXMIND_LICENSE_KEY`; иначе шаг просто пропускается (см. `.github/workflows/deploy.yml`).
+
+Без Docker базы можно обновить официальной утилитой
+[`geoipupdate`](https://github.com/maxmind/geoipupdate) или вручную скачав
+`GeoLite2-City` и `GeoLite2-ASN` в `data/geoip/`.
+
+> В проекте используется GeoLite2. This product includes GeoLite2 data created by
+> MaxMind, available from https://www.maxmind.com.
 
 ## Локальный запуск
 
@@ -199,9 +241,15 @@ node server.js
 ### Вариант 3: Docker
 
 ```bash
-docker-compose up -d
+docker compose up -d
 # Откройте http://localhost:8081
+
+# Для автообновления GeoIP-баз (нужны ключи MaxMind в .env):
+docker compose --profile geoip up -d
 ```
+
+Перед первым запуском положите базы `GeoLite2-City.mmdb` и `GeoLite2-ASN.mmdb`
+в `data/geoip/` — либо дайте сервису `geoip-updater` скачать их сам (см. раздел GeoIP).
 
 ## Как внести вклад
 

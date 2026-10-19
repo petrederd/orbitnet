@@ -30,9 +30,12 @@
   </section>
 
   <section class="ip-card" id="ipWidget" aria-label="Your IP information">
-    <p class="ip-title">Your IP address</p>
-    <div class="ip-value" id="ipValue">Loading…</div>
-    <p class="ip-meta" id="ipMeta"></p>
+    <div class="ip-main">
+      <p class="ip-title">Your IP address</p>
+      <div class="ip-value" id="ipValue">Loading…</div>
+      <p class="ip-meta" id="ipMeta"></p>
+    </div>
+    <dl class="ip-geo" id="ipGeo" hidden></dl>
   </section>
 
   <form class="searchbox" id="searchForm" role="search">
@@ -84,7 +87,7 @@
           </article>
           <article class="tool-card" data-category="networks" data-name="IP Lookup" data-order="3">
             <div class="tool-top"><span class="tool-icon">◎</span><span class="pill">Networks</span></div>
-            <h3>IP Lookup</h3><p>Discover your public IP address and its reverse DNS name, resolved on our own server.</p>
+            <h3>IP Lookup</h3><p>Discover your public IP address with its approximate location, network provider and reverse DNS — resolved on our own server.</p>
             <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/networks/ip-lookup.html">Open</a></div>
           </article>
           <article class="tool-card" data-category="electricity" data-name="Ohm's Law Calculator" data-order="4">
@@ -134,7 +137,7 @@
           </article>
           <article class="tool-card" data-category="networks" data-name="IP &amp; Domain Info" data-order="13">
             <div class="tool-top"><span class="tool-icon">⊙</span><span class="pill">Networks</span></div>
-            <h3>IP &amp; Domain Info</h3><p>Look up DNS records, reverse DNS and whois registration data for any IP or domain.</p>
+            <h3>IP &amp; Domain Info</h3><p>Look up DNS records, reverse DNS, whois registration data plus geolocation and provider for any IP or domain.</p>
             <div class="tool-bottom"><span class="status-label">Ready</span><a class="open" href="tools/networks/ip-info.html">Open</a></div>
           </article>
           <article class="tool-card" data-category="networks" data-name="Site Info" data-order="14">

@@ -87,6 +87,41 @@
 
   document.getElementById('year').textContent = new Date().getFullYear();
 
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  }
+
+  function renderGeo(geo) {
+    const el = document.getElementById('ipGeo');
+    if (!el) return;
+
+    if (!geo) {
+      el.innerHTML = '';
+      el.hidden = true;
+      return;
+    }
+
+    const rows = [];
+    const place = [geo.city, geo.region, geo.country].filter(Boolean).join(', ');
+    if (place) rows.push(['Location', place]);
+    if (geo.timezone) rows.push(['Timezone', geo.timezone]);
+    if (geo.asnOrganization) {
+      rows.push(['Provider', geo.asnOrganization + (geo.asn ? ' (AS' + geo.asn + ')' : '')]);
+    }
+
+    if (!rows.length) {
+      el.innerHTML = '';
+      el.hidden = true;
+      return;
+    }
+
+    el.innerHTML = rows.map(([label, value]) =>
+      '<div class="ip-geo-item"><dt>' + esc(label) + '</dt><dd>' + esc(value) + '</dd></div>'
+    ).join('');
+    el.hidden = false;
+  }
+
   function loadIP() {
     const valueEl = document.getElementById('ipValue');
     const metaEl = document.getElementById('ipMeta');
@@ -100,10 +135,12 @@
         parts.push('IPv' + data.version);
         if (data.hostname) parts.push(data.hostname);
         metaEl.textContent = parts.join(' · ');
+        renderGeo(data.geo);
       })
       .catch(() => {
         valueEl.textContent = 'Unable to fetch';
         metaEl.textContent = 'Try the IP Lookup tool instead.';
+        renderGeo(null);
       });
   }
 
