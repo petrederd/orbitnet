@@ -63,8 +63,8 @@
       <input type="number" id="port" placeholder="e.g. 443" value="443" min="1" max="65535">
     </div>
 
-    <div class="input-group">
-      <label for="captchaAnswer">Captcha</label>
+    <div class="input-group" id="captchaGroup" hidden>
+      <label for="captchaAnswer">Captcha (every 3rd check)</label>
       <div class="captcha-row">
         <img id="captchaImg" alt="Captcha" title="Click to refresh" width="160" height="56" onclick="loadCaptcha()">
         <button type="button" class="btn btn-secondary" onclick="loadCaptcha()">New code</button>
@@ -73,7 +73,7 @@
     </div>
 
     <button class="btn" onclick="check()">Check Port</button>
-    <p style="margin: 10px 0 0; color: var(--muted); font-size: .8rem;">Limit: 3 checks per minute per IP. TCP only.</p>
+    <p style="margin: 10px 0 0; color: var(--muted); font-size: .8rem;">Limit: 3 checks per minute per IP. Captcha every 3rd check. TCP only.</p>
   </div>
 
   <div class="tool-panel">
@@ -107,6 +107,15 @@ function showError(m) {
 
 let captchaId = '';
 
+function showNotice(m) {
+  const el = document.getElementById('errorMsg');
+  el.innerHTML = '';
+  const div = document.createElement('div');
+  div.className = 'info';
+  div.textContent = String(m == null ? '' : m);
+  el.appendChild(div);
+}
+
 function loadCaptcha() {
   const img = document.getElementById('captchaImg');
   const field = document.getElementById('captchaAnswer');
@@ -119,6 +128,7 @@ function loadCaptcha() {
       if (data.error) throw new Error(data.error);
       captchaId = data.id;
       img.src = data.image;
+      field.focus();
     })
     .catch(e => {
       captchaId = '';
@@ -127,38 +137,82 @@ function loadCaptcha() {
     });
 }
 
+function showCaptcha(message) {
+  document.getElementById('captchaGroup').hidden = false;
+  loadCaptcha();
+  showNotice(message || 'This check needs a captcha');
+  document.getElementById('results').innerHTML =
+    '<div style="text-align: center; padding: 40px 20px; color: var(--muted);">' +
+    'Enter the captcha code and click Check Port again.</div>';
+}
+
+function hideCaptcha() {
+  document.getElementById('captchaGroup').hidden = true;
+  document.getElementById('captchaAnswer').value = '';
+  document.getElementById('captchaImg').removeAttribute('src');
+  captchaId = '';
+}
+
 function check() {
   clearError();
   const host = document.getElementById('host').value.trim();
   const port = parseInt(document.getElementById('port').value, 10);
+  const group = document.getElementById('captchaGroup');
   const answer = document.getElementById('captchaAnswer').value.trim();
   if (!host) { showError('Please enter a host'); return; }
   if (isNaN(port) || port < 1 || port > 65535) { showError('Port must be 1-65535'); return; }
-  if (!captchaId || !/^\d{4}$/.test(answer)) { showError('Enter the 4 digits from the captcha'); return; }
+  if (!group.hidden && !/^\d{4}$/.test(answer)) {
+    showError('Enter the 4 digits from the captcha');
+    return;
+  }
+
+  let url = '/api/port?host=' + encodeURIComponent(host) + '&port=' + port;
+  if (!group.hidden && captchaId) {
+    url += '&captcha=' + encodeURIComponent(captchaId) + '&answer=' + encodeURIComponent(answer);
+  }
 
   document.getElementById('results').innerHTML = '<div class="loading">Checking ' + esc(host) + ':' + port + '...</div>';
 
-  fetch('/api/port?host=' + encodeURIComponent(host) + '&port=' + port +
-    '&captcha=' + encodeURIComponent(captchaId) + '&answer=' + encodeURIComponent(answer))
+  fetch(url)
     .then(r => r.json())
     .then(data => {
+      if (data.captchaRequired) {
+        showCaptcha(data.error || 'This check needs a captcha');
+        return;
+      }
       if (data.error) throw new Error(data.error);
-      const cls = data.open ? 'success' : 'error';
-      const text = data.open ? 'Port is open' : 'Port is closed';
-      const sub = data.error ? data.error : (data.open ? 'Connection established' : 'Connection refused or filtered');
+
+      let cls = 'success';
+      let text = 'Port is open';
+      let sub = 'Connection established';
+      if (!data.open) {
+        if (data.error === 'timeout') {
+          cls = 'warning';
+          text = 'Port is closed or filtered';
+          sub = 'No response — a firewall may be dropping packets';
+        } else if (data.error === 'ECONNREFUSED') {
+          cls = 'error';
+          text = 'Port is closed';
+          sub = 'Connection refused';
+        } else {
+          cls = 'error';
+          text = 'Port is closed or unreachable';
+          sub = data.error || 'No response';
+        }
+      }
+
       document.getElementById('results').innerHTML =
         '<div class="result-box highlight"><div class="result-label">' + esc(host) + ':' + port + '</div>' +
         '<div class="result-value large ' + cls + '">' + text + '</div>' +
         '<div class="result-sub">' + esc(sub) + '</div></div>';
+      hideCaptcha();
     })
     .catch(e => {
       document.getElementById('results').innerHTML = '';
       showError(e.message);
-    })
-    .finally(loadCaptcha);
+      if (!group.hidden) loadCaptcha();
+    });
 }
-
-loadCaptcha();
 </script>
 </body>
 </html>

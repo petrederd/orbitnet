@@ -253,6 +253,14 @@ section#tools { margin-top: 34px; }
 .result-label { font-size: .78rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 700; margin-bottom: 4px; }
 .result-value { font-size: 1.2rem; font-weight: 700; color: var(--ink); word-break: break-all; }
 .result-value.large { font-size: 1.7rem; color: var(--accent); }
+.result-value.warning {
+  padding: 11px 14px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  color: var(--warning);
+  background: rgba(245,198,107,.12);
+  border: 1px solid rgba(245,198,107,.4);
+}
 .result-sub { font-size: .85rem; color: var(--muted); margin-top: 4px; }
 
 .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }

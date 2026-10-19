@@ -625,12 +625,38 @@ function isRateLimited(ip, store = rateHits, max = RATE_MAX) {
 
 // ---------- captcha ----------
 // A self-contained numeric captcha. The answer never leaves the server: the
-// client only receives an SVG image and an opaque id. Answers are single-use,
+// client only receives an image and an opaque id. Answers are single-use,
 // expire after five minutes and are tied to the requesting IP.
 const CAPTCHA_TTL = 5 * 60 * 1000;
 const CAPTCHA_MAX_ENTRIES = 5000;
 const captchas = new Map();
 let lastCaptchaPrune = Date.now();
+
+// Every third port check requires a captcha. The counter only advances after
+// a check is allowed to run, so a failed captcha cannot be used to skip it.
+const portAttempts = new Map();
+const PORT_ATTEMPT_EVERY = 3;
+const PORT_ATTEMPT_TTL = 60 * 60 * 1000;
+
+function getPortAttempt(ip) {
+  const now = Date.now();
+  if (portAttempts.size > 10000) {
+    for (const [key, rec] of portAttempts) {
+      if (now - rec.updated > PORT_ATTEMPT_TTL) portAttempts.delete(key);
+    }
+    if (portAttempts.size > 10000) {
+      const oldest = portAttempts.keys().next().value;
+      if (oldest) portAttempts.delete(oldest);
+    }
+  }
+  let rec = portAttempts.get(ip);
+  if (!rec || now - rec.updated > PORT_ATTEMPT_TTL) {
+    rec = { count: 0, updated: now };
+    portAttempts.set(ip, rec);
+  }
+  return rec;
+}
+
 
 const SEGMENT_LINES = {
   a: [4, 2, 20, 2],
@@ -767,6 +793,16 @@ function captchaPng(digits) {
         color, thickness, 1);
     }
   }
+
+  // Strike-through lines, the classic cheap anti-OCR trick.
+  drawLine(buf, width, height,
+    8 + Math.random() * 18, 10 + Math.random() * 24,
+    width - 8 - Math.random() * 18, height - 10 - Math.random() * 24,
+    [180, 90, 90], 4 + Math.random() * 2, 0.75);
+  drawLine(buf, width, height,
+    8 + Math.random() * 18, height - 10 - Math.random() * 24,
+    width - 8 - Math.random() * 18, 10 + Math.random() * 24,
+    [95, 135, 110], 3 + Math.random() * 2, 0.65);
 
   return encodePng(width, height, buf);
 }
@@ -1283,12 +1319,32 @@ const server = http.createServer(async (req, res) => {
       const port = parseInt(portStr, 10);
       if (!isValidHost(host) && !net.isIP(normalizeIp(host))) return bad(res, 'Invalid hostname');
       if (port < 1 || port > 65535) return bad(res, 'Port must be 1-65535');
-      if (!verifyCaptcha(query.get('captcha') || '', query.get('answer') || '', ip)) {
-        return send(res, 403, { error: 'Captcha failed, request a new one' });
+
+      const attempt = getPortAttempt(ip);
+      const needCaptcha = (attempt.count + 1) % PORT_ATTEMPT_EVERY === 0;
+      if (needCaptcha) {
+        const captchaId = query.get('captcha') || '';
+        if (!captchaId) {
+          return send(res, 403, {
+            error: 'Captcha required for this check',
+            captchaRequired: true
+          });
+        }
+        if (!verifyCaptcha(captchaId, query.get('answer') || '', ip)) {
+          return send(res, 403, {
+            error: 'Captcha failed, request a new one',
+            captchaRequired: true
+          });
+        }
       }
+
       if (isRateLimited(ip, portHits, PORT_RATE_MAX)) {
         return send(res, 429, { error: 'Too many port checks, wait a minute' });
       }
+
+      attempt.count++;
+      attempt.updated = Date.now();
+
       const ips = await resolvePublic(host);
       const target = pickAddress(ips);
       const result = await outbound(() => checkPort(target, port));
