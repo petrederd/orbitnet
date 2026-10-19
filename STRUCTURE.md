@@ -239,7 +239,7 @@ orbitnet/
 - Строгая валидация порта (1-65535, только цифры) и DKIM-селектора
 - `/api/propagation` опрашивает фиксированный список публичных резолверов (не пользовательский)
 - IPv4-mapped IPv6 нормализуется в IPv4 в любой нотации (защита от обхода блок-листа)
-- Определение IP клиента по `X-Real-IP` (выставляет nginx после разбора цепочки доверенных прокси); `X-Forwarded-For` — только как запасной вариант с пропуском приватных хопов
+- Определение IP клиента по `X-Real-IP` (выставляет nginx); в продакшене цепочка `Cloudflare → Caddy → nginx`, реальный IP берётся из `CF-Connecting-IP` (`real_ip_header`) с доверием диапазонам Cloudflare и локальным прокси; `X-Forwarded-For` — только запасной вариант
 - Валидация хостов, ограничение размера ответа whois
 - CORS, `Cache-Control: no-store`
 - Без обращений к сторонним сервисам: GeoIP считается локально по базам MaxMind GeoLite2
@@ -410,6 +410,7 @@ Node:  ~600 строк  (бэкенд)
 - Автообновление баз: сервис `geoip-updater` в `docker-compose.yml` (профиль `geoip`, каждые 24 ч), `.env.example` с ключами MaxMind
 - SEO: добавлены `robots.txt` и `sitemap.xml`
 - Кроссбраузерность: хардненинг CSS (`color-scheme`, `text-size-adjust`, критический инлайн-стиль), исправлен светлый `theme-color`
+- Реальный IP клиента за Cloudflare: nginx читает `CF-Connecting-IP` (`real_ip_header`) и доверяет диапазонам Cloudflare и локальным прокси (Caddy отбрасывает входящий `X-Forwarded-For`)
 
 ### v0.4.0 (18 октября 2026)
 - Добавлены 9 инструментов: SSL/TLS Checker, HTTP Headers Inspector, Email DNS Checker, DNS Propagation Checker, Redirect Checker, Website Health Check, Network Diagnostics, Email Deliverability Check (Networks) и JWT Decoder (Developer)
