@@ -17,6 +17,13 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 
+html {
+  background: var(--paper);
+  color-scheme: dark;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   color: var(--ink);
@@ -286,7 +293,7 @@ section#tools { margin-top: 34px; }
 }
 
 @media (max-width: 580px) {
-  .wrap { width: min(100% - 24px, 1080px); }
+  .wrap { width: min(1080px, calc(100% - 24px)); }
   .nav .optional { display: none; }
   .tool-grid { grid-template-columns: 1fr; }
   .grid-2 { grid-template-columns: 1fr; }
