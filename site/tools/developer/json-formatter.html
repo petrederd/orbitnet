@@ -321,15 +321,6 @@ function clearAll() {
   document.getElementById('outputStats').innerHTML = '';
 }
 
-// Example data for testing
-const exampleJSON = '{"users":[{"id":1,"name":"Alice","email":"alice@example.com","active":true},{"id":2,"name":"Bob","email":"bob@example.com","active":false}],"timestamp":"2026-10-17T12:00:00Z","meta":{"version":"1.0","count":2}}';
-
-// Load example on first visit (optional)
-if (!sessionStorage.getItem('jsonFormatterVisited')) {
-  inputTextarea.value = exampleJSON;
-  formatJSON();
-  sessionStorage.setItem('jsonFormatterVisited', 'true');
-}
 </script>
 </body>
 </html>

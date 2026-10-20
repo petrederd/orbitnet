@@ -82,7 +82,7 @@
             <div class="input-group" id="freqGroup">
               <label for="frequency">Target Frequency</label>
               <div class="input-row">
-                <input type="number" id="frequency" placeholder="e.g., 1000" value="1000" step="any">
+                <input type="number" id="frequency" placeholder="e.g., 1000" step="any">
                 <select id="freqUnit">
                   <option value="1">Hz</option>
                   <option value="1000">kHz</option>
@@ -93,12 +93,12 @@
             </div>
             <div class="input-group" id="dutyGroup">
               <label for="dutyCycle">Duty Cycle (%)</label>
-              <input type="number" id="dutyCycle" placeholder="50-99" value="50" min="50" max="99" step="1"><small>Percentage of time output is HIGH (50-99%)</small>
+              <input type="number" id="dutyCycle" placeholder="50-99" min="50" max="99" step="1"><small>Percentage of time output is HIGH (50-99%)</small>
             </div>
             <div class="input-group" id="r1Group" style="display: none;">
               <label for="r1Input">Resistor R1</label>
               <div class="input-row">
-                <input type="text" id="r1Input" placeholder="e.g., 200 or 4k7" value="200"><span style="padding: 12px 14px; font-weight: 700;">Ω</span>
+                <input type="text" id="r1Input" placeholder="e.g., 200 or 4k7"><span style="padding: 12px 14px; font-weight: 700;">Ω</span>
               </div>
               <small>Resistor between Vcc and pin 7. Accepts suffix:<code>200</code>
               ,<code>4k7</code>
@@ -108,7 +108,7 @@
             <div class="input-group" id="r2Group" style="display: none;">
               <label for="r2Input">Resistor R2</label>
               <div class="input-row">
-                <input type="text" id="r2Input" placeholder="e.g., 4k7 or 47000" value="4k7"><span style="padding: 12px 14px; font-weight: 700;">Ω</span>
+                <input type="text" id="r2Input" placeholder="e.g., 4k7 or 47000"><span style="padding: 12px 14px; font-weight: 700;">Ω</span>
               </div>
               <small>Resistor between pin 7 and capacitor. Accepts suffix:<code>4k7</code>
               ,<code>47k</code>
@@ -118,7 +118,7 @@
             <div class="input-group" id="capRevGroup" style="display: none;">
               <label for="capacitorRev">Capacitor (C)</label>
               <div class="input-row">
-                <input type="text" id="capacitorRev" placeholder="e.g., 0.1u or 100n" value="0.1u"><span style="padding: 12px 14px; font-weight: 700;">F</span>
+                <input type="text" id="capacitorRev" placeholder="e.g., 0.1u or 100n"><span style="padding: 12px 14px; font-weight: 700;">F</span>
               </div>
               <small>Accepts suffix:<code>100p</code>
               ,<code>10n</code>
@@ -130,7 +130,7 @@
             <div class="input-group" id="capGroup">
               <label for="capacitor">Capacitor (C)</label>
               <div class="input-row">
-                <input type="number" id="capacitor" placeholder="e.g., 10" value="10" step="any">
+                <input type="number" id="capacitor" placeholder="e.g., 10" step="any">
                 <select id="capUnit">
                   <option value="0.000000000001">pF</option>
                   <option value="0.000000001">nF</option>
@@ -146,7 +146,7 @@
             <div class="input-group">
               <label for="pulseWidth">Pulse Width</label>
               <div class="input-row">
-                <input type="number" id="pulseWidth" placeholder="e.g., 100" value="100" step="any">
+                <input type="number" id="pulseWidth" placeholder="e.g., 100" step="any">
                 <select id="pulseUnit">
                   <option value="0.000001">µs</option>
                   <option value="0.001" selected>ms</option>
@@ -158,7 +158,7 @@
             <div class="input-group">
               <label for="capacitorMono">Capacitor (C)</label>
               <div class="input-row">
-                <input type="number" id="capacitorMono" placeholder="e.g., 10" value="10" step="any">
+                <input type="number" id="capacitorMono" placeholder="e.g., 10" step="any">
                 <select id="capUnitMono">
                   <option value="0.000000000001">pF</option>
                   <option value="0.000000001">nF</option>
@@ -627,17 +627,10 @@ function calculateMonostable() {
 }
 
 function reset() {
-  if (currentMode === 'astable') {
-    document.getElementById('frequency').value = '1000';
-    document.getElementById('dutyCycle').value = '50';
-    document.getElementById('capacitor').value = '10';
-    document.getElementById('r1Input').value = '200';
-    document.getElementById('r2Input').value = '4k7';
-    document.getElementById('capacitorRev').value = '0.1u';
-  } else {
-    document.getElementById('pulseWidth').value = '100';
-    document.getElementById('capacitorMono').value = '10';
-  }
+  ['frequency', 'dutyCycle', 'capacitor', 'r1Input', 'r2Input', 'capacitorRev', 'pulseWidth', 'capacitorMono'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
   clearError();
   document.getElementById('results').innerHTML = '<div style="text-align: center; padding: 40px 20px; color: var(--muted);">Enter values and click Calculate</div>';
 }

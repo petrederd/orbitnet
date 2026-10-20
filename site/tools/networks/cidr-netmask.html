@@ -62,11 +62,11 @@
     <div id="errorMsg"></div>
     <div class="input-group">
       <label for="ip">IP address</label>
-      <input type="text" id="ip" value="192.168.1.10" oninput="convert()">
+      <input type="text" id="ip" placeholder="e.g. 192.168.1.10" oninput="convert()">
     </div>
     <div class="input-group">
       <label for="prefix">Prefix or netmask</label>
-      <input type="text" id="prefix" value="24" placeholder="e.g. 24 or 255.255.255.0" oninput="convert()">
+      <input type="text" id="prefix" placeholder="e.g. 24 or 255.255.255.0" oninput="convert()">
       <small>Enter a number 0–32 or a dotted mask.</small>
     </div>
   </div>
@@ -198,7 +198,6 @@ function highlightTableRow(prefix) {
 }
 
 buildTable();
-convert();
 </script>
 </body>
 </html>

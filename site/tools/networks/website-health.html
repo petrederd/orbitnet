@@ -62,7 +62,7 @@
     <div id="errorMsg"></div>
     <div class="input-group">
       <label for="host">Host</label>
-      <input type="text" id="host" placeholder="example.com" value="github.com">
+      <input type="text" id="host" placeholder="example.com">
     </div>
     <button class="btn" onclick="run()">Run health check</button>
   </div>
@@ -192,8 +192,6 @@ function render(host, r) {
   details += '</div>';
   document.getElementById('details').innerHTML = details;
 }
-
-run();
 </script>
 </body>
 </html>

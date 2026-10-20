@@ -180,7 +180,6 @@ function tick() {
   document.getElementById('live').textContent = Math.floor(Date.now() / 1000) + '  (' + new Date().toISOString() + ')';
 }
 
-useNow();
 tick();
 setInterval(tick, 1000);
 </script>

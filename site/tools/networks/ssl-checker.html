@@ -62,11 +62,11 @@
     <div id="errorMsg"></div>
     <div class="input-group">
       <label for="host">Host</label>
-      <input type="text" id="host" placeholder="example.com" value="example.com">
+      <input type="text" id="host" placeholder="example.com">
     </div>
     <div class="input-group">
       <label for="port">Port</label>
-      <input type="text" id="port" value="443" inputmode="numeric">
+      <input type="text" id="port" inputmode="numeric" placeholder="e.g. 443">
       <small>Default 443. Use another port for services on e.g. 8443.</small>
     </div>
     <button class="btn" onclick="check()">Check certificate</button>
@@ -194,8 +194,6 @@ function render(host, port, d) {
 
   document.getElementById('results').innerHTML = html;
 }
-
-check();
 </script>
 </body>
 </html>

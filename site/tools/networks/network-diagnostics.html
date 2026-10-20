@@ -63,11 +63,11 @@
     <div class="grid-2">
       <div class="input-group">
         <label for="host">Host or IP</label>
-        <input type="text" id="host" placeholder="example.com" value="1.1.1.1">
+        <input type="text" id="host" placeholder="example.com">
       </div>
       <div class="input-group">
         <label for="port">TCP port</label>
-        <input type="text" id="port" value="443" inputmode="numeric">
+        <input type="text" id="port" inputmode="numeric" placeholder="e.g. 443">
       </div>
     </div>
     <button class="btn" onclick="run()">Run diagnostics</button>
@@ -263,8 +263,6 @@ function render(host, port, me, portR, a, aaaa, ptr) {
 
   document.getElementById('results').innerHTML = html;
 }
-
-run();
 </script>
 </body>
 </html>

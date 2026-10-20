@@ -62,7 +62,7 @@
     <div id="errorMsg"></div>
     <div class="input-group">
       <label for="host">Domain</label>
-      <input type="text" id="host" placeholder="example.com" value="example.com">
+      <input type="text" id="host" placeholder="example.com">
     </div>
     <div class="input-group">
       <label for="selector">DKIM selector (optional)</label>
@@ -204,8 +204,6 @@ function analyse(host, selector, d) {
   if (selector) records += rec('DKIM (' + selector + ')', (d.dkim && d.dkim.join('\n')) || 'none');
   document.getElementById('records').innerHTML = records;
 }
-
-run();
 </script>
 </body>
 </html>

@@ -74,15 +74,15 @@
           </div>
           <div class="input-group">
             <label for="coeffA">Coefficient a</label>
-            <input type="number" id="coeffA" placeholder="e.g., 1" value="1" step="any" oninput="updatePreview()"><small>Coefficient of x² (must not be zero)</small>
+            <input type="number" id="coeffA" placeholder="e.g., 1" step="any" oninput="updatePreview()"><small>Coefficient of x² (must not be zero)</small>
           </div>
           <div class="input-group">
             <label for="coeffB">Coefficient b</label>
-            <input type="number" id="coeffB" placeholder="e.g., -5" value="-5" step="any" oninput="updatePreview()"><small>Coefficient of x</small>
+            <input type="number" id="coeffB" placeholder="e.g., -5" step="any" oninput="updatePreview()"><small>Coefficient of x</small>
           </div>
           <div class="input-group">
             <label for="coeffC">Coefficient c</label>
-            <input type="number" id="coeffC" placeholder="e.g., 6" value="6" step="any" oninput="updatePreview()"><small>Constant term</small>
+            <input type="number" id="coeffC" placeholder="e.g., 6" step="any" oninput="updatePreview()"><small>Constant term</small>
           </div>
           <button class="btn" onclick="solve()">Solve</button>
           <button class="btn btn-secondary" onclick="reset()" style="margin-left: 10px;">Reset</button>
@@ -235,9 +235,9 @@ function clearError() {
 }
 
 function reset() {
-  document.getElementById('coeffA').value = '1';
-  document.getElementById('coeffB').value = '-5';
-  document.getElementById('coeffC').value = '6';
+  document.getElementById('coeffA').value = '';
+  document.getElementById('coeffB').value = '';
+  document.getElementById('coeffC').value = '';
   updatePreview();
   clearError();
   document.getElementById('results').innerHTML = '<div style="text-align: center; padding: 40px 20px; color: var(--muted);">Enter coefficients and click Solve</div>';

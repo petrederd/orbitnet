@@ -62,7 +62,7 @@
     <div id="errorMsg"></div>
     <div class="input-group">
       <label for="pattern">Regular expression</label>
-      <input type="text" id="pattern" value="(\w+)@(\w+)\.(\w+)" placeholder="e.g. \d+" oninput="run()">
+      <input type="text" id="pattern" placeholder="e.g. \d+" oninput="run()">
     </div>
     <div class="controls">
       <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;"><input type="checkbox" id="f_g" checked onchange="run()"> g</label>
@@ -76,7 +76,7 @@
   <div class="tool-panel">
     <h2>Test text</h2>
     <div class="input-group">
-      <textarea id="text" class="text-textarea" placeholder="Text to test against..." oninput="run()">Contact us at hello@example.com or support@orbitnet.ru.</textarea>
+      <textarea id="text" class="text-textarea" placeholder="Text to test against... e.g. Contact us at hello@example.com or support@orbitnet.ru." oninput="run()"></textarea>
     </div>
   </div>
 

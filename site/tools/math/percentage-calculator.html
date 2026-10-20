@@ -79,44 +79,44 @@
           <div id="basicInputs">
             <div class="input-group">
               <label for="percent1">Percentage (%)</label>
-              <input type="number" id="percent1" placeholder="e.g., 25" value="25" step="any"><small>The percentage you want to calculate</small>
+              <input type="number" id="percent1" placeholder="e.g., 25" step="any"><small>The percentage you want to calculate</small>
             </div>
             <div class="input-group">
               <label for="value1">Of Value</label>
-              <input type="number" id="value1" placeholder="e.g., 200" value="200" step="any"><small>The total value</small>
+              <input type="number" id="value1" placeholder="e.g., 200" step="any"><small>The total value</small>
             </div>
           </div>
           <!-- Change Mode -->
           <div id="changeInputs" style="display:none;">
             <div class="input-group">
               <label for="oldValue">Original Value</label>
-              <input type="number" id="oldValue" placeholder="e.g., 100" value="100" step="any"><small>Starting value</small>
+              <input type="number" id="oldValue" placeholder="e.g., 100" step="any"><small>Starting value</small>
             </div>
             <div class="input-group">
               <label for="newValue">New Value</label>
-              <input type="number" id="newValue" placeholder="e.g., 150" value="150" step="any"><small>Ending value</small>
+              <input type="number" id="newValue" placeholder="e.g., 150" step="any"><small>Ending value</small>
             </div>
           </div>
           <!-- Reverse Mode -->
           <div id="reverseInputs" style="display:none;">
             <div class="input-group">
               <label for="partValue">Part Value</label>
-              <input type="number" id="partValue" placeholder="e.g., 50" value="50" step="any"><small>The part</small>
+              <input type="number" id="partValue" placeholder="e.g., 50" step="any"><small>The part</small>
             </div>
             <div class="input-group">
               <label for="totalValue">Total Value</label>
-              <input type="number" id="totalValue" placeholder="e.g., 200" value="200" step="any"><small>The whole</small>
+              <input type="number" id="totalValue" placeholder="e.g., 200" step="any"><small>The whole</small>
             </div>
           </div>
           <!-- Increase/Decrease Mode -->
           <div id="increaseInputs" style="display:none;">
             <div class="input-group">
               <label for="baseValue">Base Value</label>
-              <input type="number" id="baseValue" placeholder="e.g., 100" value="100" step="any"><small>Starting value</small>
+              <input type="number" id="baseValue" placeholder="e.g., 100" step="any"><small>Starting value</small>
             </div>
             <div class="input-group">
               <label for="percent2">Percentage (%)</label>
-              <input type="number" id="percent2" placeholder="e.g., 20" value="20" step="any"><small>Amount to increase/decrease by</small>
+              <input type="number" id="percent2" placeholder="e.g., 20" step="any"><small>Amount to increase/decrease by</small>
             </div>
           </div>
           <button class="btn" onclick="calculate()">Calculate</button>
@@ -283,19 +283,10 @@ function clearError() {
 }
 
 function reset() {
-  if (currentMode === 'basic') {
-    document.getElementById('percent1').value = '25';
-    document.getElementById('value1').value = '200';
-  } else if (currentMode === 'change') {
-    document.getElementById('oldValue').value = '100';
-    document.getElementById('newValue').value = '150';
-  } else if (currentMode === 'reverse') {
-    document.getElementById('partValue').value = '50';
-    document.getElementById('totalValue').value = '200';
-  } else if (currentMode === 'increase') {
-    document.getElementById('baseValue').value = '100';
-    document.getElementById('percent2').value = '20';
-  }
+  ['percent1', 'value1', 'oldValue', 'newValue', 'partValue', 'totalValue', 'baseValue', 'percent2'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
   clearError();
   document.getElementById('results').innerHTML = '<div style="text-align: center; padding: 40px 20px; color: var(--muted);">Select calculation type and enter values</div>';
 }
