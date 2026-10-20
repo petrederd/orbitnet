@@ -87,3 +87,37 @@ test('Open Graph image exists and has the expected dimensions', () => {
   assert.ok(fs.existsSync(file), 'og-image.png exists');
   assert.deepEqual(pngSize(file), { width: 1200, height: 630 });
 });
+
+test('favicon and manifest assets exist and are linked from every page', () => {
+  const assets = [
+    'favicon.ico',
+    'icons/favicon-16x16.png',
+    'icons/favicon-32x32.png',
+    'icons/favicon-48x48.png',
+    'icons/favicon-96x96.png',
+    'icons/favicon-192x192.png',
+    'icons/favicon-512x512.png',
+    'icons/apple-touch-icon.png',
+    'site.webmanifest',
+  ];
+
+  for (const asset of assets) {
+    const file = path.join(SITE, asset);
+    assert.ok(fs.existsSync(file), asset + ' exists');
+    assert.ok(fs.statSync(file).size > 0, asset + ' is not empty');
+  }
+
+  const manifest = JSON.parse(fs.readFileSync(path.join(SITE, 'site.webmanifest'), 'utf8'));
+  for (const icon of manifest.icons) {
+    assert.ok(fs.existsSync(path.join(SITE, icon.src)), icon.src + ' exists');
+  }
+
+  for (const file of pages()) {
+    const rel = path.relative(SITE, file).split(path.sep).join('/');
+    const html = fs.readFileSync(file, 'utf8');
+    assert.match(html, /<link\s+rel="icon"\s+href="\/favicon\.ico"/i, rel + ' favicon.ico');
+    assert.match(html, /<link\s+rel="icon"[^>]*sizes="48x48"[^>]*favicon-48x48\.png/i, rel + ' 48x48 icon');
+    assert.match(html, /<link\s+rel="apple-touch-icon"/i, rel + ' apple-touch-icon');
+    assert.match(html, /<link\s+rel="manifest"\s+href="\/site\.webmanifest"/i, rel + ' manifest');
+  }
+});
