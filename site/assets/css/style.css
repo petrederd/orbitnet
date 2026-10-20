@@ -182,8 +182,6 @@ section#tools { margin-top: 34px; }
 .pill { border: 1px solid var(--line); border-radius: 999px; padding: 3px 8px; color: var(--muted); font-size: .72rem; }
 .tool-card h3 { margin: 10px 0 6px; font-size: 1.05rem; }
 .tool-card p { margin: 0; color: var(--muted); font-size: .88rem; flex: 1; }
-.tool-bottom { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); font-size: .85rem; }
-.tool-bottom .status-label { color: var(--muted); }
 
 .empty { display: none; padding: 40px 20px; text-align: center; border: 1px dashed var(--line); border-radius: var(--radius); color: var(--muted); }
 .empty strong { display: block; color: var(--ink); margin-bottom: 6px; }
