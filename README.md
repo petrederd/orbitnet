@@ -169,7 +169,8 @@ docker compose --profile geoip up -d
 Если сайт или DNS недоступны с сервера, но работают извне (например, из-за
 блокировок в России), включите fallback через Cloudflare Worker. Локальная
 проверка всегда выполняется первой; Worker используется, когда локально не
-удалось получить HTTP-ответ, DNS-запись или цепочку редиректов.
+удалось получить HTTP-ответ, DNS-запись или цепочку редиректов, а также когда
+локальный HTTP-ответ выглядит как блокировка провайдера (403/451).
 
 Worker умеет:
 
@@ -212,12 +213,12 @@ docker compose up -d --build --force-recreate orbitnet-api
 | `GET /api/captcha` | Одноразовая числовая капча (нужна для каждой третьей проверки порта) |
 | `POST /api/port` | Проверка TCP-порта; `host`, `port`, `captcha`, `answer` передаются в JSON-теле (не более 3 проверок в минуту с одного IP) |
 | `GET /api/whois?host=` | whois для домена или IP |
-| `GET /api/site?host=` | HTTP-статус, сервер, заголовок, время ответа; при сетевой ошибке — fallback в Worker (`source`) |
-| `GET /api/headers?host=` | Заголовки HTTP-ответа; при сетевой ошибке — fallback в Worker (`source`) |
+| `GET /api/site?host=` | HTTP-статус, сервер, заголовок, время ответа; при сетевой ошибке или 403/451 — fallback в Worker (`source`) |
+| `GET /api/headers?host=` | Заголовки HTTP-ответа; при сетевой ошибке или 403/451 — fallback в Worker (`source`) |
 | `GET /api/tls?host=&port=` | Данные TLS-сертификата; порт ограничен списком 443, 465, 993, 995, 8443 |
 | `GET /api/email?host=&selector=` | MX, SPF, DMARC, DKIM, PTR; при сбое MX — fallback в Worker (`source`) |
 | `GET /api/propagation?host=&type=` | Ответы нескольких DNS-резолверов; при отказе всех локальных — fallback в Worker (`source`) |
-| `GET /api/redirect?host=` | Цепочка перенаправлений; при сетевой ошибке первого шага — fallback в Worker (`source`) |
+| `GET /api/redirect?host=` | Цепочка перенаправлений; при сетевой ошибке или 403/451 первого шага — fallback в Worker (`source`) |
 | `GET /api/anonymity` | Пассивные сигналы анонимности для IP клиента |
 | `GET /api/anonymity/ports?ip=` | TCP-порты прокси/VPN только для собственного публичного IP |
 | `GET /api/anonymity/ping?nonce=` | Двусторонний ping для оценки задержки и jitter |

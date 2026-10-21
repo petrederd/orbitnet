@@ -187,7 +187,7 @@ function render(host, r) {
 
   if (external) {
     checks += checkRow('warn', 'Checked via external checker',
-      'The server could not reach the host directly, so a Cloudflare Worker was used.');
+      'The local check failed or looked blocked, so a Cloudflare Worker was used.');
   }
 
   const banner = issues === 0

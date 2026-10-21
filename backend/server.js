@@ -1208,9 +1208,17 @@ function localErrorResult(host, error, extra) {
   }, extra || {});
 }
 
-// Local first. The external worker is contacted only when the local check did
-// not get any HTTP status (DNS/TCP/TLS/timeout), never for 4xx/5xx/redirects,
-// and never for targets rejected by the local SSRF guard.
+// The worker result replaces a local one only when the local check has no
+// status or when the worker turns a likely block (403/451) into a real answer.
+function externalImproves(local, external) {
+  if (!external || external.error) return false;
+  if (!local || !local.status) return true;
+  return local.status >= 400 && external.status < 400;
+}
+
+// Local first. The external worker is contacted when the local check did not
+// get any HTTP status (DNS/TCP/TLS/timeout) or returned 403/451, never for
+// ordinary 2xx/3xx/5xx answers, and never for targets rejected by the SSRF guard.
 async function siteInfo(host) {
   let local;
   try {
@@ -1225,7 +1233,7 @@ async function siteInfo(host) {
   }
 
   const external = await externalCheck.checkHttp(host, { follow: false });
-  if (!external.error) {
+  if (externalImproves(local, external)) {
     return {
       host,
       ip: null,
@@ -1238,6 +1246,7 @@ async function siteInfo(host) {
       finalUrl: external.finalUrl,
       error: null,
       source: 'worker',
+      localStatus: local.status || null,
       localError: local.error || null
     };
   }
@@ -1289,7 +1298,7 @@ async function headersInfo(host) {
   }
 
   const external = await externalCheck.checkHttp(host, { follow: false });
-  if (!external.error) {
+  if (externalImproves(local, external)) {
     return {
       host,
       ip: null,
@@ -1301,6 +1310,7 @@ async function headersInfo(host) {
       finalUrl: external.finalUrl,
       error: null,
       source: 'worker',
+      localStatus: local.status || null,
       localError: local.error || null
     };
   }
@@ -1556,7 +1566,8 @@ async function redirectChainLocal(startHost) {
 async function redirectChain(startHost) {
   const local = await redirectChainLocal(startHost);
   const first = local.chain && local.chain[0];
-  const localFailed = first && first.error && !first.status && !first.blocked;
+  const localFailed = first && !first.blocked &&
+    ((first.error && !first.status) || first.status === 403 || first.status === 451);
   if (!localFailed) {
     return Object.assign(local, { source: 'local' });
   }

@@ -587,13 +587,13 @@ async function checkEmail(host, selector) {
   return normalizeEmailResponse(result.raw, normalizedHost);
 }
 
-// A local result is worth retrying externally only when it never produced an
-// HTTP status. 404/500 responses and redirects are valid answers, and blocked
-// targets must not be forwarded to the worker.
+// A local result is worth retrying externally when it never produced an HTTP
+// status, or when it looks like an ISP/geo block (403/451). Normal 2xx/3xx/4xx
+// answers and blocked targets are not forwarded to the worker.
 function shouldUseExternal(result) {
   if (!result || result.blocked) return false;
-  if (result.status) return false;
-  return Boolean(result.error);
+  if (!result.status) return Boolean(result.error);
+  return result.status === 403 || result.status === 451;
 }
 
 module.exports = {

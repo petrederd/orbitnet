@@ -218,11 +218,15 @@ test('normalizes external propagation and email results', () => {
   assert.equal(email.errors.dkim, 'ENODATA');
 });
 
-test('only falls back when no HTTP status was received', () => {
+test('falls back on missing status or a likely ISP block', () => {
   assert.equal(checker.shouldUseExternal({ status: null, error: 'timeout' }), true);
   assert.equal(checker.shouldUseExternal({ status: null, error: 'Cannot resolve' }), true);
+  assert.equal(checker.shouldUseExternal({ status: 403, error: null }), true);
+  assert.equal(checker.shouldUseExternal({ status: 451, error: null }), true);
   assert.equal(checker.shouldUseExternal({ status: 200, error: null }), false);
+  assert.equal(checker.shouldUseExternal({ status: 301, error: null }), false);
   assert.equal(checker.shouldUseExternal({ status: 404, error: null }), false);
+  assert.equal(checker.shouldUseExternal({ status: 500, error: null }), false);
   assert.equal(checker.shouldUseExternal({ status: null, error: 'blocked', blocked: true }), false);
 });
 

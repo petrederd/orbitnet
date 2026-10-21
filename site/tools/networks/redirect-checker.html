@@ -135,7 +135,7 @@ function render(d) {
   else if (httpsIssue) status = '<div class="status-box info">Chain reaches ' + esc(d.finalUrl) + ', but some hops use plain HTTP.</div>';
 
   let html = (d.source === 'worker'
-    ? '<div class="status-box info">The server could not reach this host directly; the chain was traced by the external checker.</div>'
+    ? '<div class="status-box info">The local check failed or looked blocked; the chain was traced by the external checker.</div>'
     : '') + status + '<div class="result-box" style="margin-top:14px;"><div class="result-label">Final URL</div>' +
     '<div class="result-value" style="font-size:.95rem;word-break:break-all;">' + esc(d.finalUrl) + '</div></div>';
 

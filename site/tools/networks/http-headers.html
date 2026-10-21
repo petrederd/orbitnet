@@ -142,7 +142,7 @@ function render(d) {
   const presenceOnly = d.source === 'worker' &&
     (d.headers || []).some(h => h.value === 'present');
   let html = (d.source === 'worker'
-    ? '<div class="status-box info">The server could not reach this host directly; the response was fetched by the external checker.</div>'
+    ? '<div class="status-box info">The local check failed or looked blocked; the response was fetched by the external checker.</div>'
     : '') +
     '<div class="grid-2">' +
     '<div class="result-box"><div class="result-label">Status</div><div class="result-value" style="font-size:1.4rem;color:' + (d.status && d.status < 400 ? 'var(--accent)' : 'var(--danger)') + '">' + esc(d.status == null ? '—' : d.status) + '</div></div>' +

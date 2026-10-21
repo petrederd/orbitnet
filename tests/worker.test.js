@@ -78,6 +78,10 @@ function installFetch(t) {
       });
     }
 
+    if (parsed.hostname === 'another-site.org') {
+      return new Response(null, { status: 204, headers: { 'Server': 'other-server' } });
+    }
+
     if (parsed.hostname === 'redirect.example.com') {
       if (parsed.pathname === '/') {
         return new Response('', { status: 301, headers: { 'Location': '/final' } });
@@ -127,6 +131,15 @@ test('worker performs HTTP checks and exposes real header values', async (t) => 
   const headers = Object.fromEntries(data.headers.map(h => [h.name, h.value]));
   assert.equal(headers['strict-transport-security'], 'max-age=31536000');
   assert.equal(data.securityHeaders.strictTransportSecurity, 'present');
+});
+
+test('worker accepts any public host, not only example.com', async (t) => {
+  installFetch(t);
+  const { data } = await run({ type: 'http', host: 'another-site.org', follow: false });
+  assert.equal(data.ok, true);
+  assert.equal(data.host, 'another-site.org');
+  assert.equal(data.status, 204);
+  assert.equal(data.server, 'other-server');
 });
 
 test('worker follows redirects and refuses private targets', async (t) => {
