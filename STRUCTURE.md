@@ -45,6 +45,7 @@ orbitnet/
 ├── site/                          # Публичная директория nginx
 │   ├── index.html                 # Каталог 41 инструмента + IP-виджет
 │   ├── about.html                 # О проекте
+│   ├── 404.html                   # Кастомная страница «не найдено»
 │   ├── robots.txt                 # Индексация и ссылка на sitemap
 │   ├── sitemap.xml                # 43 URL: главная, about, 41 инструмент
 │   │
@@ -116,7 +117,7 @@ orbitnet/
 │   ├── server.js                  # HTTP API, 15 маршрутов
 │   ├── package.json               # Единственная зависимость: maxmind
 │   ├── package-lock.json
-│   └── Dockerfile                 # node:20-alpine
+│   └── Dockerfile                 # node:22-alpine, non-root, healthcheck
 │
 ├── data/
 │   └── geoip/                     # GeoLite2, не коммитится
@@ -124,6 +125,11 @@ orbitnet/
 │       └── GeoLite2-ASN.mmdb
 │
 ├── nginx.conf                     # Статика + proxy_pass /api/
+├── cloudflare-ips.conf            # Диапазоны Cloudflare (автообновление)
+├── deploy/
+│   └── Caddyfile.example          # Пример trusted_proxies для Caddy
+├── scripts/
+│   └── update-cloudflare-ips.sh   # Обновление cloudflare-ips.conf
 ├── docker-compose.yml             # site + api + geoip-updater (profile)
 ├── .env.example                   # Шаблон ключей MaxMind
 ├── .gitignore
@@ -291,15 +297,23 @@ IP клиента берётся из `X-Real-IP`, который выставл
 
 - отдаёт статику;
 - проксирует `/api/` на `orbitnet-api:3000`;
-- добавляет базовые security-заголовки;
-- корректно определяет реальный IP.
+- добавляет security-заголовки (включая HSTS и CSP);
+- кэширует версионированные ассеты и не кэширует HTML;
+- отдаёт кастомную `404.html`, в том числе для директорий без индекса;
+- корректно определяет реальный IP; диапазоны Cloudflare — в `cloudflare-ips.conf`.
 
 `.github/workflows/deploy.yml` по push в `main`:
 
-1. подключается к серверу по SSH;
-2. делает `git pull`;
-3. пересобирает контейнеры;
-4. запускает `geoip-updater`, если в `.env` есть ключи MaxMind.
+1. ставит зависимости бэкенда (`npm ci --prefix backend`) и запускает тесты;
+2. подключается к серверу по SSH;
+3. обновляет `cloudflare-ips.conf` (при наличии сети);
+4. делает `git pull --ff-only`;
+5. пересобирает контейнеры и ждёт готовности сайта до live-проверки;
+6. запускает `geoip-updater`, если в `.env` есть ключи MaxMind.
+
+Деплои сериализуются через `concurrency`, старые образы удаляются, а путь к
+проекту на сервере задаётся переменной `DEPLOY_PATH` (по умолчанию
+`/home/user/orbitnet-site`).
 
 ## SEO и индексация
 

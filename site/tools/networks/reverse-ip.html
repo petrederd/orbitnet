@@ -32,7 +32,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=3">
 <link rel="manifest" href="/site.webmanifest">
 <style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>
-<link rel="stylesheet" href="../../assets/css/style.css">
+<link rel="stylesheet" href="../../assets/css/style.css?v=5">
 </head>
 <body>
 <header class="wrap topbar">
@@ -156,8 +156,6 @@ function renderDomain(domain, results) {
   document.getElementById('results').innerHTML =
     '<div class="info">' + esc(domain) + ' resolves to ' + results.length + ' address' + (results.length > 1 ? 'es' : '') + '.</div>' + rows;
 }
-
-doRun();
 </script>
 </body>
 </html>

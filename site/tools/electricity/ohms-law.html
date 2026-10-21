@@ -31,7 +31,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=3">
     <link rel="manifest" href="/site.webmanifest">
     <style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>
-<link rel="stylesheet" href="../../assets/css/style.css">
+<link rel="stylesheet" href="../../assets/css/style.css?v=5">
   </head>
   <body>
     <header class="wrap topbar">
@@ -251,8 +251,12 @@ function clearError() {
   document.getElementById('errorMsg').innerHTML = '';
 }
 
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
 function showError(message) {
-  document.getElementById('errorMsg').innerHTML = `<div class="error"> ${message}</div>`;
+  document.getElementById('errorMsg').innerHTML = `<div class="error"> ${esc(message)}</div>`;
 }
 
 function formatValue(value, baseUnit, units) {

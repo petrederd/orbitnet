@@ -32,7 +32,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=3">
 <link rel="manifest" href="/site.webmanifest">
 <style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>
-<link rel="stylesheet" href="../../assets/css/style.css">
+<link rel="stylesheet" href="../../assets/css/style.css?v=5">
 <style>
   .jwt-part { font-family: monospace; word-break: break-all; font-size: .82rem; line-height: 1.6; }
   pre.jwt-json { margin: 8px 0 0; padding: 12px; background: var(--paper); border: 1px solid var(--line); border-radius: 6px; overflow: auto; font-size: .82rem; line-height: 1.6; }
@@ -135,6 +135,15 @@ function decode() {
   catch (e) { showError('Cannot decode header: ' + e.message); return; }
   try { payload = JSON.parse(b64url(parts[1])); }
   catch (e) { showError('Cannot decode payload: ' + e.message); return; }
+
+  if (header === null || typeof header !== 'object' || Array.isArray(header)) {
+    showError('The header is not a JSON object');
+    return;
+  }
+  if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
+    showError('The payload is not a JSON object');
+    return;
+  }
 
   let html = '';
 

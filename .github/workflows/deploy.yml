@@ -4,6 +4,20 @@ on:
   push:
     branches: [ main ]
 
+# Two quick pushes must not deploy in parallel: queue them instead. Running
+# deploys are never cancelled midway.
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  # Override with a repository variable named DEPLOY_PATH; defaults to the
+  # historical location.
+  DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -14,7 +28,10 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
+
+      - name: Install backend dependencies
+        run: npm ci --prefix backend
 
       - name: Run tests
         run: npm test
@@ -25,9 +42,22 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
+          envs: DEPLOY_PATH
           script: |
-            cd /home/user/orbitnet-site
-            git pull origin main
+            set -e
+            cd "${DEPLOY_PATH:-/home/user/orbitnet-site}"
+
+            # The previous run may have rewritten cloudflare-ips.conf; discard
+            # that local change so `git pull --ff-only` stays clean.
+            git checkout -- cloudflare-ips.conf 2>/dev/null || true
+            git pull --ff-only origin main
+
+            # Refresh Cloudflare edge ranges after the pull (falls back to the
+            # committed file if the network call fails).
+            if [ -x ./scripts/update-cloudflare-ips.sh ]; then
+              ./scripts/update-cloudflare-ips.sh || echo "warning: could not refresh cloudflare-ips.conf"
+            fi
+
             docker compose up -d --build --force-recreate
 
             # Start the GeoLite2 updater only when MaxMind credentials are present
@@ -38,6 +68,21 @@ jobs:
             else
               echo "geoLite2 updater skipped: no MaxMind credentials in .env"
             fi
+
+            # Wait until the site is actually serving before the live check runs.
+            ready=0
+            for i in $(seq 1 30); do
+              if curl -fsS -o /dev/null http://127.0.0.1:8081/; then ready=1; break; fi
+              sleep 2
+            done
+            if [ "$ready" != "1" ]; then
+              echo "site did not become ready in time" >&2
+              exit 1
+            fi
+            echo "site is ready"
+
+            # Remove dangling images left behind by --build.
+            docker image prune -f >/dev/null 2>&1 || true
 
       - name: Verify published site
         run: npm run test:live

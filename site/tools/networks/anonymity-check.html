@@ -32,7 +32,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=3">
 <link rel="manifest" href="/site.webmanifest">
 <style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>
-<link rel="stylesheet" href="../../assets/css/style.css">
+<link rel="stylesheet" href="../../assets/css/style.css?v=5">
 <style>
   .anon-grid { display: grid; gap: 10px; }
   .anon-check { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
@@ -74,7 +74,7 @@
       <span>Anonymity Check</span>
     </div>
     <h1>Anonymity Check</h1>
-    <p>See which network and browser signals suggest that your connection goes through a proxy, VPN, Tor or hosting provider. Passive checks run automatically. Active port checks are optional and only ever target your own public IP.</p>
+    <p>See which network and browser signals suggest that your connection goes through a proxy, VPN, Tor or hosting provider. Passive checks run when you click the button. Active port checks are optional and only ever target your own public IP.</p>
   </div>
 
   <div class="tool-panel">
@@ -645,8 +645,6 @@ document.getElementById('stunConsent').addEventListener('change', async event =>
   render();
   setStatus('success', useStun ? 'WebRTC check re-run with a public STUN server.' : 'WebRTC check reset to local candidates only.');
 });
-
-runPassive();
 </script>
 </body>
 </html>

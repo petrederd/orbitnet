@@ -14,10 +14,12 @@ function walk(dir) {
   });
 }
 
+const NON_PAGE = new Set(['tools/_template.html', '404.html']);
+
 function pages() {
   return walk(SITE)
     .filter(file => file.endsWith('.html'))
-    .filter(file => path.relative(SITE, file).split(path.sep).join('/') !== 'tools/_template.html');
+    .filter(file => !NON_PAGE.has(path.relative(SITE, file).split(path.sep).join('/')));
 }
 
 function urlFor(file) {

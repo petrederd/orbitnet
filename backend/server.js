@@ -12,6 +12,12 @@ const maxmind = require('maxmind');
 const PORT = process.env.PORT || 3000;
 const OUTBOUND_TIMEOUT = 8000;
 const DNS_TIMEOUT = 5000;
+// Kernel-hardening / max body size for outbound fetches. Reading stops here
+// and the socket is destroyed so a slow or endless response cannot pin a slot.
+const MAX_BODY_BYTES = 200000;
+// TLS can only be inspected on ports that are normally TLS services. This keeps
+// /api/tls from becoming an unrestricted TCP port scanner.
+const TLS_PORTS = new Set([443, 465, 993, 995, 8443]);
 
 function positiveIntEnv(name, def) {
   const raw = process.env[name];
@@ -495,7 +501,11 @@ function hostnameSignals(hostname) {
 
 const TOR_LIST_URL = 'https://check.torproject.org/torbulkexitlist';
 const TOR_CACHE_MS = 60 * 60 * 1000;
-let torCache = { set: null, fetchedAt: 0, loading: null };
+// After a failed download, stop retrying for a while. Without this every
+// /api/anonymity request would wait for the 8s external timeout when the list
+// is unreachable.
+const TOR_RETRY_MS = 2 * 60 * 1000;
+let torCache = { set: null, fetchedAt: 0, loading: null, nextAttemptAt: 0 };
 
 function fetchText(url, timeout) {
   return new Promise((resolve, reject) => {
@@ -532,6 +542,9 @@ async function torExitSet() {
   const now = Date.now();
   if (torCache.set && now - torCache.fetchedAt < TOR_CACHE_MS) return torCache.set;
   if (torCache.loading) return torCache.loading;
+  // Negative cache: return the previous list (or null) immediately instead of
+  // hammering the external service on every request.
+  if (now < torCache.nextAttemptAt) return torCache.set;
 
   torCache.loading = (async () => {
     try {
@@ -540,10 +553,11 @@ async function torExitSet() {
         text.split(/\s+/).map(normalizeIp).filter(ip => net.isIP(ip))
       );
       if (!set.size) throw new Error('empty Tor exit list');
-      torCache = { set, fetchedAt: Date.now(), loading: null };
+      torCache = { set, fetchedAt: Date.now(), loading: null, nextAttemptAt: 0 };
       return set;
     } catch (e) {
       torCache.loading = null;
+      torCache.nextAttemptAt = Date.now() + TOR_RETRY_MS;
       return torCache.set;
     }
   })();
@@ -890,8 +904,13 @@ const HOSTNAME_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9
 function isValidHost(host) {
   return typeof host === 'string' && host.length <= 253 && HOSTNAME_RE.test(host);
 }
-function sanitizeType(t) {
-  return /^[A-Z]{1,6}$/.test(t || '') ? t.toUpperCase() : 'A';
+const DNS_TYPES = new Set(['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'SOA', 'CAA', 'PTR']);
+const PROPAGATION_TYPES = new Set(['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'SOA', 'CAA']);
+// Returns the upper-cased record type when it is supported, or null so the
+// caller can answer 400 instead of silently falling back to A.
+function parseType(t, allowed = DNS_TYPES) {
+  const type = String(t || 'A').trim().toUpperCase();
+  return allowed.has(type) ? type : null;
 }
 
 // ---------- /api/ip ----------
@@ -934,8 +953,7 @@ async function dnsLookup(host, type) {
       const records = await dns.resolveCaa(host);
       return records.map(r => ({ flag: r.flag, tag: r.tag, value: r.value }));
     }
-    // default: A
-    return await dns.resolve(host, 'A');
+    throw new Error('Unsupported record type: ' + type);
   } catch (e) {
     throw new Error(e.code === 'ENODATA' ? 'No records found for ' + type : e.code + ': ' + e.message);
   }
@@ -991,15 +1009,48 @@ const WHOIS_SERVERS = {
   cloud: 'whois.nic.cloud', club: 'whois.nic.club', online: 'whois.nic.online',
 };
 
+// Finds the next whois server to query. Registry responses point at the
+// registrar (thin registries such as .com) and IANA points at the registry,
+// so this is followed until the most detailed record is reached.
+function whoisReferral(text) {
+  const patterns = [
+    /^Registrar WHOIS Server:\s*(\S+)/im,
+    /^ReferralServer:\s*whois:\/\/([^\s/]+)/im,
+    /^whois:\s*(\S+)/im,
+    /^refer:\s*(\S+)/im
+  ];
+  for (const re of patterns) {
+    const m = text.match(re);
+    if (m) return m[1].replace(/^whois:\/\//i, '').replace(/[/:].*$/, '').trim();
+  }
+  return null;
+}
+
 async function whoisLookup(host) {
   const tld = host.split('.').pop().toLowerCase();
-  const server = WHOIS_SERVERS[tld] || 'whois.iana.org';
+  let server = WHOIS_SERVERS[tld] || 'whois.iana.org';
+  let text;
   try {
-    return await queryWhois(host, server, 43);
+    text = await queryWhois(host, server, 43);
   } catch (e) {
-    // fallback to iana
-    return await queryWhois(host, 'whois.iana.org', 43);
+    return queryWhois(host, 'whois.iana.org', 43);
   }
+
+  const seen = new Set([server]);
+  for (let hop = 0; hop < 3; hop++) {
+    const next = whoisReferral(text);
+    if (!next || seen.has(next) || !/^[a-z0-9.-]{3,253}$/i.test(next)) break;
+    seen.add(next);
+    try {
+      const more = await queryWhois(host, next, 43);
+      if (!more) break;
+      text += '\n\n--- ' + next + ' ---\n\n' + more;
+      server = next;
+    } catch (e) {
+      break;
+    }
+  }
+  return text;
 }
 
 // ---------- /api/site ----------
@@ -1008,6 +1059,18 @@ function fetchOnce(ip, host, path, secure, timeout) {
   return new Promise((resolve) => {
     const lib = secure ? https : http;
     const start = Date.now();
+    const limit = timeout || OUTBOUND_TIMEOUT;
+    let settled = false;
+    let req;
+    let timer;
+
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(result);
+    };
+
     const options = {
       hostname: ip,
       path: path || '/',
@@ -1017,28 +1080,34 @@ function fetchOnce(ip, host, path, secure, timeout) {
         'User-Agent': 'OrbitNet/1.0 (+https://orbitnet.ru)',
         'Accept': 'text/html,application/xhtml+xml'
       },
-      timeout: timeout || OUTBOUND_TIMEOUT
+      timeout: limit
     };
     if (secure) {
       options.servername = host;
       options.checkServerIdentity = (servername, cert) => tls.checkServerIdentity(host, cert);
     }
-    const req = lib.request(options, (res) => {
+
+    // Hard deadline: the socket timeout above only fires on inactivity, so a
+    // server that dribbles one byte every few seconds would otherwise hold a
+    // limiter slot forever.
+    timer = setTimeout(() => {
+      if (req) req.destroy();
+      finish({ error: 'timeout', ms: Date.now() - start });
+    }, limit);
+
+    req = lib.request(options, (res) => {
       const status = res.statusCode;
       const headers = res.headers;
       if ([301, 302, 303, 307, 308].includes(status) && headers.location) {
         res.resume();
-        return resolve({ status, redirect: safeRedirect(headers.location), ms: Date.now() - start, headers });
+        return finish({ status, redirect: safeRedirect(headers.location), ms: Date.now() - start, headers });
       }
       let body = '';
       res.setEncoding('utf8');
-      res.on('data', (chunk) => {
-        if (body.length < 200000) body += chunk;
-      });
-      res.on('end', () => {
+      const buildResult = () => {
         const titleMatch = body.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
         const title = titleMatch ? titleMatch[1].replace(/\s+/g, ' ').trim() : '';
-        resolve({
+        return {
           status,
           ms: Date.now() - start,
           server: headers['server'] || '',
@@ -1046,11 +1115,22 @@ function fetchOnce(ip, host, path, secure, timeout) {
           title,
           headers,
           finalUrl: (secure ? 'https://' : 'http://') + host + path
-        });
+        };
+      };
+      res.on('data', (chunk) => {
+        if (body.length + chunk.length > MAX_BODY_BYTES) {
+          body += chunk.slice(0, Math.max(0, MAX_BODY_BYTES - body.length));
+          finish(buildResult());
+          req.destroy();
+          return;
+        }
+        body += chunk;
       });
+      res.on('end', () => finish(buildResult()));
+      res.on('error', (e) => finish({ error: e.message, ms: Date.now() - start }));
     });
-    req.on('timeout', () => { req.destroy(); resolve({ error: 'timeout', ms: Date.now() - start }); });
-    req.on('error', (e) => resolve({ error: e.message, ms: Date.now() - start }));
+    req.on('timeout', () => { req.destroy(); finish({ error: 'timeout', ms: Date.now() - start }); });
+    req.on('error', (e) => finish({ error: e.message, ms: Date.now() - start }));
     req.end();
   });
 }
@@ -1254,9 +1334,9 @@ async function propagation(host, type) {
 // ---------- /api/redirect ----------
 const MAX_REDIRECTS = 10;
 
-async function redirectChain(startHost) {
+async function followChain(startUrl) {
   const chain = [];
-  let url = new URL('https://' + startHost + '/');
+  let url = new URL(startUrl);
   let finalUrl = url.href;
   for (let i = 0; i < MAX_REDIRECTS; i++) {
     if (url.protocol !== 'http:' && url.protocol !== 'https:') break;
@@ -1285,7 +1365,20 @@ async function redirectChain(startHost) {
     } catch (e) { break; }
     finalUrl = url.href;
   }
-  return { host: startHost, chain, finalUrl, hops: chain.length };
+  return { chain, finalUrl };
+}
+
+async function redirectChain(startHost) {
+  const https = await followChain('https://' + startHost + '/');
+  // If the first hop could not even be reached over TLS (no HTTPS listener,
+  // invalid handshake, connection reset), retry the whole chain over HTTP.
+  if (https.chain[0] && https.chain[0].error && !https.chain[0].status && !https.chain[0].blocked) {
+    const http = await followChain('http://' + startHost + '/');
+    if (!(http.chain[0] && http.chain[0].error && !http.chain[0].status)) {
+      return { host: startHost, chain: http.chain, finalUrl: http.finalUrl, hops: http.chain.length };
+    }
+  }
+  return { host: startHost, chain: https.chain, finalUrl: https.finalUrl, hops: https.chain.length };
 }
 
 // ---------- router ----------
@@ -1294,6 +1387,11 @@ const server = http.createServer(async (req, res) => {
   const path = parsed.pathname;
   const query = parsed.searchParams;
 
+  // Deliberate: OrbitNet is a public, credential-less API. There are no cookies,
+  // sessions or per-user secrets, and rate limiting is per client IP, so a
+  // permissive CORS policy only enables third-party frontends to call the same
+  // public data. It does expose the client's own IP/geo to any site that calls
+  // /api/ip from the visitor's browser, which is why rate limits stay strict.
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -1336,18 +1434,23 @@ const server = http.createServer(async (req, res) => {
 
     if (path === '/api/dns') {
       const host = query.get('host') || '';
-      const type = sanitizeType(query.get('type'));
+      const type = parseType(query.get('type'));
+      if (!type) return bad(res, 'Unsupported record type');
       const literal = normalizeIp(host);
       // allow IP lookups too (IPv4 and IPv6)
-      if (net.isIPv4(literal) && type === 'A') {
-        return send(res, 200, { host, type: 'A', records: [literal] });
+      if (net.isIP(literal)) {
+        if (type === 'PTR') {
+          let records = [];
+          let err = null;
+          try { records = await withTimeout(dns.reverse(literal), DNS_TIMEOUT, 'timeout'); } catch (e) { err = e.code || 'error'; }
+          return send(res, 200, { host, type: 'PTR', records, error: err });
+        }
+        if (net.isIPv4(literal) && type === 'A') {
+          return send(res, 200, { host, type: 'A', records: [literal] });
+        }
+        return bad(res, 'For an IP address use type=PTR (or type=A for IPv4)');
       }
-      if (net.isIP(literal) && type === 'PTR') {
-        let records = [];
-        let err = null;
-        try { records = await withTimeout(dns.reverse(literal), DNS_TIMEOUT, 'timeout'); } catch (e) { err = e.code || 'error'; }
-        return send(res, 200, { host, type: 'PTR', records, error: err });
-      }
+      if (type === 'PTR') return bad(res, 'PTR lookup requires an IP address');
       if (!isValidHost(host)) return bad(res, 'Invalid hostname');
       const records = await outbound(() => dnsLookup(host, type));
       return send(res, 200, { host, type, records });
@@ -1427,7 +1530,9 @@ const server = http.createServer(async (req, res) => {
       if (!isValidHost(host)) return bad(res, 'Invalid hostname');
       if (!/^\d{1,5}$/.test(portStr)) return bad(res, 'Port must be 1-65535');
       const port = parseInt(portStr, 10);
-      if (port < 1 || port > 65535) return bad(res, 'Port must be 1-65535');
+      if (!TLS_PORTS.has(port)) {
+        return bad(res, 'TLS checks are limited to ports ' + [...TLS_PORTS].join(', '));
+      }
       return send(res, 200, await tlsInfo(host, port));
     }
 
@@ -1443,7 +1548,8 @@ const server = http.createServer(async (req, res) => {
 
     if (path === '/api/propagation') {
       const host = query.get('host') || '';
-      const type = sanitizeType(query.get('type'));
+      const type = parseType(query.get('type'), PROPAGATION_TYPES);
+      if (!type) return bad(res, 'Unsupported record type');
       if (!isValidHost(host)) return bad(res, 'Invalid hostname');
       return send(res, 200, { host, type, resolvers: await propagation(host, type) });
     }

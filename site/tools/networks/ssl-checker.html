@@ -32,7 +32,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=3">
 <link rel="manifest" href="/site.webmanifest">
 <style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>
-<link rel="stylesheet" href="../../assets/css/style.css">
+<link rel="stylesheet" href="../../assets/css/style.css?v=5">
 </head>
 <body>
 <header class="wrap topbar">
@@ -67,7 +67,7 @@
     <div class="input-group">
       <label for="port">Port</label>
       <input type="text" id="port" inputmode="numeric" placeholder="e.g. 443">
-      <small>Default 443. Use another port for services on e.g. 8443.</small>
+      <small>Default 443. Allowed ports: 443, 465, 993, 995, 8443.</small>
     </div>
     <button class="btn" onclick="check()">Check certificate</button>
   </div>
@@ -136,7 +136,10 @@ function check() {
   const host = document.getElementById('host').value.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
   const port = document.getElementById('port').value.trim() || '443';
   if (!host) { showError('Please enter a host'); return; }
-  if (!/^\d{1,5}$/.test(port)) { showError('Port must be a number 1-65535'); return; }
+  if (!/^\d{1,5}$/.test(port) || ![443, 465, 993, 995, 8443].includes(Number(port))) {
+    showError('Port must be one of 443, 465, 993, 995, 8443');
+    return;
+  }
 
   const res = document.getElementById('results');
   res.innerHTML = '<div class="loading">Connecting to ' + esc(host) + ':' + esc(port) + '...</div>';

@@ -32,7 +32,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=3">
 <link rel="manifest" href="/site.webmanifest">
 <style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>
-<link rel="stylesheet" href="../../assets/css/style.css">
+<link rel="stylesheet" href="../../assets/css/style.css?v=5">
 </head>
 <body>
 <header class="wrap topbar">
@@ -59,10 +59,10 @@
 
   <div class="tool-panel">
     <h2>Your IP</h2>
-    <div id="loading" class="loading">Loading your IP information...</div>
+    <div id="loading" class="loading">Click “Load my IP” to query the server.</div>
     <div id="results" style="display:none;"></div>
     <div id="error" style="display:none;"></div>
-    <button class="btn" onclick="loadIPInfo()" style="margin-top: 10px;">Refresh</button>
+    <button class="btn" onclick="loadIPInfo()" style="margin-top: 10px;">Load my IP</button>
   </div>
 
   <div class="info-section">
@@ -137,7 +137,9 @@ function geoHtml(geo) {
 }
 
 function loadIPInfo() {
-  document.getElementById('loading').style.display = 'block';
+  const loading = document.getElementById('loading');
+  loading.textContent = 'Loading your IP information...';
+  loading.style.display = 'block';
   document.getElementById('results').style.display = 'none';
   document.getElementById('error').style.display = 'none';
 
@@ -166,8 +168,6 @@ function loadIPInfo() {
       document.getElementById('loading').style.display = 'none';
     });
 }
-
-loadIPInfo();
 </script>
 </body>
 </html>

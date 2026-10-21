@@ -228,7 +228,26 @@ section#tools { margin-top: 34px; }
   color: var(--ink);
   font-size: 1rem;
 }
-.input-group input:focus, .input-group select:focus, .input-group textarea:focus { outline: none; border-color: var(--accent); }
+.input-group input:focus, .input-group select:focus, .input-group textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(110, 207, 160, .35);
+}
+
+/* Keyboard focus must not rely on colour alone. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+.btn:focus-visible,
+.mode-btn:focus-visible,
+.cat-btn:focus-visible,
+.filter-btn:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 .input-group small { display: block; margin-top: 5px; color: var(--muted); font-size: .8rem; }
 
 .btn {
@@ -353,4 +372,15 @@ section#tools { margin-top: 34px; }
   .below { grid-template-columns: 1fr; }
   .footer { display: block; }
   .footer-links { margin-top: 10px; flex-wrap: wrap; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .tool-card:hover,
+  .tool-card:focus-visible { transform: none; }
 }
