@@ -20,6 +20,11 @@ services:
     environment:
       - PORT=3000
       - GEOIP_DIR=/data/geoip
+      # Optional external reachability checker (Cloudflare Worker).
+      # Values live in the gitignored server-side .env, never in this file.
+      - CHECKER_URL=${CHECKER_URL:-}
+      - CHECKER_SECRET=${CHECKER_SECRET:-}
+      - CHECKER_TIMEOUT=${CHECKER_TIMEOUT:-10000}
     volumes:
       - ./data/geoip:/data/geoip:ro
     expose:

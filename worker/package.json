@@ -1,0 +1,11 @@
+{
+  "name": "orbitnet-checker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Worker that checks site reachability for the OrbitNet backend",
+  "scripts": {
+    "dev": "npx wrangler dev",
+    "deploy": "npx wrangler deploy"
+  }
+}

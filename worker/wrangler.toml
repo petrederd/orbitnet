@@ -1,0 +1,11 @@
+name = "orbitnet-site-checker"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+# The shared secret is NOT stored here. Set it with:
+#   npx wrangler secret put CHECKER_SECRET
+#
+# Optional: serve the worker on your own hostname instead of workers.dev.
+# routes = [
+#   { pattern = "checker.example.com", custom_domain = true }
+# ]

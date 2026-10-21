@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 const maxmind = require('maxmind');
+const externalCheck = require('./external-check');
 
 const PORT = process.env.PORT || 3000;
 const OUTBOUND_TIMEOUT = 8000;
@@ -311,7 +312,9 @@ function withTimeout(promise, ms, message) {
 async function resolvePublic(host) {
   const literal = normalizeIp(host);
   if (net.isIP(literal)) {
-    if (!isPublicIp(literal)) throw httpError(400, 'Only public IP addresses are allowed');
+    if (!isPublicIp(literal)) {
+      throw Object.assign(httpError(400, 'Only public IP addresses are allowed'), { blocked: true });
+    }
     return [literal];
   }
   let addrs = null;
@@ -322,11 +325,20 @@ async function resolvePublic(host) {
       if (e.status) throw e;
     }
   }
-  if (!addrs) throw httpError(400, 'Cannot resolve ' + host);
+  if (!addrs) {
+    throw Object.assign(httpError(400, 'Cannot resolve ' + host), { unresolved: true });
+  }
   const ips = addrs.map(a => normalizeIp(a.address)).filter(ip => net.isIP(ip));
-  if (!ips.length) throw httpError(400, 'Cannot resolve ' + host);
+  if (!ips.length) {
+    throw Object.assign(httpError(400, 'Cannot resolve ' + host), { unresolved: true });
+  }
   for (const ip of ips) {
-    if (!isPublicIp(ip)) throw httpError(400, 'Blocked: ' + host + ' resolves to a non-public address');
+    if (!isPublicIp(ip)) {
+      throw Object.assign(
+        httpError(400, 'Blocked: ' + host + ' resolves to a non-public address'),
+        { blocked: true }
+      );
+    }
   }
   return ips;
 }
@@ -1151,7 +1163,7 @@ function safeRedirect(location) {
   return '';
 }
 
-async function siteInfo(host) {
+async function siteInfoLocal(host) {
   const ips = await resolvePublic(host);
   const ip = pickAddress(ips);
   // Try HTTPS first (with certificate verification), fall back to HTTP.
@@ -1170,12 +1182,68 @@ async function siteInfo(host) {
     server: result.server || '',
     title: result.title || '',
     redirect: result.redirect || '',
+    finalUrl: result.finalUrl || '',
     error: result.error || null
   };
 }
 
+function localErrorResult(host, error, extra) {
+  return Object.assign({
+    host,
+    ip: null,
+    protocol: 'https',
+    status: null,
+    responseMs: null,
+    server: '',
+    title: '',
+    redirect: '',
+    finalUrl: '',
+    error: error && error.message ? error.message : 'local check failed',
+    blocked: Boolean(error && error.blocked),
+    source: 'local'
+  }, extra || {});
+}
+
+// Local first. The external worker is contacted only when the local check did
+// not get any HTTP status (DNS/TCP/TLS/timeout), never for 4xx/5xx/redirects,
+// and never for targets rejected by the local SSRF guard.
+async function siteInfo(host) {
+  let local;
+  try {
+    local = await siteInfoLocal(host);
+  } catch (e) {
+    local = localErrorResult(host, e);
+  }
+
+  if (!externalCheck.shouldUseExternal(local) || net.isIP(normalizeIp(host))) {
+    delete local.blocked;
+    return Object.assign(local, { source: 'local' });
+  }
+
+  const external = await externalCheck.checkHost(host);
+  if (!external.error) {
+    return {
+      host,
+      ip: null,
+      protocol: external.protocol,
+      status: external.status,
+      responseMs: external.responseMs,
+      server: external.server,
+      title: external.title,
+      redirect: external.redirect,
+      finalUrl: external.finalUrl,
+      error: null,
+      source: 'worker',
+      localError: local.error || null
+    };
+  }
+
+  delete local.blocked;
+  return Object.assign(local, { source: 'local', workerError: external.error });
+}
+
 // ---------- /api/headers ----------
-async function headersInfo(host) {
+async function headersInfoLocal(host) {
   const ips = await resolvePublic(host);
   const ip = pickAddress(ips);
   let result = await outbound(() => fetchOnce(ip, host, '/', true));
@@ -1198,8 +1266,43 @@ async function headersInfo(host) {
     responseMs: result.ms,
     headers,
     redirect: result.redirect || '',
+    finalUrl: result.finalUrl || '',
     error: result.error || null
   };
+}
+
+async function headersInfo(host) {
+  let local;
+  try {
+    local = await headersInfoLocal(host);
+  } catch (e) {
+    local = localErrorResult(host, e, { headers: [] });
+  }
+
+  if (!externalCheck.shouldUseExternal(local) || net.isIP(normalizeIp(host))) {
+    delete local.blocked;
+    return Object.assign(local, { source: 'local' });
+  }
+
+  const external = await externalCheck.checkHost(host);
+  if (!external.error) {
+    return {
+      host,
+      ip: null,
+      protocol: external.protocol,
+      status: external.status,
+      responseMs: external.responseMs,
+      headers: external.headers,
+      redirect: external.redirect,
+      finalUrl: external.finalUrl,
+      error: null,
+      source: 'worker',
+      localError: local.error || null
+    };
+  }
+
+  delete local.blocked;
+  return Object.assign(local, { source: 'local', workerError: external.error });
 }
 
 // ---------- /api/tls ----------
@@ -1357,7 +1460,13 @@ async function followChain(startUrl) {
       const ip = pickAddress(ips);
       result = await outbound(() => fetchOnce(ip, host, path, secure));
     } catch (e) {
-      chain.push({ url: url.href, status: null, location: '', blocked: true, error: e.message });
+      chain.push({
+        url: url.href,
+        status: null,
+        location: '',
+        blocked: Boolean(e.blocked),
+        error: e.message
+      });
       break;
     }
     chain.push({
@@ -1376,7 +1485,7 @@ async function followChain(startUrl) {
   return { chain, finalUrl };
 }
 
-async function redirectChain(startHost) {
+async function redirectChainLocal(startHost) {
   const httpsResult = await followChain('https://' + startHost + '/');
   // If the first hop could not even be reached over TLS (no HTTPS listener,
   // invalid handshake, connection reset), retry the whole chain over HTTP.
@@ -1389,6 +1498,13 @@ async function redirectChain(startHost) {
     }
   }
   return { host: startHost, chain: httpsResult.chain, finalUrl: httpsResult.finalUrl, hops: httpsResult.chain.length };
+}
+
+async function redirectChain(startHost) {
+  // The external checker fetches only https://host/ with redirect:"manual",
+  // so it cannot trace a multi-hop chain. Redirects stay local.
+  const result = await redirectChainLocal(startHost);
+  return Object.assign(result, { source: 'local' });
 }
 
 // ---------- router ----------
@@ -1605,7 +1721,7 @@ if (require.main === module) {
 }
 
 module.exports = {
-  normalizeIp, isPublicIp, clientIp, server, tlsInfo, headersInfo, emailInfo,
+  normalizeIp, isPublicIp, clientIp, server, siteInfo, tlsInfo, headersInfo, emailInfo,
   propagation, redirectChain, anonymityInfo, anonymityPorts, torStatus,
   hostingSignals, hostnameSignals, proxyHeaderSignals
 };

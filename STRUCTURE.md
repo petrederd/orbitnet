@@ -16,7 +16,8 @@ nginx  ──► site/ (статические HTML, CSS, JS)
     └── /api/* ──► backend/server.js
                        ├── dns / net / tls / http / https
                        ├── whois
-                       └── MaxMind GeoLite2 (data/geoip/)
+                       ├── MaxMind GeoLite2 (data/geoip/)
+                       └── external-check.js ──► Cloudflare Worker (fallback)
 ```
 
 Проект намеренно разделён на статический фронтенд и небольшой API. Клиентские инструменты работают без бэкенда; сетевые функции обращаются к `/api/`.
@@ -39,6 +40,7 @@ orbitnet/
 │   ├── prime.test.js              # 0, 1, 2, 97, 561, большие числа
 │   ├── uuid.test.js               # crypto fallback для UUID
 │   ├── anonymity.test.js          # timezone, private IP, score, WebRTC
+│   ├── external-check.test.js     # Worker-клиент, 200/404/недоступен/таймаут
 │   ├── seo.test.js                # canonical, OG, sitemap, og-image.png
 │   └── live-check.js              # проверка опубликованного сайта
 │
@@ -115,9 +117,16 @@ orbitnet/
 │
 ├── backend/
 │   ├── server.js                  # HTTP API, 15 маршрутов
+│   ├── external-check.js          # клиент Worker, нормализация ответов
 │   ├── package.json               # Единственная зависимость: maxmind
 │   ├── package-lock.json
 │   └── Dockerfile                 # node:22-alpine, non-root, healthcheck
+│
+├── worker/
+│   ├── src/index.js               # Cloudflare Worker: auth + SSRF-защита
+│   ├── package.json
+│   ├── wrangler.toml
+│   └── README.md                  # деплой и настройка секрета
 │
 ├── data/
 │   └── geoip/                     # GeoLite2, не коммитится
@@ -131,7 +140,7 @@ orbitnet/
 ├── scripts/
 │   └── update-cloudflare-ips.sh   # Обновление cloudflare-ips.conf
 ├── docker-compose.yml             # site + api + geoip-updater (profile)
-├── .env.example                   # Шаблон ключей MaxMind
+├── .env.example                   # Шаблон ключей MaxMind и Worker
 ├── .gitignore
 ├── LICENSE
 ├── package.json                   # npm test, test:live, hooks:install
@@ -248,7 +257,7 @@ npm run hooks:install
 
 ## Backend
 
-`backend/server.js` — CommonJS-приложение на встроенных модулях Node.js. Внешняя зависимость только `maxmind`.
+`backend/server.js` — CommonJS-приложение на встроенных модулях Node.js. Внешняя зависимость только `maxmind`. `backend/external-check.js` — клиент Cloudflare Worker: используется как fallback, когда локальная проверка не получила HTTP-ответ.
 
 ### Маршруты
 
@@ -260,12 +269,12 @@ npm run hooks:install
 | `GET /api/dns` | dns | DNS-записи |
 | `GET /api/port` | net | TCP-проверка |
 | `GET /api/whois` | net | whois-запрос |
-| `GET /api/site` | http/https | Статус, сервер, title, время ответа |
-| `GET /api/headers` | http/https | Заголовки ответа |
+| `GET /api/site` | http/https, external-check | Статус, сервер, title, время ответа; fallback в Worker |
+| `GET /api/headers` | http/https, external-check | Заголовки ответа; fallback в Worker |
 | `GET /api/tls` | tls | Сертификат и цепочка |
 | `GET /api/email` | dns | MX, SPF, DMARC, DKIM, PTR |
 | `GET /api/propagation` | dns | Несколько публичных резолверов |
-| `GET /api/redirect` | http/https | Цепочка редиректов |
+| `GET /api/redirect` | http/https | Цепочка редиректов (локально) |
 
 ### Защита
 
@@ -275,6 +284,8 @@ npm run hooks:install
 - Отдельная проверка каждого шага редиректа.
 - Таймауты и ограниченная очередь исходящих запросов.
 - Rate limiting с ответом HTTP 429.
+- Worker-fallback только при отсутствии HTTP-статуса; заблокированные локально адреса и IP в Worker не отправляются.
+- `CHECKER_URL`/`CHECKER_SECRET` приходят из окружения Docker, секрет не попадает в клиентский код.
 
 IP клиента берётся из `X-Real-IP`, который выставляет nginx. nginx доверяет `CF-Connecting-IP` только от Cloudflare и локальных прокси.
 
@@ -290,7 +301,7 @@ IP клиента берётся из `X-Real-IP`, который выставл
 `docker-compose.yml`:
 
 - `orbitnet-site` — nginx, статика из `./site`, порт `127.0.0.1:8081`.
-- `orbitnet-api` — Node.js, внутренний порт `3000`.
+- `orbitnet-api` — Node.js, внутренний порт `3000`; получает `CHECKER_URL`, `CHECKER_SECRET` и `CHECKER_TIMEOUT` из серверного `.env`.
 - `geoip-updater` — профиль `geoip`, обновляет базы раз в 24 часа.
 
 `nginx.conf`:

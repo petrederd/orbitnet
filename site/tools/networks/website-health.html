@@ -138,9 +138,11 @@ function run() {
 function render(host, r) {
   let checks = '';
   let issues = 0;
+  const external = r.site.source === 'worker' || r.hdr.source === 'worker';
 
   const aOk = r.a.records && r.a.records.length;
   if (aOk) checks += checkRow('ok', 'DNS A record resolves', r.a.records.join(', '));
+  else if (external) checks += checkRow('warn', 'DNS not checked locally', r.a.error || 'The local resolver did not answer.');
   else { checks += checkRow('err', 'No A record', r.a.error || 'The host may not resolve.'); issues++; }
 
   const nsOk = r.ns.records && r.ns.records.length;
@@ -156,7 +158,10 @@ function render(host, r) {
   else { checks += checkRow('err', 'Site not reachable', r.site.error || ('HTTP ' + (r.site.status || '—'))); issues++; }
 
   const tls = r.tlsR || {};
-  if (tls.error) { checks += checkRow('err', 'TLS check failed', tls.error); issues++; }
+  if (tls.error) {
+    if (external) checks += checkRow('warn', 'TLS not verified locally', tls.error + ' — the external checker only confirms reachability.');
+    else { checks += checkRow('err', 'TLS check failed', tls.error); issues++; }
+  }
   else {
     const expired = tls.daysRemaining != null && tls.daysRemaining < 0;
     const soon = tls.daysRemaining != null && tls.daysRemaining >= 0 && tls.daysRemaining < 30;
@@ -178,6 +183,11 @@ function render(host, r) {
   }
   checks += checkRow(map['content-security-policy'] ? 'ok' : 'warn', 'Content-Security-Policy',
     map['content-security-policy'] ? 'Present' : 'No CSP header.');
+
+  if (external) {
+    checks += checkRow('warn', 'Checked via external checker',
+      'The server could not reach the host directly, so a Cloudflare Worker was used.');
+  }
 
   const banner = issues === 0
     ? '<div class="status-box success">No blocking issues found for ' + esc(host) + '.</div>'

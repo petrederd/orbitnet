@@ -139,7 +139,10 @@ function render(d) {
   const map = {};
   (d.headers || []).forEach(h => { map[h.name.toLowerCase()] = h.value; });
 
-  let html = '<div class="grid-2">' +
+  let html = (d.source === 'worker'
+    ? '<div class="status-box info">The server could not reach this host directly. The external checker reports only whether security headers are present, not their values.</div>'
+    : '') +
+    '<div class="grid-2">' +
     '<div class="result-box"><div class="result-label">Status</div><div class="result-value" style="font-size:1.4rem;color:' + (d.status && d.status < 400 ? 'var(--accent)' : 'var(--danger)') + '">' + esc(d.status == null ? '—' : d.status) + '</div></div>' +
     '<div class="result-box"><div class="result-label">Protocol</div><div class="result-value" style="font-size:1.4rem;">' + esc(d.protocol || '—') + '</div></div>' +
     '<div class="result-box"><div class="result-label">Resolved IP</div><div class="result-value">' + esc(d.ip || '—') + '</div></div>' +
@@ -151,7 +154,7 @@ function render(d) {
   }
 
   if (d.headers && d.headers.length) {
-    let rows = '<div class="result-box"><div class="result-label">All headers (' + d.headers.length + ')</div>' +
+    let rows = '<div class="result-box"><div class="result-label">' + (d.source === 'worker' ? 'Detected headers' : 'All headers') + ' (' + d.headers.length + ')</div>' +
       '<div style="margin-top:8px;font-family:monospace;font-size:.82rem;line-height:1.7;word-break:break-word;">';
     d.headers.forEach(h => {
       rows += '<div><span style="color:var(--accent)">' + esc(h.name) + '</span>: ' + esc(h.value) + '</div>';
@@ -171,7 +174,8 @@ function render(d) {
       return;
     }
     const val = map[a.name];
-    if (val && (!a.expect || val.toLowerCase().includes(a.expect))) {
+    const presenceOnly = d.source === 'worker' && val === 'present';
+    if (val && (presenceOnly || !a.expect || val.toLowerCase().includes(a.expect))) {
       audit += '<div class="status-box success">' + esc(a.label) + ' present</div>';
     } else {
       audit += '<div class="status-box error">' + esc(a.label) + ' missing — ' + esc(a.hint) + '</div>';

@@ -102,8 +102,13 @@ orbitnet/
 │       └── electricity/           # 2 инструмента
 ├── backend/
 │   ├── server.js                  # API на Node.js
+│   ├── external-check.js          # fallback-клиент Cloudflare Worker
 │   ├── package.json
 │   └── Dockerfile
+├── worker/                        # Cloudflare Worker для внешней проверки
+│   ├── src/index.js
+│   ├── wrangler.toml
+│   └── README.md
 ├── data/geoip/                    # GeoLite2 (не коммитится)
 ├── nginx.conf                     # Статика + прокси /api/
 ├── docker-compose.yml
@@ -159,6 +164,31 @@ cp .env.example .env
 docker compose --profile geoip up -d
 ```
 
+### Внешняя проверка доступности (Cloudflare Worker)
+
+Если сайт недоступен с сервера, но открывается извне (например, из-за
+блокировок в России), включите fallback через Cloudflare Worker. Локальная
+проверка всегда выполняется первой; Worker вызывается только когда локально
+не удалось получить HTTP-ответ (DNS/TCP/TLS/таймаут).
+
+1. Задеплойте Worker из `worker/` и задайте секрет — подробно в
+   [worker/README.md](worker/README.md).
+2. В серверном `.env` (gitignored) укажите:
+
+```dotenv
+CHECKER_URL=https://orbitnet-checker.<account>.workers.dev/
+CHECKER_SECRET=<секрет из wrangler secret put>
+```
+
+3. Перезапустите API:
+
+```bash
+docker compose up -d --build --force-recreate orbitnet-api
+```
+
+Секрет хранится только в серверном `.env` и в Cloudflare Worker Secret; в
+репозиторий, GitHub Actions и клиентский JavaScript он не попадает.
+
 ## API
 
 | Endpoint | Назначение |
@@ -170,12 +200,12 @@ docker compose --profile geoip up -d
 | `GET /api/captcha` | Одноразовая числовая капча (нужна для каждой третьей проверки порта) |
 | `POST /api/port` | Проверка TCP-порта; `host`, `port`, `captcha`, `answer` передаются в JSON-теле (не более 3 проверок в минуту с одного IP) |
 | `GET /api/whois?host=` | whois для домена или IP |
-| `GET /api/site?host=` | HTTP-статус, сервер, заголовок, время ответа |
-| `GET /api/headers?host=` | Заголовки HTTP-ответа |
+| `GET /api/site?host=` | HTTP-статус, сервер, заголовок, время ответа; при сетевой ошибке — fallback в Worker (`source`) |
+| `GET /api/headers?host=` | Заголовки HTTP-ответа; при сетевой ошибке — fallback в Worker (`source`) |
 | `GET /api/tls?host=&port=` | Данные TLS-сертификата; порт ограничен списком 443, 465, 993, 995, 8443 |
 | `GET /api/email?host=&selector=` | MX, SPF, DMARC, DKIM, PTR |
 | `GET /api/propagation?host=&type=` | Ответы нескольких DNS-резолверов |
-| `GET /api/redirect?host=` | Цепочка перенаправлений |
+| `GET /api/redirect?host=` | Цепочка перенаправлений (локально; Worker не проходит по редиректам) |
 | `GET /api/anonymity` | Пассивные сигналы анонимности для IP клиента |
 | `GET /api/anonymity/ports?ip=` | TCP-порты прокси/VPN только для собственного публичного IP |
 | `GET /api/anonymity/ping?nonce=` | Двусторонний ping для оценки задержки и jitter |
