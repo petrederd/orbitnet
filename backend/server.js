@@ -39,6 +39,11 @@ const RATE_MAX_ENTRIES = 10000;
 // rarer than ordinary API requests and cap the whole process as well.
 const EXTERNAL_RATE_MAX = positiveIntEnv('EXTERNAL_RATE_MAX', 10);
 const EXTERNAL_GLOBAL_MAX = positiveIntEnv('EXTERNAL_GLOBAL_MAX', 60);
+// ENOTFOUND is ambiguous and can be triggered by arbitrary typo domains, so it
+// gets a smaller independent budget. This leaves the main fallback budget free
+// for real censorship/transport failures.
+const EXTERNAL_NXDOMAIN_RATE_MAX = positiveIntEnv('EXTERNAL_NXDOMAIN_RATE_MAX', 3);
+const EXTERNAL_NXDOMAIN_GLOBAL_MAX = positiveIntEnv('EXTERNAL_NXDOMAIN_GLOBAL_MAX', 15);
 // Leave room under nginx proxy_read_timeout (25s) for JSON serialisation and
 // network jitter. Local checks and the Worker share this deadline.
 const REQUEST_BUDGET_MS = positiveIntEnv('REQUEST_BUDGET_MS', 22000);
@@ -747,17 +752,41 @@ function isRateLimited(ip, store = rateHits, max = RATE_MAX) {
 // burn the Worker's free-plan quota with nonexistent names.
 const externalHits = new Map();
 let externalGlobal = { start: Date.now(), count: 0 };
+const externalNxHits = new Map();
+let externalNxGlobal = { start: Date.now(), count: 0 };
 let lastExternalPrune = Date.now();
 
-function takeExternalToken(clientIp) {
+function takeExternalToken(clientIp, nxdomain = false) {
   const key = clientIp || 'unknown';
   const now = Date.now();
   if (now - lastExternalPrune > RATE_WINDOW_MS) {
-    for (const [key, rec] of externalHits) {
-      if (now - rec.start > RATE_WINDOW_MS) externalHits.delete(key);
+    for (const [itemKey, rec] of externalHits) {
+      if (now - rec.start > RATE_WINDOW_MS) externalHits.delete(itemKey);
+    }
+    for (const [itemKey, rec] of externalNxHits) {
+      if (now - rec.start > RATE_WINDOW_MS) externalNxHits.delete(itemKey);
     }
     lastExternalPrune = now;
   }
+
+  if (nxdomain) {
+    if (now - externalNxGlobal.start > RATE_WINDOW_MS) {
+      externalNxGlobal = { start: now, count: 0 };
+    }
+    if (externalNxGlobal.count >= EXTERNAL_NXDOMAIN_GLOBAL_MAX) return false;
+
+    let rec = externalNxHits.get(key);
+    if (!rec || now - rec.start > RATE_WINDOW_MS) {
+      if (!rec && externalNxHits.size >= RATE_MAX_ENTRIES) return false;
+      rec = { start: now, count: 0 };
+      externalNxHits.set(key, rec);
+    }
+    if (rec.count >= EXTERNAL_NXDOMAIN_RATE_MAX) return false;
+    rec.count++;
+    externalNxGlobal.count++;
+    return true;
+  }
+
   if (now - externalGlobal.start > RATE_WINDOW_MS) {
     externalGlobal = { start: now, count: 0 };
   }
@@ -787,19 +816,21 @@ function logExternalFailure(message) {
 // The Worker receives only what is left of the request budget, not a fixed
 // 20 seconds. If less than a second is left, skip it: the client would get a
 // proxy timeout before the Worker finished anyway.
-function externalCallOptions(context) {
+function externalCallOptions(context, options) {
+  if (!externalCheck.isConfigured()) return null;
   const opts = {};
   if (context && context.deadline) {
     const remaining = context.deadline - Date.now();
     if (remaining < 1000) return null;
     opts.timeoutMs = remaining;
   }
-  if (context && context.clientIp && !takeExternalToken(context.clientIp)) return null;
+  const nxdomain = Boolean(options && options.nxdomain);
+  if (!takeExternalToken(context && context.clientIp, nxdomain)) return null;
   return opts;
 }
 
-async function callExternal(build, context) {
-  const opts = externalCallOptions(context);
+async function callExternal(build, context, options) {
+  const opts = externalCallOptions(context, options);
   if (!opts) return { error: EXTERNAL_UNAVAILABLE, unavailable: true, limited: true };
   try {
     return await outbound(() => build(opts));
@@ -1721,7 +1752,8 @@ async function emailInfo(host, selector, context) {
   if (!external) {
     external = await callExternal(
       opts => externalCheck.checkEmail(host, selector, opts),
-      context
+      context,
+      { nxdomain: mxNxdomain && !transportError }
     );
     if (!external.error) setExternalCache(cacheKey, external);
   }
@@ -1990,12 +2022,16 @@ const server = http.createServer(async (req, res) => {
         if (!external) {
           external = await callExternal(
             opts => externalCheck.checkDns(host, type, opts),
-            externalContext
+            externalContext,
+            { nxdomain: e.code === 'ENOTFOUND' }
           );
           if (!external.error) setExternalCache(cacheKey, external);
         }
         if (external.error) {
           logExternalFailure(external.error);
+          if (e.code === 'ENOTFOUND') {
+            return send(res, 200, { host, type, records: [], nxdomain: true, source: 'local' });
+          }
           throw e;
         }
         records = external.records;
@@ -2108,13 +2144,15 @@ const server = http.createServer(async (req, res) => {
       const allFailed = resolvers.length && resolvers.every(r => r.error);
       const allFallbackCodes = allFailed &&
         resolvers.every(r => isDnsTransportError(r.error) || r.error === 'ENOTFOUND');
+      const allNxdomain = allFailed && resolvers.every(r => r.error === 'ENOTFOUND');
       if (allFallbackCodes) {
         const cacheKey = externalCacheKey('propagation', host, type);
         let external = getExternalCache(cacheKey);
         if (!external) {
           external = await callExternal(
             opts => externalCheck.checkPropagation(host, type, opts),
-            externalContext
+            externalContext,
+            { nxdomain: allNxdomain }
           );
           if (!external.error) setExternalCache(cacheKey, external);
         }

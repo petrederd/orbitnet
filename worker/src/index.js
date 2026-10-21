@@ -279,12 +279,12 @@ async function readLimitedText(response, maxBytes = MAX_HTML_BYTES, contentType 
       chunks.push(chunk);
       total += chunk.byteLength;
 
-      // A title almost always appears early. Stop reading as soon as the
-      // closing tag is seen, so the 200 KB cap only matters for pages without
-      // a usable title (and stays in line with the backend's limit).
+      // The head (including the real <title>) is always before </head>. Stop
+      // there instead of at the first </title>, because inline SVG may contain
+      // its own <title> before the document title.
       const text = new TextDecoder("latin1").decode(chunk);
       const search = (tail + text).toLowerCase();
-      if (search.includes("</title>")) break;
+      if (search.includes("</head>")) break;
       tail = search.slice(-16);
 
       if (chunk.byteLength < value.byteLength) break;
@@ -333,7 +333,9 @@ function decodeHtml(bytes, contentType) {
 }
 
 function extractTitle(html) {
-  const match = html.match(/<title\b[^>]*>([\s\S]*?)<\/title\s*>/i);
+  const head = html.match(/<head\b[^>]*>([\s\S]*?)<\/head\s*>/i);
+  const scope = (head ? head[1] : html).replace(/<svg\b[\s\S]*?<\/svg\s*>/gi, "");
+  const match = scope.match(/<title\b[^>]*>([\s\S]*?)<\/title\s*>/i);
   if (!match) return null;
 
   return match[1]

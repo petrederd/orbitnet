@@ -446,25 +446,93 @@ test('email does not call the worker for ordinary missing DMARC/DKIM answers', a
   });
   t.after(() => worker.close());
 
+  const dns = require('node:dns').promises;
+  const saved = { resolve: dns.resolve, resolveMx: dns.resolveMx, resolveTxt: dns.resolveTxt };
+  dns.resolve = async (host, type) => {
+    if (host === 'mail.example.com' && type === 'A') return ['192.0.2.10'];
+    const error = new Error('not found');
+    error.code = 'ENODATA';
+    throw error;
+  };
+  dns.resolveMx = async () => [{ priority: 10, exchange: 'mail.example.com' }];
+  dns.resolveTxt = async (name) => {
+    if (String(name).startsWith('_dmarc.') || String(name).includes('._domainkey.')) {
+      const error = new Error('not found');
+      error.code = 'ENODATA';
+      throw error;
+    }
+    return [['v=spf1 -all']];
+  };
+  t.after(() => {
+    dns.resolve = saved.resolve;
+    dns.resolveMx = saved.resolveMx;
+    dns.resolveTxt = saved.resolveTxt;
+  });
+
   process.env.CHECKER_URL = url;
   process.env.CHECKER_SECRET = secret;
   process.env.CHECKER_TIMEOUT = '2000';
 
   const { emailInfo } = require('../backend/server');
-  const result = await emailInfo('no-such-subdomain.orbitnet-test.example.com', 'default');
+  const result = await emailInfo('example.com', 'default');
   assert.equal(result.source, 'local');
   assert.equal(calls, 0);
-  assert.match(result.errors.mx, /ENOTFOUND|ENODATA/);
+  assert.equal(result.errors.dmarc, 'ENODATA');
+  assert.equal(result.mx[0].host, 'mail.example.com');
 });
 
-test('DNS API returns a local empty answer without spending a worker call', async (t) => {
+test('DNS API preserves local NXDOMAIN when the worker is unavailable', async (t) => {
+  const dns = require('node:dns').promises;
+  const savedResolve = dns.resolve;
+  dns.resolve = async () => {
+    const error = new Error('not found');
+    error.code = 'ENOTFOUND';
+    throw error;
+  };
+  t.after(() => { dns.resolve = savedResolve; });
+
+  process.env.CHECKER_URL = '';
+  process.env.CHECKER_SECRET = '';
+  process.env.CHECKER_TIMEOUT = '2000';
+
+  const { server } = require('../backend/server');
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => server.close());
+  const apiUrl = 'http://127.0.0.1:' + server.address().port +
+    '/api/dns?host=' + encodeURIComponent('enotfound-unavailable.orbitnet-test.example.com') + '&type=A';
+  const response = await fetch(apiUrl);
+  const data = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(data.source, 'local');
+  assert.equal(data.nxdomain, true);
+  assert.deepEqual(data.records, []);
+});
+
+test('DNS API falls back on ENOTFOUND and caches the worker answer', async (t) => {
   let calls = 0;
-  const secret = 'dns-nxdomain-secret';
+  const secret = 'dns-enotfound-secret';
   const { server: worker, url } = await startWorker(secret, (payload, res) => {
     calls++;
-    respond(res, { ok: true, type: 'dns', host: payload.host, recordType: payload.recordType, records: [] });
+    respond(res, {
+      ok: true,
+      type: 'dns',
+      host: payload.host,
+      recordType: payload.recordType,
+      records: ['192.0.2.77'],
+      resolver: 'Cloudflare 1.1.1.1',
+      source: 'Cloudflare Worker'
+    });
   });
   t.after(() => worker.close());
+
+  const dns = require('node:dns').promises;
+  const savedResolve = dns.resolve;
+  dns.resolve = async () => {
+    const error = new Error('not found');
+    error.code = 'ENOTFOUND';
+    throw error;
+  };
+  t.after(() => { dns.resolve = savedResolve; });
 
   process.env.CHECKER_URL = url;
   process.env.CHECKER_SECRET = secret;
@@ -474,14 +542,13 @@ test('DNS API returns a local empty answer without spending a worker call', asyn
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => server.close());
   const apiUrl = 'http://127.0.0.1:' + server.address().port +
-    '/api/dns?host=' + encodeURIComponent('no-such-subdomain.orbitnet-test.example.com') + '&type=A';
-  const response = await fetch(apiUrl);
-  const data = await response.json();
-  assert.equal(response.status, 200);
-  assert.equal(data.source, 'local');
-  assert.ok(data.nxdomain === true || data.nodata === true);
-  assert.deepEqual(data.records, []);
-  assert.equal(calls, 0);
+    '/api/dns?host=' + encodeURIComponent('enotfound-cache.orbitnet-test.example.com') + '&type=A';
+  const first = await fetch(apiUrl).then(r => r.json());
+  const second = await fetch(apiUrl).then(r => r.json());
+  assert.equal(first.source, 'worker');
+  assert.deepEqual(first.records, ['192.0.2.77']);
+  assert.deepEqual(second.records, ['192.0.2.77']);
+  assert.equal(calls, 1);
 });
 
 test('backend decodes windows-1251 HTML using the meta charset', () => {
@@ -569,7 +636,7 @@ test('DNS, email and redirect wrappers fall back on transport errors', async (t)
   t.after(() => dnsModule.setServers(savedServers));
 
   const { emailInfo, redirectChain, server } = require('../backend/server');
-  const target = 'no-such-subdomain.orbitnet-test.example.com';
+  const target = 'transport-fallback.orbitnet-test.example.com';
 
   const email = await emailInfo(target, 'default');
   assert.equal(email.source, 'worker');

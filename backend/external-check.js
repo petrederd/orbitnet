@@ -38,6 +38,11 @@ const SECURITY_HEADERS = {
   permissionsPolicy: 'permissions-policy'
 };
 
+function isConfigured() {
+  const config = getConfig();
+  return Boolean(config.url && config.secret && parseWorkerUrl(config.url));
+}
+
 function getConfig() {
   const url = (process.env.CHECKER_URL || '').trim();
   const secret = (process.env.CHECKER_SECRET || '').trim();
@@ -562,6 +567,7 @@ function shouldUseExternal(result) {
 
 module.exports = {
   getConfig,
+  isConfigured,
   isLoopbackHost,
   parseWorkerUrl,
   normalizeHost,

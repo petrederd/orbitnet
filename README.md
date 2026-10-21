@@ -200,6 +200,12 @@ CHECKER_URL=https://orbitnet-site-checker.<account>.workers.dev/
 CHECKER_SECRET=<секрет из wrangler secret put>
 # необязательно, миллисекунды; диапазон 1000–20000, по умолчанию 20000
 CHECKER_TIMEOUT=20000
+# необязательно; лимиты fallback на клиента/процесс в минуту
+# EXTERNAL_RATE_MAX=10
+# EXTERNAL_GLOBAL_MAX=60
+# отдельный меньший бюджет для неоднозначных ENOTFOUND-повторов
+# EXTERNAL_NXDOMAIN_RATE_MAX=3
+# EXTERNAL_NXDOMAIN_GLOBAL_MAX=15
 ```
 
 3. Перезапустите API:

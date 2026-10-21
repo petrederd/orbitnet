@@ -106,6 +106,13 @@ function installFetch(t) {
       });
     }
 
+    if (parsed.hostname === 'svg-title.example.com') {
+      return new Response('<html><head><svg><title>Icon</title></svg><title>Real Page</title></head><body>ok</body></html>', {
+        status: 200,
+        headers: { 'Content-Type': 'text/html; charset=utf-8' }
+      });
+    }
+
     if (parsed.hostname === 'redirect.example.com') {
       if (parsed.pathname === '/') {
         return new Response('', { status: 301, headers: { 'Location': '/final' } });
@@ -242,6 +249,13 @@ test('worker rejects private IPv6 forms instead of treating them as public', asy
     assert.equal(data.ok, false, host);
     assert.match(data.error, /Invalid or non-public host/, host);
   }
+});
+
+test('worker ignores an inline SVG title before the document title', async (t) => {
+  installFetch(t);
+  const { data } = await run({ type: 'http', host: 'svg-title.example.com', follow: false });
+  assert.equal(data.ok, true);
+  assert.equal(data.title, 'Real Page');
 });
 
 test('worker reads a title beyond the old 64 KB HTML limit', async (t) => {
