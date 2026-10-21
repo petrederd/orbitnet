@@ -29,8 +29,10 @@
 }
 
 orbitnet.ru {
-	# Caddy terminates TLS and forwards to the nginx container.
-	reverse_proxy nginx:80
+	# Caddy terminates TLS and forwards to nginx. With the provided
+	# docker-compose.yml, nginx is published on the host at 127.0.0.1:8081
+	# (there is no "nginx" DNS name unless Caddy runs in the compose network).
+	reverse_proxy 127.0.0.1:8081
 
 	# Let Caddy drive the forwarded-for headers itself (do not trust the
 	# client's X-Forwarded-For).

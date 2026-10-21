@@ -1039,10 +1039,15 @@ async function whoisLookup(host) {
   const seen = new Set([server]);
   for (let hop = 0; hop < 3; hop++) {
     const next = whoisReferral(text);
-    if (!next || seen.has(next) || !/^[a-z0-9.-]{3,253}$/i.test(next)) break;
+    if (!next || seen.has(next)) break;
     seen.add(next);
     try {
-      const more = await queryWhois(host, next, 43);
+      // The referral host is taken from the response body, so treat it as
+      // untrusted: resolve it and require every address to be public before
+      // connecting, exactly like the other outbound endpoints (SSRF guard).
+      const ips = await resolvePublic(next);
+      const ip = pickAddress(ips);
+      const more = await queryWhois(host, ip, 43);
       if (!more) break;
       text += '\n\n--- ' + next + ' ---\n\n' + more;
       server = next;
@@ -1100,7 +1105,10 @@ function fetchOnce(ip, host, path, secure, timeout) {
       const headers = res.headers;
       if ([301, 302, 303, 307, 308].includes(status) && headers.location) {
         res.resume();
-        return finish({ status, redirect: safeRedirect(headers.location), ms: Date.now() - start, headers });
+        finish({ status, redirect: safeRedirect(headers.location), ms: Date.now() - start, headers });
+        // Do not wait for the redirect body to drain: close the socket now.
+        req.destroy();
+        return;
       }
       let body = '';
       res.setEncoding('utf8');
@@ -1369,16 +1377,18 @@ async function followChain(startUrl) {
 }
 
 async function redirectChain(startHost) {
-  const https = await followChain('https://' + startHost + '/');
+  const httpsResult = await followChain('https://' + startHost + '/');
   // If the first hop could not even be reached over TLS (no HTTPS listener,
   // invalid handshake, connection reset), retry the whole chain over HTTP.
-  if (https.chain[0] && https.chain[0].error && !https.chain[0].status && !https.chain[0].blocked) {
-    const http = await followChain('http://' + startHost + '/');
-    if (!(http.chain[0] && http.chain[0].error && !http.chain[0].status)) {
-      return { host: startHost, chain: http.chain, finalUrl: http.finalUrl, hops: http.chain.length };
+  const first = httpsResult.chain[0];
+  if (first && first.error && !first.status && !first.blocked) {
+    const httpResult = await followChain('http://' + startHost + '/');
+    const httpFirst = httpResult.chain[0];
+    if (!(httpFirst && httpFirst.error && !httpFirst.status)) {
+      return { host: startHost, chain: httpResult.chain, finalUrl: httpResult.finalUrl, hops: httpResult.chain.length };
     }
   }
-  return { host: startHost, chain: https.chain, finalUrl: https.finalUrl, hops: https.chain.length };
+  return { host: startHost, chain: httpsResult.chain, finalUrl: httpsResult.finalUrl, hops: httpsResult.chain.length };
 }
 
 // ---------- router ----------
