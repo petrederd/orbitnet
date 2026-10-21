@@ -35,6 +35,14 @@ const MAX_QUEUE = positiveIntEnv('MAX_QUEUE', 100);
 const RATE_WINDOW_MS = 60000;
 const RATE_MAX = 60;
 const RATE_MAX_ENTRIES = 10000;
+// Fallback calls are expensive and share one Cloudflare quota. Keep them much
+// rarer than ordinary API requests and cap the whole process as well.
+const EXTERNAL_RATE_MAX = positiveIntEnv('EXTERNAL_RATE_MAX', 10);
+const EXTERNAL_GLOBAL_MAX = positiveIntEnv('EXTERNAL_GLOBAL_MAX', 60);
+// Leave room under nginx proxy_read_timeout (25s) for JSON serialisation and
+// network jitter. Local checks and the Worker share this deadline.
+const REQUEST_BUDGET_MS = positiveIntEnv('REQUEST_BUDGET_MS', 22000);
+const EXTERNAL_UNAVAILABLE = 'External check unavailable';
 
 // Simple JSON helpers
 function send(res, code, obj) {
@@ -304,7 +312,13 @@ function withTimeout(promise, ms, message) {
   let timer;
   return Promise.race([
     promise.finally(() => clearTimeout(timer)),
-    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(message)), ms); })
+    new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        const error = new Error(message);
+        error.code = 'ETIMEOUT';
+        reject(error);
+      }, ms);
+    })
   ]);
 }
 
@@ -350,14 +364,20 @@ function pickAddress(ips) {
 // Geo/whois pages need a public address for a domain. If the local resolver
 // cannot see the domain, ask the Worker for A/AAAA before giving up. Blocked
 // private targets are never forwarded.
-async function resolvePublicForGeo(host) {
+async function resolvePublicForGeo(host, context) {
   try {
     return await resolvePublic(host);
   } catch (e) {
     if (e.blocked || !e.unresolved) throw e;
     for (const type of ['A', 'AAAA']) {
-      const external = await externalCheck.checkDns(host, type);
-      if (external.error) continue;
+      const external = await callExternal(
+        opts => externalCheck.checkDns(host, type, opts),
+        context
+      );
+      if (external.error) {
+        logExternalFailure(external.error);
+        continue;
+      }
       const ips = (Array.isArray(external.records) ? external.records : [])
         .filter(ip => net.isIP(ip) && isPublicIp(ip));
       if (ips.length) return ips;
@@ -673,7 +693,12 @@ function createLimiter(max, maxQueue) {
     Promise.resolve().then(job.fn).then(job.resolve, job.reject).finally(() => { active--; next(); });
   };
   return (fn) => new Promise((resolve, reject) => {
-    if (queue.length >= maxQueue) { reject(httpError(503, 'Server busy, try again later')); return; }
+    if (queue.length >= maxQueue) {
+      const error = httpError(503, 'Server busy, try again later');
+      error.busy = true;
+      reject(error);
+      return;
+    }
     queue.push({ fn, resolve, reject });
     next();
   });
@@ -709,6 +734,86 @@ function isRateLimited(ip, store = rateHits, max = RATE_MAX) {
   }
   rec.count++;
   return rec.count > max;
+}
+
+// Separate rolling-window limit for Cloudflare Worker calls. A single client
+// can trigger at most EXTERNAL_RATE_MAX fallbacks per minute, and the process
+// as a whole at most EXTERNAL_GLOBAL_MAX. Without this a DNS-blocked site can
+// burn the Worker's free-plan quota with nonexistent names.
+const externalHits = new Map();
+let externalGlobal = { start: Date.now(), count: 0 };
+let lastExternalPrune = Date.now();
+
+function takeExternalToken(clientIp) {
+  if (!clientIp) return true;
+  const now = Date.now();
+  if (now - lastExternalPrune > RATE_WINDOW_MS) {
+    for (const [key, rec] of externalHits) {
+      if (now - rec.start > RATE_WINDOW_MS) externalHits.delete(key);
+    }
+    lastExternalPrune = now;
+  }
+  if (now - externalGlobal.start > RATE_WINDOW_MS) {
+    externalGlobal = { start: now, count: 0 };
+  }
+  if (externalGlobal.count >= EXTERNAL_GLOBAL_MAX) return false;
+
+  let rec = externalHits.get(clientIp);
+  if (!rec || now - rec.start > RATE_WINDOW_MS) {
+    if (!rec && externalHits.size >= RATE_MAX_ENTRIES) return false;
+    rec = { start: now, count: 0 };
+    externalHits.set(clientIp, rec);
+  }
+  if (rec.count >= EXTERNAL_RATE_MAX) return false;
+  rec.count++;
+  externalGlobal.count++;
+  return true;
+}
+
+let lastExternalLog = { message: '', at: 0 };
+function logExternalFailure(message) {
+  const text = String(message || 'unknown error');
+  const now = Date.now();
+  if (text === lastExternalLog.message && now - lastExternalLog.at < RATE_WINDOW_MS) return;
+  lastExternalLog = { message: text, at: now };
+  console.warn('[external-check] ' + text);
+}
+
+// The Worker receives only what is left of the request budget, not a fixed
+// 20 seconds. If less than a second is left, skip it: the client would get a
+// proxy timeout before the Worker finished anyway.
+function externalCallOptions(context) {
+  const opts = {};
+  if (context && context.deadline) {
+    const remaining = context.deadline - Date.now();
+    if (remaining < 1000) return null;
+    opts.timeoutMs = remaining;
+  }
+  if (context && context.clientIp && !takeExternalToken(context.clientIp)) return null;
+  return opts;
+}
+
+async function callExternal(build, context) {
+  const opts = externalCallOptions(context);
+  if (!opts) return { error: EXTERNAL_UNAVAILABLE, unavailable: true, limited: true };
+  try {
+    return await outbound(() => build(opts));
+  } catch (e) {
+    return {
+      error: EXTERNAL_UNAVAILABLE,
+      unavailable: true,
+      busy: e && e.busy === true
+    };
+  }
+}
+
+function requestContext(ip) {
+  return { clientIp: ip, deadline: Date.now() + REQUEST_BUDGET_MS };
+}
+
+function externalFailure(local, error) {
+  logExternalFailure(error);
+  return Object.assign(local, { source: 'local', workerError: EXTERNAL_UNAVAILABLE });
 }
 
 // ---------- captcha ----------
@@ -1095,6 +1200,24 @@ async function whoisLookup(host) {
 
 // ---------- /api/site ----------
 // Connects to the pre-resolved public IP, keeps the original Host/SNI, verifies TLS.
+function charsetFromContentType(value) {
+  const match = String(value || '').match(/charset\s*=\s*["']?([^;"'\s]+)/i);
+  return match ? match[1].toLowerCase() : '';
+}
+
+function decodeHtml(bytes, contentType) {
+  const head = bytes.toString('latin1', 0, Math.min(bytes.length, 2048));
+  const meta = head.match(/<meta[^>]+charset\s*=\s*["']?\s*([a-z0-9_-]+)/i);
+  const httpEquiv = head.match(/<meta[^>]+content\s*=\s*["'][^"']*charset\s*=\s*([a-z0-9_-]+)/i);
+  const label = charsetFromContentType(contentType) ||
+    (meta && meta[1]) || (httpEquiv && httpEquiv[1]) || 'utf-8';
+  try {
+    return new TextDecoder(label).decode(bytes);
+  } catch (e) {
+    return new TextDecoder('utf-8').decode(bytes);
+  }
+}
+
 function fetchOnce(ip, host, path, secure, timeout) {
   return new Promise((resolve) => {
     const lib = secure ? https : http;
@@ -1145,9 +1268,11 @@ function fetchOnce(ip, host, path, secure, timeout) {
         req.destroy();
         return;
       }
-      let body = '';
-      res.setEncoding('utf8');
+      const chunks = [];
+      let total = 0;
       const buildResult = () => {
+        const bytes = Buffer.concat(chunks).subarray(0, MAX_BODY_BYTES);
+        const body = decodeHtml(bytes, headers['content-type']);
         const titleMatch = body.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
         const title = titleMatch ? titleMatch[1].replace(/\s+/g, ' ').trim() : '';
         return {
@@ -1161,13 +1286,17 @@ function fetchOnce(ip, host, path, secure, timeout) {
         };
       };
       res.on('data', (chunk) => {
-        if (body.length + chunk.length > MAX_BODY_BYTES) {
-          body += chunk.slice(0, Math.max(0, MAX_BODY_BYTES - body.length));
+        if (total >= MAX_BODY_BYTES) return;
+        const remaining = MAX_BODY_BYTES - total;
+        if (chunk.length > remaining) {
+          chunks.push(chunk.subarray(0, remaining));
+          total += remaining;
           finish(buildResult());
           req.destroy();
           return;
         }
-        body += chunk;
+        chunks.push(chunk);
+        total += chunk.length;
       });
       res.on('end', () => finish(buildResult()));
       res.on('error', (e) => finish({ error: e.message, ms: Date.now() - start }));
@@ -1184,6 +1313,20 @@ function safeRedirect(location) {
   const trimmed = location.trim();
   if (/^https?:\/\//i.test(trimmed) || /^\//.test(trimmed)) return trimmed.slice(0, 2048);
   return '';
+}
+
+// Provider block pages often return 200 or a redirect. A few common titles are
+// enough to trigger the fallback without treating every page with the word
+// "blocked" as censorship.
+const BLOCK_PAGE_MARKERS = [
+  'доступ ограничен', 'доступ к сайту ограничен', 'сайт заблокирован',
+  'заблокировано', 'роскомнадзор', 'blocked by', 'access denied',
+  'web filter', 'fortiguard', 'sophos web', 'palo alto', 'unifi',
+  'this site has been blocked', 'website blocked'
+];
+function looksLikeBlockPage(title) {
+  const text = String(title || '').toLowerCase();
+  return BLOCK_PAGE_MARKERS.some(marker => text.includes(marker));
 }
 
 async function siteInfoLocal(host) {
@@ -1206,7 +1349,8 @@ async function siteInfoLocal(host) {
     title: result.title || '',
     redirect: result.redirect || '',
     finalUrl: result.finalUrl || '',
-    error: result.error || null
+    error: result.error || null,
+    blockedPage: looksLikeBlockPage(result.title)
   };
 }
 
@@ -1223,6 +1367,7 @@ function localErrorResult(host, error, extra) {
     finalUrl: '',
     error: error && error.message ? error.message : 'local check failed',
     blocked: Boolean(error && error.blocked),
+    busy: Boolean(error && error.busy),
     source: 'local'
   }, extra || {});
 }
@@ -1238,7 +1383,7 @@ function externalImproves(local, external) {
 // Local first. The external worker is contacted when the local check did not
 // get any HTTP status (DNS/TCP/TLS/timeout) or returned 403/451, never for
 // ordinary 2xx/3xx/5xx answers, and never for targets rejected by the SSRF guard.
-async function siteInfo(host) {
+async function siteInfo(host, context) {
   let local;
   try {
     local = await siteInfoLocal(host);
@@ -1251,7 +1396,10 @@ async function siteInfo(host) {
     return Object.assign(local, { source: 'local' });
   }
 
-  const external = await externalCheck.checkHttp(host, { follow: false });
+  const external = await callExternal(
+    opts => externalCheck.checkHttp(host, { follow: false, timeoutMs: opts.timeoutMs }),
+    context
+  );
   if (externalImproves(local, external)) {
     return {
       host,
@@ -1270,8 +1418,9 @@ async function siteInfo(host) {
     };
   }
 
+  if (external.error) return externalFailure(local, external.error);
   delete local.blocked;
-  return Object.assign(local, { source: 'local', workerError: external.error });
+  return Object.assign(local, { source: 'local' });
 }
 
 // ---------- /api/headers ----------
@@ -1303,7 +1452,7 @@ async function headersInfoLocal(host) {
   };
 }
 
-async function headersInfo(host) {
+async function headersInfo(host, context) {
   let local;
   try {
     local = await headersInfoLocal(host);
@@ -1316,7 +1465,10 @@ async function headersInfo(host) {
     return Object.assign(local, { source: 'local' });
   }
 
-  const external = await externalCheck.checkHttp(host, { follow: false });
+  const external = await callExternal(
+    opts => externalCheck.checkHttp(host, { follow: false, timeoutMs: opts.timeoutMs }),
+    context
+  );
   if (externalImproves(local, external)) {
     return {
       host,
@@ -1334,8 +1486,9 @@ async function headersInfo(host) {
     };
   }
 
+  if (external.error) return externalFailure(local, external.error);
   delete local.blocked;
-  return Object.assign(local, { source: 'local', workerError: external.error });
+  return Object.assign(local, { source: 'local' });
 }
 
 // ---------- /api/tls ----------
@@ -1409,6 +1562,33 @@ async function tlsInfo(host, port) {
 }
 
 // ---------- /api/email ----------
+const DNS_TRANSPORT_CODES = new Set([
+  'ETIMEOUT', 'ESERVFAIL', 'ECONNREFUSED', 'EREFUSED', 'ECONNRESET'
+]);
+function isDnsTransportError(code) {
+  return DNS_TRANSPORT_CODES.has(String(code || '').toUpperCase());
+}
+
+// Empty/NXDOMAIN answers are normal, so they are only retried when the local
+// resolver is demonstrably broken. A short cached canary query avoids turning
+// every "no CAA/AAAA" into a Worker call while still recovering from a
+// resolver that stopped answering entirely.
+const DNS_HEALTH_TTL = 60000;
+let dnsHealth = { healthy: null, checkedAt: 0 };
+async function localDnsHealthy() {
+  const now = Date.now();
+  if (dnsHealth.healthy !== null && now - dnsHealth.checkedAt < DNS_HEALTH_TTL) {
+    return dnsHealth.healthy;
+  }
+  try {
+    const records = await withTimeout(dns.resolve('example.com', 'A'), 1500, 'timeout');
+    dnsHealth = { healthy: Array.isArray(records) && records.length > 0, checkedAt: now };
+  } catch (e) {
+    dnsHealth = { healthy: false, checkedAt: now };
+  }
+  return dnsHealth.healthy;
+}
+
 async function emailInfoLocal(host, selector) {
   const result = { host, mx: [], spf: null, dmarc: null, dkim: null, errors: {} };
   const lookup = (promise) => withTimeout(promise, DNS_TIMEOUT, 'timeout');
@@ -1468,27 +1648,24 @@ async function emailInfoLocal(host, selector) {
   return result;
 }
 
-// Local DNS can be filtered or blocked as a whole. Retry through the external
-// worker when the MX lookup failed at the transport/DNS level, or when every
-// lookup came back empty (which is also what a filtered resolver looks like).
-async function emailInfo(host, selector) {
+// ENOTFOUND/ENODATA for _dmarc, a DKIM selector or an optional record is a
+// normal DNS answer, not a broken resolver. Only transport-level failures are
+// retried through the Worker, otherwise almost every domain without DMARC
+// would replace its local answer with the external one.
+async function emailInfo(host, selector, context) {
   const local = await emailInfoLocal(host, selector);
   const keys = ['mx', 'spf', 'dmarc'].concat(selector ? ['dkim'] : []);
-  // ENODATA for MX alone is a normal "no mail" answer. If every lookup came
-  // back empty, the local resolver may simply be filtering the domain, so let
-  // the external checker confirm it as well.
-  const allEmpty = keys.every(key => local.errors[key] === 'ENODATA');
-  const transportError = keys.some(key => {
-    const error = local.errors[key];
-    return error && error !== 'ENODATA';
-  });
-  if (!transportError && !allEmpty) {
+  const transportError = keys.some(key => isDnsTransportError(local.errors[key]));
+  if (!transportError) {
     return Object.assign(local, { source: 'local' });
   }
 
-  const external = await externalCheck.checkEmail(host, selector);
+  const external = await callExternal(
+    opts => externalCheck.checkEmail(host, selector, opts),
+    context
+  );
   if (external.error) {
-    return Object.assign(local, { source: 'local', workerError: external.error });
+    return externalFailure(local, external.error);
   }
   return Object.assign({}, external, {
     host,
@@ -1527,26 +1704,39 @@ async function propagation(host, type) {
 // ---------- /api/redirect ----------
 const MAX_REDIRECTS = 10;
 
-async function followChain(startUrl) {
+async function followChain(startUrl, deadline) {
   const chain = [];
   let url = new URL(startUrl);
   let finalUrl = url.href;
   for (let i = 0; i < MAX_REDIRECTS; i++) {
     if (url.protocol !== 'http:' && url.protocol !== 'https:') break;
+    const remaining = deadline ? deadline - Date.now() : OUTBOUND_TIMEOUT;
+    if (remaining < 1000) {
+      chain.push({
+        url: url.href,
+        status: null,
+        location: '',
+        blocked: false,
+        error: 'Request budget exhausted'
+      });
+      break;
+    }
     const secure = url.protocol === 'https:';
     const host = url.hostname;
     const path = url.pathname + url.search;
+    const limit = Math.min(OUTBOUND_TIMEOUT, remaining);
     let result;
     try {
-      const ips = await resolvePublic(host);
+      const ips = await withTimeout(resolvePublic(host), limit, 'timeout');
       const ip = pickAddress(ips);
-      result = await outbound(() => fetchOnce(ip, host, path, secure));
+      result = await outbound(() => fetchOnce(ip, host, path, secure, limit));
     } catch (e) {
       chain.push({
         url: url.href,
         status: null,
         location: '',
         blocked: Boolean(e.blocked),
+        busy: Boolean(e.busy),
         error: e.message
       });
       break;
@@ -1567,13 +1757,14 @@ async function followChain(startUrl) {
   return { chain, finalUrl };
 }
 
-async function redirectChainLocal(startHost) {
-  const httpsResult = await followChain('https://' + startHost + '/');
+async function redirectChainLocal(startHost, context) {
+  const httpsResult = await followChain('https://' + startHost + '/', context && context.deadline);
   // If the first hop could not even be reached over TLS (no HTTPS listener,
   // invalid handshake, connection reset), retry the whole chain over HTTP.
   const first = httpsResult.chain[0];
-  if (first && first.error && !first.status && !first.blocked) {
-    const httpResult = await followChain('http://' + startHost + '/');
+  if (first && first.error && !first.status && !first.blocked &&
+      (!context || context.deadline - Date.now() >= 1000)) {
+    const httpResult = await followChain('http://' + startHost + '/', context && context.deadline);
     const httpFirst = httpResult.chain[0];
     if (!(httpFirst && httpFirst.error && !httpFirst.status)) {
       return { host: startHost, chain: httpResult.chain, finalUrl: httpResult.finalUrl, hops: httpResult.chain.length };
@@ -1582,21 +1773,25 @@ async function redirectChainLocal(startHost) {
   return { host: startHost, chain: httpsResult.chain, finalUrl: httpsResult.finalUrl, hops: httpsResult.chain.length };
 }
 
-async function redirectChain(startHost) {
-  const local = await redirectChainLocal(startHost);
+async function redirectChain(startHost, context) {
+  const local = await redirectChainLocal(startHost, context);
   const first = local.chain && local.chain[0];
-  const localFailed = first && !first.blocked &&
+  const localFailed = first && !first.blocked && !first.busy &&
     ((first.error && !first.status) || first.status === 403 || first.status === 451);
   if (!localFailed) {
     return Object.assign(local, { source: 'local' });
   }
 
-  const external = await externalCheck.checkHttp(startHost, { follow: true });
+  const external = await callExternal(
+    opts => externalCheck.checkHttp(startHost, { follow: true, timeoutMs: opts.timeoutMs }),
+    context
+  );
   const chain = external.redirects || [];
   if (!chain.length && external.error) {
-    return Object.assign(local, { source: 'local', workerError: external.error });
+    return externalFailure(local, external.error);
   }
 
+  if (external.error) logExternalFailure(external.error);
   return {
     host: startHost,
     chain,
@@ -1604,7 +1799,7 @@ async function redirectChain(startHost) {
     hops: chain.length,
     source: 'worker',
     localError: first.error || null,
-    workerError: external.error || null
+    workerError: external.error ? EXTERNAL_UNAVAILABLE : null
   };
 }
 
@@ -1629,6 +1824,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   const ip = clientIp(req);
+  const externalContext = requestContext(ip);
   const limited = path === '/api/ip' || path === '/api/geo' || path === '/api/dns' ||
     path === '/api/port' || path === '/api/captcha' || path === '/api/whois' || path === '/api/site' ||
     path === '/api/tls' || path === '/api/headers' || path === '/api/email' ||
@@ -1653,7 +1849,7 @@ const server = http.createServer(async (req, res) => {
       let target = ipParam;
       if (!net.isIP(target)) {
         if (!isValidHost(hostParam)) return bad(res, 'Provide a valid IP address or hostname');
-        const ips = await resolvePublicForGeo(hostParam);
+        const ips = await resolvePublicForGeo(hostParam, externalContext);
         target = pickAddress(ips);
       }
       return send(res, 200, { ip: target, geo: await geoLookup(target) });
@@ -1674,12 +1870,22 @@ const server = http.createServer(async (req, res) => {
             records = await withTimeout(dns.reverse(literal), DNS_TIMEOUT, 'timeout');
           } catch (e) {
             err = e.code || 'error';
-            if (isPublicIp(literal)) {
-              const external = await externalCheck.checkDns(literal, 'PTR');
+            const empty = e.code === 'ENODATA' || e.code === 'ENOTFOUND';
+            const fallback = isPublicIp(literal) &&
+              (isDnsTransportError(e.code) || (empty && !(await localDnsHealthy())));
+            if (fallback) {
+              const external = await callExternal(
+                opts => externalCheck.checkDns(literal, 'PTR', opts),
+                externalContext
+              );
               if (!external.error) {
                 records = Array.isArray(external.records) ? external.records : [];
-                err = null;
+                if (records.length) err = null;
+                else if (external.nxdomain) err = 'NXDOMAIN';
+                else err = err || 'ENODATA';
                 source = 'worker';
+              } else {
+                logExternalFailure(external.error);
               }
             }
           }
@@ -1693,24 +1899,42 @@ const server = http.createServer(async (req, res) => {
       if (type === 'PTR') return bad(res, 'PTR lookup requires an IP address');
       if (!isValidHost(host)) return bad(res, 'Invalid hostname');
       let records;
+      let nxdomain = false;
       let source = 'local';
       try {
         records = await outbound(() => dnsLookup(host, type));
       } catch (e) {
-        // A filtered resolver can return ENODATA/NXDOMAIN just as easily as a
-        // genuine empty answer. Ask the worker to confirm; if it is not
-        // configured, preserve the original local error together with the
-        // fallback reason so the caller can fix the configuration.
-        const external = await externalCheck.checkDns(host, type);
+        if (e.busy) throw e;
+        const empty = e.code === 'ENODATA' || e.code === 'ENOTFOUND';
+        // ENODATA is a normal "no such record" answer. Only transport errors,
+        // or a resolver that fails a canary query, justify a Worker call.
+        const fallback = isDnsTransportError(e.code) ||
+          (empty && !(await localDnsHealthy()));
+        if (!fallback) {
+          if (e.code === 'ENOTFOUND') {
+            return send(res, 200, { host, type, records: [], nxdomain: true, source: 'local' });
+          }
+          if (e.code === 'ENODATA') {
+            return send(res, 200, { host, type, records: [], nodata: true, source: 'local' });
+          }
+          throw e;
+        }
+        const external = await callExternal(
+          opts => externalCheck.checkDns(host, type, opts),
+          externalContext
+        );
         if (external.error) {
-          const wrapped = new Error(e.message + ' — Worker fallback: ' + external.error);
-          wrapped.code = e.code;
-          throw wrapped;
+          logExternalFailure(external.error);
+          throw e;
         }
         records = external.records;
+        nxdomain = external.nxdomain === true;
         source = 'worker';
       }
-      return send(res, 200, { host, type, records, source });
+      const response = { host, type, records, source };
+      if (nxdomain) response.nxdomain = true;
+      else if (Array.isArray(records) && !records.length) response.nodata = true;
+      return send(res, 200, response);
     }
 
     if (path === '/api/captcha') {
@@ -1771,14 +1995,14 @@ const server = http.createServer(async (req, res) => {
     if (path === '/api/site') {
       const host = query.get('host') || '';
       if (!isValidHost(host)) return bad(res, 'Invalid hostname');
-      const result = await siteInfo(host);
+      const result = await siteInfo(host, externalContext);
       return send(res, 200, result);
     }
 
     if (path === '/api/headers') {
       const host = query.get('host') || '';
       if (!isValidHost(host)) return bad(res, 'Invalid hostname');
-      return send(res, 200, await headersInfo(host));
+      return send(res, 200, await headersInfo(host, externalContext));
     }
 
     if (path === '/api/tls') {
@@ -1800,7 +2024,7 @@ const server = http.createServer(async (req, res) => {
       if (selector && !/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/i.test(selector)) {
         return bad(res, 'Invalid DKIM selector');
       }
-      return send(res, 200, await emailInfo(host, selector));
+      return send(res, 200, await emailInfo(host, selector, externalContext));
     }
 
     if (path === '/api/propagation') {
@@ -1810,11 +2034,16 @@ const server = http.createServer(async (req, res) => {
       if (!isValidHost(host)) return bad(res, 'Invalid hostname');
       let resolvers = await propagation(host, type);
       let source = 'local';
-      if (resolvers.length && resolvers.every(r => r.error)) {
-        const external = await externalCheck.checkPropagation(host, type);
+      if (resolvers.length && resolvers.every(r => r.error && isDnsTransportError(r.error))) {
+        const external = await callExternal(
+          opts => externalCheck.checkPropagation(host, type, opts),
+          externalContext
+        );
         if (!external.error && external.resolvers.length) {
           resolvers = external.resolvers;
           source = 'worker';
+        } else if (external.error) {
+          logExternalFailure(external.error);
         }
       }
       return send(res, 200, { host, type, resolvers, source });
@@ -1823,7 +2052,7 @@ const server = http.createServer(async (req, res) => {
     if (path === '/api/redirect') {
       const host = query.get('host') || '';
       if (!isValidHost(host)) return bad(res, 'Invalid hostname');
-      return send(res, 200, await redirectChain(host));
+      return send(res, 200, await redirectChain(host, externalContext));
     }
 
     if (path === '/api/anonymity') {
@@ -1862,6 +2091,6 @@ if (require.main === module) {
 
 module.exports = {
   normalizeIp, isPublicIp, clientIp, server, siteInfo, tlsInfo, headersInfo, emailInfo,
-  propagation, redirectChain, anonymityInfo, anonymityPorts, torStatus,
+  decodeHtml, propagation, redirectChain, anonymityInfo, anonymityPorts, torStatus,
   hostingSignals, hostnameSignals, proxyHeaderSignals
 };

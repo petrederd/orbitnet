@@ -105,7 +105,7 @@ function failureResponse(host, error) {
 }
 
 test('normalizes a working site response', () => {
-  const result = checker.normalizeResponse(okResponse('example.com'));
+  const result = checker.normalizeHttpResponse(okResponse('example.com'));
   assert.equal(result.error, undefined);
   assert.equal(result.status, 200);
   assert.equal(result.protocol, 'https');
@@ -123,25 +123,25 @@ test('normalizes a working site response', () => {
 });
 
 test('keeps a 404 as a successful check, not an error', () => {
-  const result = checker.normalizeResponse(okResponse('example.com', 404));
+  const result = checker.normalizeHttpResponse(okResponse('example.com', 404));
   assert.equal(result.error, undefined);
   assert.equal(result.status, 404);
   assert.equal(result.source, 'worker');
 });
 
 test('normalizes an unreachable target', () => {
-  const result = checker.normalizeResponse(failureResponse('example.com', 'Connection failed'));
+  const result = checker.normalizeHttpResponse(failureResponse('example.com', 'Connection failed'));
   assert.equal(result.error, 'Connection failed');
 });
 
 test('normalizes a timeout response', () => {
-  const result = checker.normalizeResponse(failureResponse('example.com', 'Connection timed out'));
+  const result = checker.normalizeHttpResponse(failureResponse('example.com', 'Connection timed out'));
   assert.equal(result.error, 'Connection timed out');
 });
 
 test('rejects malformed and statusless worker responses', () => {
-  assert.match(checker.normalizeResponse({ nope: true }).error, /External check failed/);
-  assert.match(checker.normalizeResponse(null).error, /invalid response/);
+  assert.match(checker.normalizeHttpResponse({ nope: true }).error, /External check failed/);
+  assert.match(checker.normalizeHttpResponse(null).error, /invalid response/);
 });
 
 test('normalizes the current worker HTTP contract with real header values', () => {
@@ -185,6 +185,15 @@ test('normalizes external DNS records, including SOA and PTR', () => {
     records: ['one.one.one.one']
   }, '1.1.1.1', 'PTR');
   assert.deepEqual(ptr.records, ['one.one.one.one']);
+
+  const missing = checker.normalizeDnsResponse({
+    ok: true,
+    host: 'missing.example.com',
+    recordType: 'A',
+    records: [],
+    nxdomain: true
+  }, 'missing.example.com', 'A');
+  assert.equal(missing.nxdomain, true);
 });
 
 test('normalizes external propagation and email results', () => {
@@ -228,6 +237,8 @@ test('falls back on missing status or a likely ISP block', () => {
   assert.equal(checker.shouldUseExternal({ status: 404, error: null }), false);
   assert.equal(checker.shouldUseExternal({ status: 500, error: null }), false);
   assert.equal(checker.shouldUseExternal({ status: null, error: 'blocked', blocked: true }), false);
+  assert.equal(checker.shouldUseExternal({ status: null, error: 'busy', busy: true }), false);
+  assert.equal(checker.shouldUseExternal({ status: 200, error: null, blockedPage: true }), true);
 });
 
 test('accepts domains and rejects URLs, IPs and single labels', () => {
@@ -253,7 +264,7 @@ test('returns not-configured when the environment is empty', async () => {
   delete process.env.CHECKER_URL;
   delete process.env.CHECKER_SECRET;
   try {
-    const result = await checker.checkHost('example.com');
+    const result = await checker.checkHttp('example.com', { follow: false });
     assert.equal(result.unavailable, true);
     assert.match(result.error, /not configured/);
   } finally {
@@ -286,18 +297,18 @@ test('calls the worker and normalizes 200, 404, unreachable and timeout', async 
   process.env.CHECKER_SECRET = secret;
   process.env.CHECKER_TIMEOUT = '1000';
 
-  const working = await checker.checkHost('example.com');
+  const working = await checker.checkHttp('example.com', { follow: false });
   assert.equal(working.status, 200);
   assert.equal(working.source, 'worker');
 
-  const missing = await checker.checkHost('missing.example.com');
+  const missing = await checker.checkHttp('missing.example.com', { follow: false });
   assert.equal(missing.status, 404);
   assert.equal(missing.error, undefined);
 
-  const unreachable = await checker.checkHost('unreachable.example.com');
+  const unreachable = await checker.checkHttp('unreachable.example.com', { follow: false });
   assert.match(unreachable.error, /Connection failed/);
 
-  const timedOut = await checker.checkHost('timeout.example.com');
+  const timedOut = await checker.checkHttp('timeout.example.com', { follow: false });
   assert.equal(timedOut.error, 'External checker timed out');
   assert.equal(timedOut.timeout, true);
 });
@@ -312,7 +323,7 @@ test('reports worker authentication failure without exposing the secret', async 
   process.env.CHECKER_SECRET = 'wrong-secret';
   process.env.CHECKER_TIMEOUT = '1000';
 
-  const result = await checker.checkHost('example.com');
+  const result = await checker.checkHttp('example.com', { follow: false });
   assert.equal(result.error, 'External checker authentication failed: CHECKER_SECRET does not match the Worker secret');
   assert.equal(JSON.stringify(result).includes('wrong-secret'), false);
 });
@@ -404,7 +415,91 @@ test('calls the worker for HTTP, DNS, propagation and email checks', async (t) =
   assert.equal(email.spf, 'v=spf1 -all');
 });
 
-test('DNS, email and redirect wrappers fall back to the worker', async (t) => {
+test('email does not call the worker for ordinary missing DMARC/DKIM answers', async (t) => {
+  let calls = 0;
+  const secret = 'email-normal-secret';
+  const { server: worker, url } = await startWorker(secret, (payload, res) => {
+    calls++;
+    respond(res, {
+      ok: true,
+      type: 'email',
+      host: payload.host,
+      mx: [],
+      spf: null,
+      dmarc: null,
+      dkim: null,
+      errors: {},
+      source: 'Cloudflare Worker'
+    });
+  });
+  t.after(() => worker.close());
+
+  process.env.CHECKER_URL = url;
+  process.env.CHECKER_SECRET = secret;
+  process.env.CHECKER_TIMEOUT = '2000';
+
+  const { emailInfo } = require('../backend/server');
+  const result = await emailInfo('no-such-subdomain.orbitnet-test.example.com', 'default');
+  assert.equal(result.source, 'local');
+  assert.equal(calls, 0);
+  assert.match(result.errors.mx, /ENOTFOUND|ENODATA/);
+});
+
+test('DNS API returns a local empty answer without spending a worker call', async (t) => {
+  let calls = 0;
+  const secret = 'dns-nxdomain-secret';
+  const { server: worker, url } = await startWorker(secret, (payload, res) => {
+    calls++;
+    respond(res, { ok: true, type: 'dns', host: payload.host, recordType: payload.recordType, records: [] });
+  });
+  t.after(() => worker.close());
+
+  process.env.CHECKER_URL = url;
+  process.env.CHECKER_SECRET = secret;
+  process.env.CHECKER_TIMEOUT = '2000';
+
+  const { server } = require('../backend/server');
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => server.close());
+  const apiUrl = 'http://127.0.0.1:' + server.address().port +
+    '/api/dns?host=' + encodeURIComponent('no-such-subdomain.orbitnet-test.example.com') + '&type=A';
+  const response = await fetch(apiUrl);
+  const data = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(data.source, 'local');
+  assert.ok(data.nxdomain === true || data.nodata === true);
+  assert.deepEqual(data.records, []);
+  assert.equal(calls, 0);
+});
+
+test('backend decodes windows-1251 HTML using the meta charset', () => {
+  const { decodeHtml } = require('../backend/server');
+  const prefix = Buffer.from('<html><head><meta charset="windows-1251"><title>');
+  const title = Buffer.from([0xcf, 0xf0, 0xe8, 0xe2, 0xe5, 0xf2]);
+  const suffix = Buffer.from('</title></head></html>');
+  const html = decodeHtml(Buffer.concat([prefix, title, suffix]), 'text/html');
+  assert.match(html, /<title>Привет<\/title>/);
+});
+
+test('API hides worker configuration errors behind a generic message', async (t) => {
+  const { server: worker, url } = await startWorker('the-real-secret', (payload, res) => {
+    respond(res, okResponse(payload.host));
+  });
+  t.after(() => worker.close());
+
+  process.env.CHECKER_URL = url;
+  process.env.CHECKER_SECRET = 'wrong-secret';
+  process.env.CHECKER_TIMEOUT = '1000';
+
+  const { siteInfo } = require('../backend/server');
+  const result = await siteInfo('no-such-subdomain.orbitnet-test.example.com');
+  assert.equal(result.source, 'local');
+  assert.equal(result.workerError, 'External check unavailable');
+  assert.equal(JSON.stringify(result).includes('CHECKER_SECRET'), false);
+  assert.equal(JSON.stringify(result).includes('wrong-secret'), false);
+});
+
+test('DNS, email and redirect wrappers fall back on transport errors', async (t) => {
   const secret = 'fallback-secret';
   const { server: worker, url } = await startWorker(secret, (payload, res) => {
     if (payload.type === 'email') {
@@ -455,6 +550,11 @@ test('DNS, email and redirect wrappers fall back to the worker', async (t) => {
   process.env.CHECKER_URL = url;
   process.env.CHECKER_SECRET = secret;
   process.env.CHECKER_TIMEOUT = '2000';
+
+  const dnsModule = require('node:dns');
+  const savedServers = dnsModule.getServers();
+  dnsModule.setServers(['127.0.0.1:1']);
+  t.after(() => dnsModule.setServers(savedServers));
 
   const { emailInfo, redirectChain, server } = require('../backend/server');
   const target = 'no-such-subdomain.orbitnet-test.example.com';

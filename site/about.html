@@ -70,6 +70,8 @@ Browser-based tools run directly on your device. Your input stays in your browse
 
 Server-based tools send requests to the OrbitNet backend when they need access to network information or services that a browser cannot access directly. These requests are processed by the server, and some technical information may appear in server logs.
 
+If a local network check is blocked or cannot complete, the backend may retry that one check through a Cloudflare Worker. The Worker may contact the target site and public DNS-over-HTTPS resolvers (Cloudflare, Google, AdGuard). Only the host or IP being checked is sent this way; ordinary successful checks stay on the OrbitNet backend.
+
 Each tool works a little differently, so check what it does before sending sensitive information.
 
 OrbitNet does not require an account. Tools that run entirely in your browser do not need to send your input to the server.

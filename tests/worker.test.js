@@ -54,8 +54,19 @@ function dohAnswers(name, type) {
   return [];
 }
 
+function cp1251(bytes) {
+  const prefix = new TextEncoder().encode('<html><head><meta charset="windows-1251"><title>');
+  const suffix = new TextEncoder().encode('</title></head><body>ok</body></html>');
+  const out = new Uint8Array(prefix.length + bytes.length + suffix.length);
+  out.set(prefix, 0);
+  out.set(bytes, prefix.length);
+  out.set(suffix, prefix.length + bytes.length);
+  return out;
+}
+
 function installFetch(t) {
   const original = global.fetch;
+  global.__dohQueries = [];
   global.fetch = async (url, options = {}) => {
     const parsed = new URL(String(url));
     const name = parsed.searchParams.get('name') || '';
@@ -64,7 +75,12 @@ function installFetch(t) {
     if (parsed.hostname === 'cloudflare-dns.com' ||
         parsed.hostname === 'dns.google' ||
         parsed.hostname === 'dns.adguard-dns.com') {
-      return Response.json({ Status: 0, Answer: dohAnswers(name, type) });
+      global.__dohQueries.push({ name, type });
+      const missing = name.startsWith('missing.');
+      return Response.json({
+        Status: missing ? 3 : 0,
+        Answer: missing ? [] : dohAnswers(name, type)
+      });
     }
 
     if (parsed.hostname === 'example.com') {
@@ -98,13 +114,20 @@ function installFetch(t) {
       return new Response('plain', { status: 200, headers: { 'Content-Type': 'text/plain' } });
     }
 
+    if (parsed.hostname === 'cp1251.example.com') {
+      return new Response(cp1251(new Uint8Array([0xcf, 0xf0, 0xe8, 0xe2, 0xe5, 0xf2])), {
+        status: 200,
+        headers: { 'Content-Type': 'text/html' }
+      });
+    }
+
     if (parsed.hostname === 'boom.example.com') {
       throw new TypeError('network failed');
     }
 
     throw new Error('unexpected fetch ' + parsed.href);
   };
-  t.after(() => { global.fetch = original; });
+  t.after(() => { global.fetch = original; delete global.__dohQueries; });
 }
 
 test('worker rejects requests without the shared secret', async () => {
@@ -186,6 +209,46 @@ test('worker resolves DNS records and PTR through DoH', async (t) => {
 
   const ptr = await run({ type: 'dns', host: '1.1.1.1', recordType: 'PTR' });
   assert.deepEqual(ptr.data.records, ['one.one.one.one']);
+  assert.ok(global.__dohQueries.some(q => q.type === 'PTR' && q.name === '1.1.1.1.in-addr.arpa'));
+
+  const missing = await run({ type: 'dns', host: 'missing.example.com', recordType: 'A' });
+  assert.deepEqual(missing.data.records, []);
+  assert.equal(missing.data.nxdomain, true);
+});
+
+test('worker rejects private IPv6 forms instead of treating them as public', async (t) => {
+  installFetch(t);
+  const hosts = [
+    '::ffff:127.0.0.1',
+    '::ffff:7f00:1',
+    '::ffff:10.0.0.1',
+    '::ffff:169.254.169.254',
+    '64:ff9b::7f00:1',
+    '::7f00:1',
+    '2002:7f00:1::',
+    '127.1',
+    '0177.0.0.1'
+  ];
+  for (const host of hosts) {
+    const { data } = await run({ type: 'http', host, follow: false });
+    assert.equal(data.ok, false, host);
+    assert.match(data.error, /Invalid or non-public host/, host);
+  }
+});
+
+test('worker decodes non-UTF-8 titles from the meta charset', async (t) => {
+  installFetch(t);
+  const { data } = await run({ type: 'http', host: 'cp1251.example.com', follow: false });
+  assert.equal(data.ok, true);
+  assert.equal(data.title, 'Привет');
+});
+
+test('worker reverse-resolves the MX address via in-addr.arpa and exposes mxPtr', async (t) => {
+  installFetch(t);
+  const { data } = await run({ type: 'email', host: 'example.com' });
+  assert.equal(data.ok, true);
+  assert.deepEqual(data.mxPtr, { ip: '192.0.2.10', hostnames: ['one.one.one.one'] });
+  assert.ok(global.__dohQueries.some(q => q.type === 'PTR' && q.name === '10.2.0.192.in-addr.arpa'));
 });
 
 test('worker compares propagation across resolvers', async (t) => {

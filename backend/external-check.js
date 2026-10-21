@@ -270,51 +270,6 @@ function normalizeHttpResponse(raw, fallbackHost) {
   };
 }
 
-// Legacy normalizer for the first (single-purpose) worker contract. Kept for
-// compatibility with older tests and callers; new code should use checkHttp.
-function normalizeResponse(raw) {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    return { error: 'External checker returned an invalid response' };
-  }
-
-  if (raw.reachable === false || raw.error || raw.status == null) {
-    return { error: limitString(raw.error, 300) || 'External check failed' };
-  }
-
-  const status = validStatus(raw.status);
-  if (status == null) return { error: 'External checker returned an invalid HTTP status' };
-
-  const protocol = raw.protocol === 'http' ? 'http' : 'https';
-  const host = normalizeHost(raw.host) || '';
-  const baseUrl = host ? protocol + '://' + host + '/' : '';
-  const redirect = limitString(raw.redirect, 2048);
-  const finalUrl = redirect ? (resolveUrl(redirect, baseUrl) || baseUrl) : baseUrl;
-  const responseMs = Number.isFinite(raw.responseMs) && raw.responseMs >= 0 ? raw.responseMs : null;
-
-  return {
-    ok: true,
-    status,
-    protocol,
-    host,
-    finalUrl,
-    redirect,
-    redirects: [{
-      url: baseUrl,
-      status,
-      location: redirect,
-      error: '',
-      blocked: false,
-      ms: responseMs
-    }],
-    responseMs,
-    server: limitString(raw.server, 200),
-    contentType: limitString(raw.contentType, 200),
-    title: limitString(raw.title, 300).replace(/\s+/g, ' ').trim(),
-    headers: headersFromPayload(raw),
-    source: 'worker'
-  };
-}
-
 function normalizeDnsResponse(raw, fallbackHost, fallbackType) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return { error: 'External checker returned an invalid response' };
@@ -331,6 +286,7 @@ function normalizeDnsResponse(raw, fallbackHost, fallbackType) {
     host: normalizeDnsName(raw.host) || fallbackHost,
     type: limitString(raw.recordType, 10).toUpperCase() || fallbackType,
     records,
+    nxdomain: raw.nxdomain === true,
     resolver: limitString(raw.resolver, 100),
     source: 'worker'
   };
@@ -503,7 +459,14 @@ function postJson(workerUrl, secret, payload, timeoutMs) {
   });
 }
 
-async function requestWorker(payload) {
+function effectiveTimeout(config, options) {
+  const requested = options && Number.isFinite(options.timeoutMs)
+    ? Math.floor(options.timeoutMs)
+    : config.timeout;
+  return Math.min(config.timeout, Math.max(1000, requested));
+}
+
+async function requestWorker(payload, options) {
   const config = getConfig();
   if (!config.url || !config.secret) {
     return { error: 'External checker is not configured', unavailable: true };
@@ -514,7 +477,12 @@ async function requestWorker(payload) {
     return { error: 'External checker URL must use HTTPS' };
   }
 
-  const response = await postJson(workerUrl, config.secret, payload, config.timeout);
+  const timeout = effectiveTimeout(config, options);
+  if (options && Number.isFinite(options.timeoutMs) && options.timeoutMs < 1000) {
+    return { error: 'External checker budget exhausted', timeout: true, unavailable: true };
+  }
+
+  const response = await postJson(workerUrl, config.secret, payload, timeout);
   if (response.error) return { error: response.error, timeout: response.timeout === true };
   return { raw: response.raw };
 }
@@ -529,17 +497,12 @@ async function checkHttp(host, options) {
     host: normalizedHost,
     path: typeof opts.path === 'string' ? opts.path : '/',
     follow: opts.follow !== false
-  });
+  }, { timeoutMs: opts.timeoutMs });
   if (result.error) return result;
   return normalizeHttpResponse(result.raw, normalizedHost);
 }
 
-// Backwards-compatible alias for the old single-purpose worker.
-async function checkHost(host) {
-  return checkHttp(host, { follow: false });
-}
-
-async function checkDns(host, type) {
+async function checkDns(host, type, options) {
   const recordType = String(type || '').toUpperCase();
   let normalizedHost;
   if (recordType === 'PTR') {
@@ -555,12 +518,12 @@ async function checkDns(host, type) {
     type: 'dns',
     host: normalizedHost,
     recordType
-  });
+  }, { timeoutMs: options && options.timeoutMs });
   if (result.error) return result;
   return normalizeDnsResponse(result.raw, normalizedHost, recordType);
 }
 
-async function checkPropagation(host, type) {
+async function checkPropagation(host, type, options) {
   const normalizedHost = normalizeDnsName(host);
   if (!normalizedHost) return { error: 'Invalid host for the external checker' };
   const recordType = String(type || '').toUpperCase();
@@ -569,12 +532,12 @@ async function checkPropagation(host, type) {
     type: 'propagation',
     host: normalizedHost,
     recordType
-  });
+  }, { timeoutMs: options && options.timeoutMs });
   if (result.error) return result;
   return normalizePropagationResponse(result.raw, normalizedHost, recordType);
 }
 
-async function checkEmail(host, selector) {
+async function checkEmail(host, selector, options) {
   const normalizedHost = normalizeHost(host);
   if (!normalizedHost) return { error: 'Invalid host for the external checker' };
 
@@ -582,7 +545,7 @@ async function checkEmail(host, selector) {
     type: 'email',
     host: normalizedHost,
     selector: String(selector || '')
-  });
+  }, { timeoutMs: options && options.timeoutMs });
   if (result.error) return result;
   return normalizeEmailResponse(result.raw, normalizedHost);
 }
@@ -591,7 +554,8 @@ async function checkEmail(host, selector) {
 // status, or when it looks like an ISP/geo block (403/451). Normal 2xx/3xx/4xx
 // answers and blocked targets are not forwarded to the worker.
 function shouldUseExternal(result) {
-  if (!result || result.blocked) return false;
+  if (!result || result.blocked || result.busy) return false;
+  if (result.blockedPage) return true;
   if (!result.status) return Boolean(result.error);
   return result.status === 403 || result.status === 451;
 }
@@ -603,13 +567,11 @@ module.exports = {
   normalizeHost,
   normalizeDnsName,
   normalizeTargetHost,
-  normalizeResponse,
   normalizeHttpResponse,
   normalizeDnsResponse,
   normalizePropagationResponse,
   normalizeEmailResponse,
   shouldUseExternal,
-  checkHost,
   checkHttp,
   checkDns,
   checkPropagation,

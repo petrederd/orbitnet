@@ -303,7 +303,7 @@ IP клиента берётся из `X-Real-IP`, который выставл
 `docker-compose.yml`:
 
 - `orbitnet-site` — nginx, статика из `./site`, порт `127.0.0.1:8081`.
-- `orbitnet-api` — Node.js, внутренний порт `3000`; получает `CHECKER_URL`, `CHECKER_SECRET` и `CHECKER_TIMEOUT` из серверного `.env`.
+- `orbitnet-api` — Node.js, внутренний порт `3000`; получает `CHECKER_URL`, `CHECKER_SECRET`, `CHECKER_TIMEOUT`, `EXTERNAL_RATE_MAX`, `EXTERNAL_GLOBAL_MAX` и `REQUEST_BUDGET_MS` из серверного `.env`.
 - `geoip-updater` — профиль `geoip`, обновляет базы раз в 24 часа.
 
 `nginx.conf`:

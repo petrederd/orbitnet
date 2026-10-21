@@ -17,11 +17,12 @@
 // otherwise non-public address.
 
 const MAX_REQUEST_BYTES = 16 * 1024;
-const MAX_HTML_BYTES = 256 * 1024;
+const MAX_HTML_BYTES = 64 * 1024;
 const MAX_RESPONSE_HEADERS = 100;
 const MAX_HEADER_VALUE = 2048;
 const MAX_REDIRECTS = 10;
 const HTTP_TIMEOUT_MS = 8000;
+const HTTP_TOTAL_TIMEOUT_MS = 12000;
 const DNS_TIMEOUT_MS = 5000;
 
 const USER_AGENT = "OrbitNet-Checker/1.1 (+https://orbitnet.ru)";
@@ -106,38 +107,90 @@ function ipv4ToInt(host) {
   return value;
 }
 
+function parseIpv6Groups(raw) {
+  let s = String(raw || "").split("%")[0].toLowerCase();
+  if (!s.includes(":")) return null;
+
+  const dc = s.indexOf("::");
+  const head = dc === -1 ? s : s.slice(0, dc);
+  const tail = dc === -1 ? "" : s.slice(dc + 2);
+  const toGroups = (part) => {
+    if (!part) return [];
+    const arr = part.split(":");
+    const last = arr[arr.length - 1];
+    if (last.includes(".")) {
+      const v4 = ipv4ToInt(last);
+      if (v4 == null) return null;
+      arr.pop();
+      arr.push(((v4 >>> 16) & 0xffff).toString(16), (v4 & 0xffff).toString(16));
+    }
+    const groups = arr.map(g => /^[0-9a-f]{1,4}$/.test(g) ? parseInt(g, 16) : NaN);
+    return groups.some(n => !Number.isFinite(n)) ? null : groups;
+  };
+
+  const h = toGroups(head);
+  const t = toGroups(tail);
+  if (h === null || t === null) return null;
+  if (dc === -1) return h.length === 8 ? h : null;
+  const fill = 8 - h.length - t.length;
+  if (fill < 0) return null;
+  return h.concat(new Array(fill).fill(0), t);
+}
+
+function isBlockedIpv4(value) {
+  const blocked = [
+    [0x00000000, 0x00ffffff], // 0.0.0.0/8
+    [0x0a000000, 0x0affffff], // 10.0.0.0/8
+    [0x64400000, 0x647fffff], // 100.64.0.0/10
+    [0x7f000000, 0x7fffffff], // 127.0.0.0/8
+    [0xa9fe0000, 0xa9feffff], // 169.254.0.0/16
+    [0xac100000, 0xac1fffff], // 172.16.0.0/12
+    [0xc0a80000, 0xc0a8ffff], // 192.168.0.0/16
+    [0xc6120000, 0xc613ffff], // 198.18.0.0/15
+    [0xe0000000, 0xefffffff], // multicast
+    [0xf0000000, 0xffffffff]  // reserved
+  ];
+  return blocked.some(([start, end]) => value >= start && value <= end);
+}
+
+function isBlockedIpv6(g) {
+  if (g.slice(0, 6).every(n => n === 0)) return true; // ::/96
+  if (g[0] === 0x0064 && g[1] === 0xff9b && g.slice(2, 6).every(n => n === 0)) return true; // 64:ff9b::/96
+  if (g[0] === 0x0064 && g[1] === 0xff9b && g[2] === 1) return true; // 64:ff9b:1::/48
+  if (g[0] === 0x0100 && g.slice(1, 4).every(n => n === 0)) return true; // 100::/64
+  if (g[0] === 0x2001 && g[1] === 0) return true; // 2001::/32
+  if (g[0] === 0x2001 && g[1] === 2 && g[2] === 0) return true; // 2001:2::/48
+  if (g[0] === 0x2001 && g[1] === 0x0db8) return true; // 2001:db8::/32
+  if (g[0] === 0x2001 && (g[1] & 0xfff0) === 0x0010) return true; // 2001:10::/28
+  if (g[0] === 0x2001 && (g[1] & 0xfff0) === 0x0020) return true; // 2001:20::/28
+  if (g[0] === 0x2002) return true; // 2002::/16
+  if (g[0] === 0x3fff && (g[1] & 0xf000) === 0) return true; // 3fff::/20
+  if (g[0] === 0x5f00) return true; // 5f00::/16
+  if ((g[0] & 0xfe00) === 0xfc00) return true; // fc00::/7
+  if ((g[0] & 0xffc0) === 0xfe80) return true; // fe80::/10
+  if ((g[0] & 0xff00) === 0xff00) return true; // ff00::/8
+  return false;
+}
+
 function isPublicIp(raw) {
   const host = String(raw || "").trim().toLowerCase()
     .replace(/^\[|\]$/g, "");
   if (!host) return false;
 
   const v4 = ipv4ToInt(host);
-  if (v4 != null) {
-    const blocked = [
-      [0x00000000, 0x00ffffff], // 0.0.0.0/8
-      [0x0a000000, 0x0affffff], // 10.0.0.0/8
-      [0x64400000, 0x647fffff], // 100.64.0.0/10
-      [0x7f000000, 0x7fffffff], // 127.0.0.0/8
-      [0xa9fe0000, 0xa9feffff], // 169.254.0.0/16
-      [0xac100000, 0xac1fffff], // 172.16.0.0/12
-      [0xc0a80000, 0xc0a8ffff], // 192.168.0.0/16
-      [0xc6120000, 0xc613ffff], // 198.18.0.0/15
-      [0xe0000000, 0xefffffff], // multicast
-      [0xf0000000, 0xffffffff]  // reserved
-    ];
-    return !blocked.some(([start, end]) => v4 >= start && v4 <= end);
+  if (v4 != null) return !isBlockedIpv4(v4);
+
+  const groups = parseIpv6Groups(host);
+  if (!groups) return false;
+
+  // IPv4-mapped ::ffff:0:0/96 is checked as its embedded IPv4 address,
+  // matching the backend. This catches ::ffff:127.0.0.1 and its compressed
+  // ::ffff:7f00:1 form.
+  if (groups.slice(0, 5).every(n => n === 0) && groups[5] === 0xffff) {
+    return !isBlockedIpv4(((groups[6] << 16) | groups[7]) >>> 0);
   }
 
-  if (host.includes(":")) {
-    if (host === "::" || host === "::1") return false;
-    if (/^f[cd]/.test(host)) return false;      // fc00::/7
-    if (/^fe[89ab]/.test(host)) return false;   // fe80::/10
-    if (/^ff/.test(host)) return false;         // multicast
-    if (host.startsWith("::ffff:")) return isPublicIp(host.slice(7));
-    return true;
-  }
-
-  return false;
+  return !isBlockedIpv6(groups);
 }
 
 function normalizeHttpHost(raw) {
@@ -149,7 +202,23 @@ function normalizeHttpHost(raw) {
   if (ipv4ToInt(host) != null || host.includes(":")) {
     return isPublicIp(host) ? host : "";
   }
-  return normalizeDomain(host, false);
+  const name = normalizeDomain(host, false);
+  if (!name) return "";
+
+  // The URL parser accepts shorthand IPv4 forms such as 127.1, 2130706433 and
+  // 0x7f000001. Reject anything that normalises to an IP literal instead of
+  // letting fetch resolve it to a private address.
+  let parsed;
+  try {
+    parsed = new URL("http://" + host + "/");
+  } catch {
+    return "";
+  }
+  const normalized = parsed.hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  if (ipv4ToInt(normalized) != null) {
+    return isPublicIp(normalized) ? normalized : "";
+  }
+  return name;
 }
 
 function normalizeDnsName(raw) {
@@ -188,7 +257,7 @@ async function fetchWithTimeout(url, timeoutMs) {
   }
 }
 
-async function readLimitedText(response, maxBytes = MAX_HTML_BYTES) {
+async function readLimitedText(response, maxBytes = MAX_HTML_BYTES, contentType = "") {
   if (!response.body) return "";
 
   const reader = response.body.getReader();
@@ -218,13 +287,39 @@ async function readLimitedText(response, maxBytes = MAX_HTML_BYTES) {
       bytes.set(chunk, offset);
       offset += chunk.byteLength;
     }
-    return new TextDecoder().decode(bytes);
+    return decodeHtml(bytes, contentType);
   } finally {
     if (!complete) {
       try {
         await reader.cancel();
       } catch {}
     }
+  }
+}
+
+function charsetFromContentType(value) {
+  const match = String(value || "").match(/charset\s*=\s*["']?([^;"'\s]+)/i);
+  return match ? match[1].toLowerCase() : "";
+}
+
+function charsetFromHtml(bytes) {
+  const head = new TextDecoder("latin1").decode(bytes.subarray(0, 2048));
+  const meta = head.match(/<meta[^>]+charset\s*=\s*["']?\s*([a-z0-9_-]+)/i);
+  if (meta) return meta[1].toLowerCase();
+  const httpEquiv = head.match(/<meta[^>]+content\s*=\s*["'][^"']*charset\s*=\s*([a-z0-9_-]+)/i);
+  return httpEquiv ? httpEquiv[1].toLowerCase() : "";
+}
+
+function decodeHtml(bytes, contentType) {
+  try {
+    const label = charsetFromContentType(contentType) || charsetFromHtml(bytes) || "utf-8";
+    try {
+      return new TextDecoder(label).decode(bytes);
+    } catch {
+      return new TextDecoder("utf-8").decode(bytes);
+    }
+  } catch {
+    return new TextDecoder("utf-8").decode(bytes);
   }
 }
 
@@ -279,6 +374,7 @@ async function inspectHttp(rawHost, path = "/", follow = false) {
   const safePath = typeof path === "string" && path.startsWith("/") &&
     path.length <= 2048 ? path : "/";
   const started = Date.now();
+  const deadline = started + HTTP_TOTAL_TIMEOUT_MS;
   const redirects = [];
   let current = new URL("https://" + authority + safePath);
   let protocol = "https";
@@ -299,9 +395,32 @@ async function inspectHttp(rawHost, path = "/", follow = false) {
     }
 
     const hopStarted = Date.now();
+    const remaining = deadline - hopStarted;
+    if (remaining < 250) {
+      redirects.push({
+        url: current.href,
+        status: null,
+        location: "",
+        error: "Connection timed out",
+        ms: 0
+      });
+      return {
+        ok: false,
+        type: "http",
+        host,
+        reachable: false,
+        httpOk: false,
+        status: null,
+        protocol,
+        error: "Connection timed out",
+        responseMs: Date.now() - started,
+        redirects
+      };
+    }
+
     let response;
     try {
-      response = await fetchWithTimeout(current.href, HTTP_TIMEOUT_MS);
+      response = await fetchWithTimeout(current.href, Math.min(HTTP_TIMEOUT_MS, remaining));
     } catch (error) {
       lastError = error && error.name === "AbortError"
         ? "Connection timed out"
@@ -346,7 +465,7 @@ async function inspectHttp(rawHost, path = "/", follow = false) {
 
     let title = null;
     if (!isRedirect && isHtml && status >= 200 && status < 300) {
-      const html = await readLimitedText(response);
+      const html = await readLimitedText(response, MAX_HTML_BYTES, contentType);
       title = extractTitle(html);
     } else {
       try {
@@ -549,6 +668,17 @@ async function dnsLookupAny(name, type, txtSeparator = " ") {
   return { error: lastError };
 }
 
+function reverseDnsName(raw) {
+  const ip = String(raw || "").trim().replace(/^\[|\]$/g, "");
+  const v4 = ipv4ToInt(ip);
+  if (v4 != null) return ip.split(".").reverse().join(".") + ".in-addr.arpa";
+  const groups = parseIpv6Groups(ip);
+  if (!groups) return "";
+  return groups.slice().reverse()
+    .map(group => group.toString(16).padStart(4, "0").split("").reverse().join("."))
+    .join(".") + ".ip6.arpa";
+}
+
 function errorCode(result) {
   if (result.nxdomain) return "ENOTFOUND";
   if (!result.records || (Array.isArray(result.records) && !result.records.length)) {
@@ -570,7 +700,9 @@ async function inspectDns(name, type) {
     if (!name) return { ok: false, error: "Invalid or non-public host" };
   }
 
-  const result = await dnsLookupAny(name, type);
+  const lookupName = type === "PTR" ? reverseDnsName(name) : name;
+  if (!lookupName) return { ok: false, error: "Invalid PTR lookup name" };
+  const result = await dnsLookupAny(lookupName, type);
   if (result.error) {
     return { ok: false, type: "dns", host: name, recordType: type, error: result.error };
   }
@@ -580,6 +712,7 @@ async function inspectDns(name, type) {
     host: name,
     recordType: type,
     records: result.records,
+    nxdomain: result.nxdomain === true,
     resolver: result.resolver,
     source: "Cloudflare Worker"
   };
@@ -685,7 +818,10 @@ async function inspectEmail(rawHost, rawSelector) {
     const aResult = await dnsLookupAny(result.mx[0].host, "A");
     const ip = !aResult.error && Array.isArray(aResult.records) ? aResult.records[0] : "";
     if (ip && isPublicIp(ip)) {
-      const ptrResult = await dnsLookupAny(ip, "PTR");
+      const ptrName = reverseDnsName(ip);
+      const ptrResult = ptrName
+        ? await dnsLookupAny(ptrName, "PTR")
+        : { error: "Invalid PTR lookup name" };
       if (!ptrResult.error && Array.isArray(ptrResult.records) && ptrResult.records.length) {
         result.mxPtr = { ip, hostnames: ptrResult.records };
       }

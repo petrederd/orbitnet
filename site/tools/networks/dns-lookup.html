@@ -134,7 +134,11 @@ function lookup() {
         html += '<div class="result-box"><div class="result-label">' + esc(type) +
           '</div><div class="result-value">' + esc(formatRecord(type, rec)) + '</div></div>';
       });
-      if (!records.length) html += '<div class="info">No records found.</div>';
+      if (!records.length) {
+        html += data.nxdomain
+          ? '<div class="info">Domain does not exist (NXDOMAIN).</div>'
+          : '<div class="info">No records of this type (NODATA).</div>';
+      }
       document.getElementById('results').innerHTML = html;
     })
     .catch(e => {

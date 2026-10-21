@@ -25,6 +25,9 @@ services:
       - CHECKER_URL=${CHECKER_URL:-}
       - CHECKER_SECRET=${CHECKER_SECRET:-}
       - CHECKER_TIMEOUT=${CHECKER_TIMEOUT:-20000}
+      - EXTERNAL_RATE_MAX=${EXTERNAL_RATE_MAX:-10}
+      - EXTERNAL_GLOBAL_MAX=${EXTERNAL_GLOBAL_MAX:-60}
+      - REQUEST_BUDGET_MS=${REQUEST_BUDGET_MS:-22000}
     volumes:
       - ./data/geoip:/data/geoip:ro
     expose:
