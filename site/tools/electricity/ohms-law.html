@@ -264,9 +264,9 @@ function formatNumber(n) {
   if (n === 0) return '0';
   const abs = Math.abs(n);
   if (abs >= 1e-4 && abs < 1e9) {
-    return String(Number(n.toPrecision(12)));
+    return String(Number(n.toPrecision(6)));
   }
-  return n.toExponential(6).replace(/\.?0+e/, 'e');
+  return n.toExponential(5).replace(/\.?0+e/, 'e');
 }
 
 function formatValue(value, baseUnit, units) {

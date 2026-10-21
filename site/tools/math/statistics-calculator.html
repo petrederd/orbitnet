@@ -63,7 +63,7 @@
     <div class="input-group">
       <label for="data">Numbers</label>
       <textarea id="data" class="text-textarea" placeholder="e.g. 12, 7, 3, 19, 7, 25" oninput="calculate()"></textarea>
-      <small>Separate values by commas, spaces or new lines.</small>
+      <small>Separate values by commas, spaces or new lines. If you use a decimal comma, separate values with semicolons (e.g. <code>3,5; 7</code>) or put a comma in every space-separated value (<code>3,5 4,2</code>).</small>
     </div>
   </div>
 
@@ -111,22 +111,35 @@ function fmt(x) {
   return (Math.round(x * 1e10) / 1e10).toLocaleString('en-US', { maximumFractionDigits: 10 });
 }
 
-// Accepts whitespace/semicolon separators plus decimal commas ("3,5"),
-// while still allowing comma-separated lists ("1,2,3") and thousands ("1,234").
+// Handles thousands ("1,234"), decimal commas ("3,5") and comma lists ("1,2,3").
+// Commas are read as decimals only when a value is alone or when every value
+// looks like "12,5"; otherwise commas act as separators (so "5,10 7" is 5, 10, 7).
+function parseSingleToken(token) {
+  const t = token.trim();
+  if (!t) return [];
+  if (/^[-+]?\d{1,3}(,\d{3})+(\.\d+)?$/.test(t)) return [t.replace(/,/g, '')];
+  if (/^[-+]?\d+,\d+$/.test(t)) return [t.replace(',', '.')];
+  return t.split(',').map(p => p.trim()).filter(p => p !== '');
+}
+
 function parseTokens(raw) {
-  const out = [];
-  raw.split(/[\s;]+/).filter(t => t !== '').forEach(token => {
-    const t = token.trim();
-    if (!t) return;
-    if (/^[-+]?\d{1,3}(,\d{3})+(\.\d+)?$/.test(t)) {
-      out.push(t.replace(/,/g, ''));
-    } else if (/^[-+]?\d+,\d+$/.test(t)) {
-      out.push(t.replace(',', '.'));
-    } else {
-      t.split(',').filter(p => p !== '').forEach(p => out.push(p));
-    }
-  });
-  return out;
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+  // Semicolons are an explicit list separator, allowing decimal commas in each value.
+  if (trimmed.includes(';')) return trimmed.split(';').flatMap(parseSingleToken);
+
+  const tokens = trimmed.split(/\s+/).filter(t => t !== '');
+  if (tokens.length <= 1) return parseSingleToken(tokens[0] || '');
+
+  const allCommaValues = tokens.every(t =>
+    /^[-+]?\d{1,3}(,\d{3})+(\.\d+)?$/.test(t) || /^[-+]?\d+,\d+$/.test(t)
+  );
+  if (allCommaValues) {
+    return tokens.flatMap(t =>
+      /^[-+]?\d{1,3}(,\d{3})+(\.\d+)?$/.test(t) ? [t.replace(/,/g, '')] : [t.replace(',', '.')]
+    );
+  }
+  return tokens.flatMap(t => t.split(',')).map(t => t.trim()).filter(t => t !== '');
 }
 
 function calculate() {

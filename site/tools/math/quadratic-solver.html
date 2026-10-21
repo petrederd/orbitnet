@@ -220,8 +220,9 @@ function solve() {
   let discriminant = b * b - 4 * a * c;
   if (Math.abs(discriminant) <= eps) discriminant = 0;
   
+  const bLabel = b < 0 ? '(' + b + ')' : String(b);
   let html = `
-    <div class="result-box"><div class="result-label">Discriminant (D)</div><div class="result-value">${fmtNumber(discriminant)}</div><div class="result-sub">D = b² - 4ac = ${b}² - 4·${a}·${c}</div></div>
+    <div class="result-box"><div class="result-label">Discriminant (D)</div><div class="result-value">${fmtNumber(discriminant)}</div><div class="result-sub">D = b² - 4ac = ${bLabel}² - 4·${a}·${c}</div></div>
   `;
   
   if (discriminant > 0) {
@@ -235,6 +236,12 @@ function solve() {
     } else {
       x1 = q / a;
       x2 = c / q;
+    }
+    // Keep x₁ matching the "+√D" formula and x₂ the "−√D" one.
+    if (b >= 0) {
+      const swap = x1;
+      x1 = x2;
+      x2 = swap;
     }
     
     html += `

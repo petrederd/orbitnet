@@ -103,7 +103,12 @@
 <script>
 document.getElementById('year').textContent = new Date().getFullYear();
 
-const STOP = new Set(['the','and','for','are','but','not','you','all','any','can','her','was','one','our','out','day','get','has','him','his','how','its','new','now','old','see','two','way','who','boy','did','use','that','this','with','from','they','have','will','your','what','when','were','been','them','than','then','some','into','than','there','their','would','could','should','about','which','these','those','other','after','before','because','while']);
+const STOP = new Set([
+  // English
+  'the','and','for','are','but','not','you','all','any','can','her','was','one','our','out','day','get','has','him','his','how','its','new','now','old','see','two','way','who','boy','did','use','that','this','with','from','they','have','will','your','what','when','were','been','them','than','then','some','into','there','their','would','could','should','about','which','these','those','other','after','before','because','while',
+  // Russian
+  'что','как','это','для','или','при','его','они','она','оно','все','всё','еще','ещё','уже','только','даже','если','когда','где','там','тут','есть','был','была','было','были','быть','может','можно','нужно','очень','более','менее','также','чтобы','чем','кто','этот','эта','эти','тот','без','через','между','после','перед','около','него','нее','неё','них','себя','себе','свой','своя','свое','своё','свои','который','которая','которое','которые','которых','потому','поэтому','тогда','сейчас','здесь','так','тоже','либо','ведь','вот','мне','меня','тебя','тебе','нас','вас','ним','ней','которую','которого','которым','которыми','какой','какая','какое','какие'
+]);
 
 function update() {
   const text = document.getElementById('input').value;
@@ -142,7 +147,7 @@ function topKeywords(text) {
   const el = document.getElementById('keywords');
   if (!text) { el.innerHTML = '<div class="result-sub">No words yet.</div>'; return; }
   const counts = {};
-  (text.toLowerCase().match(/[\p{L}\p{N}][\p{L}\p{N}'’]*/gu) || []).forEach(w => {
+  (text.toLowerCase().match(/[\p{L}\p{N}]+(?:['’-][\p{L}\p{N}]+)*/gu) || []).forEach(w => {
     if ([...w].length < 3 || STOP.has(w)) return;
     counts[w] = (counts[w] || 0) + 1;
   });
