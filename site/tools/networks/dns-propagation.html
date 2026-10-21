@@ -130,7 +130,9 @@ function render(d) {
   const unique = new Set();
   list.forEach(r => unique.add(r.error ? 'ERR:' + r.error : (r.records || []).join('|')));
 
-  let html = '';
+  let html = d.source === 'worker'
+    ? '<div class="status-box info">The local resolvers did not answer; the comparison was performed by the external checker.</div>'
+    : '';
   list.forEach(r => {
     let body;
     if (r.error) {

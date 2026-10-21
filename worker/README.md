@@ -1,12 +1,11 @@
 # OrbitNet external checker (Cloudflare Worker)
 
-Worker проверяет доступность сайта из сети Cloudflare. Нужен потому, что
-сервер в России не всегда может достучаться до сайта (блокировки, фильтрация
-DNS, недоступный маршрут), хотя из остального мира сайт работает.
+Worker выполняет проверки из сети Cloudflare. Нужен потому, что сервер в России
+не всегда может достучаться до сайта или получить DNS-ответ (блокировки,
+фильтрация DNS, недоступный маршрут), хотя из остального мира ресурс работает.
 
 Worker вызывается **только бэкендом** (`backend/external-check.js`) и только
-как fallback: если локальная проверка не получила HTTP-ответ (DNS/TCP/TLS/
-таймаут). При обычном ответе 200/404/500 запрос к Worker не делается.
+как fallback. Локальная проверка всегда выполняется первой.
 
 ## Контракт
 
@@ -15,25 +14,43 @@ POST /
 Authorization: Bearer <CHECKER_SECRET>
 Content-Type: application/json
 
-{"host":"example.com"}
+{"type":"http","host":"example.com","follow":false}
+{"type":"dns","host":"example.com","recordType":"A"}
+{"type":"propagation","host":"example.com","recordType":"A"}
+{"type":"email","host":"example.com","selector":"default"}
 ```
 
-Успешный ответ (HTTP 200), в том числе для 404/500 самого сайта:
+`type` по умолчанию — `http`. `follow` по умолчанию — `true`; для Site Info и
+HTTP Headers бэкенд передаёт `false`, для Redirect Checker — `true`.
+
+Все успешные проверки возвращают HTTP 200 и `{"ok":true,...}`. Недоступная
+цель — тоже HTTP 200, но `{"ok":false,"error":"..."}`: это результат проверки,
+а не сбой Worker. Ошибки запроса: `405` — не POST, `401` — неверный секрет,
+`400` — неподдерживаемый тип/запись, `413` — слишком большое тело.
+
+### HTTP
 
 ```json
 {
+  "ok": true,
+  "type": "http",
   "host": "example.com",
   "reachable": true,
-  "httpOk": true,
-  "protocol": "https",
   "status": 200,
-  "statusText": "OK",
+  "protocol": "https",
+  "finalUrl": "https://example.com/",
+  "redirects": [
+    {"url": "https://example.com/", "status": 200, "location": "", "ms": 123}
+  ],
   "responseMs": 123,
-  "redirect": null,
-  "contentType": "text/html; charset=utf-8",
-  "contentLength": 1234,
   "title": "Example Domain",
   "server": "nginx",
+  "contentType": "text/html; charset=utf-8",
+  "contentLength": 1256,
+  "headers": [
+    {"name": "server", "value": "nginx"},
+    {"name": "strict-transport-security", "value": "max-age=31536000"}
+  ],
   "securityHeaders": {
     "strictTransportSecurity": "present",
     "contentSecurityPolicy": "missing",
@@ -46,29 +63,77 @@ Content-Type: application/json
 }
 ```
 
-Недоступный домен / таймаут — HTTP 502:
+- HTTPS, при ошибке соединения — повтор первого шага по HTTP.
+- При `follow: true` — до 10 редиректов, каждый шаг с статусом, `Location` и
+  временем. Редирект на приватный/непубличный адрес отклоняется.
+- Отдаются настоящие значения заголовков, а не только факт их наличия.
+- HTML читается не более 256 КБ, из него извлекается `title`.
+
+### DNS
 
 ```json
 {
+  "ok": true,
+  "type": "dns",
   "host": "example.com",
-  "reachable": false,
-  "httpOk": false,
-  "status": null,
-  "responseMs": 8000,
-  "error": "Connection timed out",
+  "recordType": "A",
+  "records": ["192.0.2.1"],
+  "resolver": "Cloudflare 1.1.1.1",
   "source": "Cloudflare Worker"
 }
 ```
 
-Ошибки запроса: `405` — не POST, `401` — неверный секрет, `400` — не публичный
-домен (IP-адреса, `localhost`, `*.local`, `*.internal`, `*.test`, `*.invalid`
-запрещены).
+Поддерживаются `A`, `AAAA`, `CNAME`, `MX`, `TXT`, `NS`, `SOA`, `CAA`, `PTR`.
+Запросы идут через DNS-over-HTTPS: Cloudflare, при сбое — Google, затем
+AdGuard. `PTR` принимает только публичный IP. Формат записей совпадает с
+локальным `dnsLookup`: MX — `{priority,host}`, SOA — объект, CAA —
+`{flag,tag,value}`, TXT — строка.
+
+### Propagation
+
+```json
+{
+  "ok": true,
+  "type": "propagation",
+  "host": "example.com",
+  "recordType": "A",
+  "resolvers": [
+    {"server": "Cloudflare 1.1.1.1", "records": ["192.0.2.1"]},
+    {"server": "Google 8.8.8.8", "records": ["192.0.2.1"]},
+    {"server": "AdGuard 94.140.14.14", "records": ["192.0.2.1"]}
+  ],
+  "source": "Cloudflare Worker"
+}
+```
+
+Сравниваются три независимых DoH-резолвера. Если резолвер недоступен, в его
+элементе будет `error` вместо `records`.
+
+### Email
+
+```json
+{
+  "ok": true,
+  "type": "email",
+  "host": "example.com",
+  "mx": [{"priority": 10, "host": "mail.example.com"}],
+  "spf": "v=spf1 -all",
+  "dmarc": "v=DMARC1; p=none",
+  "dkim": ["v=DKIM1; k=rsa; p=..."],
+  "mxPtr": {"ip": "192.0.2.10", "hostnames": ["mail.example.com"]},
+  "errors": {},
+  "source": "Cloudflare Worker"
+}
+```
+
+MX, SPF, DMARC, DKIM и PTR основного MX собираются из DoH-запросов. Ошибки по
+отдельным полям возвращаются в `errors`, как в локальном `/api/email`.
 
 ## Что нужно
 
 - Аккаунт Cloudflare (бесплатного плана достаточно).
-- Node.js и `npx wrangler` (ставится по требованию).
-- Домен или `*.workers.dev` — оба подходят, главное HTTPS.
+- Node.js и `npx wrangler`.
+- Домен или `*.workers.dev` — главное, чтобы Worker был доступен по HTTPS.
 
 ## Деплой
 
@@ -77,60 +142,46 @@ Content-Type: application/json
 ```bash
 cd worker
 
-# 1. Войти в Cloudflare (откроется браузер) или задать CLOUDFLARE_API_TOKEN.
+# 1. Войти в Cloudflare (или задать CLOUDFLARE_API_TOKEN).
 npx wrangler login
 
-# 2. Задеплоить Worker. В выводе будет URL вида
-#    https://orbitnet-site-checker.<account>.workers.dev
+# 2. Задеплоить Worker. Имя в wrangler.toml — orbitnet-site-checker,
+#    поэтому URL останется прежним, если Worker уже был задеплоен.
 npx wrangler deploy
 
-# 3. Задать общий секрет. Придумайте длинную случайную строку, например:
+# 3. Задать общий секрет. Придумайте длинную случайную строку:
 #    openssl rand -hex 32
-#    Вставьте её в приглашение wrangler (в git она не попадает).
 npx wrangler secret put CHECKER_SECRET
 ```
 
-Секрет хранится в Cloudflare как Worker Secret. В `wrangler.toml` его нет,
-в репозиторий и в клиентский JavaScript он не попадает.
+Секрет хранится в Cloudflare как Worker Secret. В `wrangler.toml` его нет, в
+репозиторий и клиентский JavaScript он не попадает.
 
 ## Настройка сервера
 
-На сервере, в каталоге проекта (там же, где `docker-compose.yml`), откройте
-`.env` (он в `.gitignore`) и добавьте:
+На сервере, в каталоге проекта, откройте `.env` (он в `.gitignore`) и укажите:
 
 ```dotenv
 CHECKER_URL=https://orbitnet-site-checker.<account>.workers.dev/
 CHECKER_SECRET=<та же строка, что в wrangler secret put>
 # необязательно, миллисекунды
-CHECKER_TIMEOUT=10000
+CHECKER_TIMEOUT=20000
 ```
 
 `CHECKER_URL` и `CHECKER_SECRET` уже проброшены в контейнер через
-`docker-compose.yml`:
-
-```yaml
-environment:
-  - CHECKER_URL=${CHECKER_URL:-}
-  - CHECKER_SECRET=${CHECKER_SECRET:-}
-  - CHECKER_TIMEOUT=${CHECKER_TIMEOUT:-10000}
-```
-
-После изменения `.env` перезапустите API (полный деплой через GitHub Actions
-тоже подхватит значения, потому что `.env` лежит на сервере и не перезаписывается):
+`docker-compose.yml`. После изменения `.env`:
 
 ```bash
 docker compose up -d --build --force-recreate orbitnet-api
 ```
 
-Проверьте, что контейнер видит настройки:
+Проверка настроек внутри контейнера:
 
 ```bash
 docker compose exec orbitnet-api node -e 'console.log(process.env.CHECKER_URL ? "url set" : "url missing", process.env.CHECKER_SECRET ? "secret set" : "secret missing")'
 ```
 
 ## Проверка Worker напрямую
-
-Замените URL и секрет:
 
 ```bash
 CHECKER_URL='https://orbitnet-site-checker.<account>.workers.dev/'
@@ -139,49 +190,45 @@ CHECKER_SECRET='...'
 curl -sS -X POST "$CHECKER_URL" \
   -H "Authorization: Bearer $CHECKER_SECRET" \
   -H 'Content-Type: application/json' \
-  -d '{"host":"example.com"}'
+  -d '{"type":"http","host":"example.com","follow":false}'
+
+curl -sS -X POST "$CHECKER_URL" \
+  -H "Authorization: Bearer $CHECKER_SECRET" \
+  -H 'Content-Type: application/json' \
+  -d '{"type":"dns","host":"example.com","recordType":"A"}'
+
+curl -sS -X POST "$CHECKER_URL" \
+  -H "Authorization: Bearer $CHECKER_SECRET" \
+  -H 'Content-Type: application/json' \
+  -d '{"type":"email","host":"example.com","selector":"default"}'
 ```
-
-Ожидаемые ответы:
-
-- рабочий сайт — `{"reachable":true,"status":200,...}`;
-- HTTP 404 — `{"reachable":true,"status":404,...}` (это успешная проверка);
-- недоступный домен — HTTP 502, `{"reachable":false,"error":"Connection failed"}`;
-- таймаут — HTTP 502, `{"reachable":false,"error":"Connection timed out"}`.
 
 Без правильного `Authorization` Worker вернёт `401`.
 
-## Проверка через API OrbitNet
+## Когда бэкенд использует Worker
 
-```bash
-# source = "local" — локальная проверка сработала;
-# source = "worker" — локальная не смогла, использован Worker.
-curl -sS 'http://127.0.0.1:8081/api/site?host=example.com' | \
-  node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);console.log(j.source,j.status,j.error||"")})'
-```
-
-Чтобы принудительно проверить fallback, возьмите домен, который недоступен
-именно с сервера (но открывается извне), либо временно остановите DNS/маршрут.
-
-## Что проверяется
-
-- HTTPS, при ошибке соединения — повтор по HTTP (как в локальной проверке).
-- Первый ответ сайта (`redirect: "manual"`), без перехода по редиректам.
-- Заголовок `title` (не более 64 КБ HTML), `server`, `content-type`,
-  `content-length` и наличие security-заголовков (только `present`/`missing`,
-  без значений).
-- SSRF-защита: запрещены IP-адреса, `localhost`, `*.local`, `*.internal`,
-  `*.test`, `*.invalid`; Cloudflare не выпускает запросы в приватные сети.
-- Только `POST` с `Authorization: Bearer <CHECKER_SECRET>`.
+- `/api/site`, `/api/headers`: локальная проверка не получила HTTP-статус
+  (DNS/TCP/TLS/таймаут). Обычные 404/500 и редиректы остаются локальными.
+- `/api/redirect`: первый шаг локальной цепочки не соединился.
+- `/api/dns`: локальный резолвер вернул ошибку, включая пустой ответ
+  (`ENODATA`/`NXDOMAIN`): фильтрация DNS тоже выглядит как «записей нет».
+- `/api/email`: не удался MX-запрос; если все поля пусты, Worker проверяет
+  домен ещё раз. Одиночный `ENODATA` при рабочем SPF/DMARC остаётся локальным.
+- `/api/propagation`: все локальные резолверы вернули ошибку.
+- Заблокированные локальным SSRF-guard адреса в Worker не отправляются.
 
 ## Ограничения
 
-- Worker не умеет отдавать TLS-сертификат, поэтому SSL Checker (`/api/tls`)
-  остаётся локальным.
-- Worker не проходит по редиректам и не отдаёт значения заголовков, поэтому
-  Redirect Checker (`/api/redirect`) остаётся локальным, а HTTP Headers при
-  внешней проверке показывает только наличие security-заголовков.
-- TCP-порты, кроме 80/443, Worker проверить не может — Port Checker остаётся
+- Worker не отдаёт TLS-сертификат, поэтому SSL Checker (`/api/tls`) остаётся
   локальным.
-- Бесплатный план Cloudflare имеет дневной лимит запросов; fallback вызывается
-  редко, но при больших нагрузках стоит включить кэш или платный план.
+- Worker не умеет raw TCP: WHOIS (порт 43) и Port Checker (произвольные порты)
+  остаются локальными. HTTP/HTTPS-порты 80/443 проверяются только косвенно,
+  через обычный `fetch`.
+- Для DNS используются публичные DoH-резолверы, а не те же IP, что в локальном
+  `/api/propagation`; набор резолверов и их кэш могут отличаться.
+- Бесплатный план Cloudflare имеет дневной лимит запросов и subrequests.
+  Fallback вызывается редко, но при больших нагрузках стоит включить кэш или
+  платный план.
+- `CHECKER_TIMEOUT` на бэкенде по умолчанию 20 секунд. HTTP-проверка Worker
+  может занять до ~16 секунд (8 секунд HTTPS + 8 секунд HTTP), поэтому этого
+  хватает; для очень медленных сайтов всё равно можно увеличить значение.

@@ -40,7 +40,8 @@ orbitnet/
 │   ├── prime.test.js              # 0, 1, 2, 97, 561, большие числа
 │   ├── uuid.test.js               # crypto fallback для UUID
 │   ├── anonymity.test.js          # timezone, private IP, score, WebRTC
-│   ├── external-check.test.js     # Worker-клиент, 200/404/недоступен/таймаут
+│   ├── external-check.test.js     # Worker-клиент: HTTP/DNS/propagation/email
+│   ├── worker.test.js             # сам Cloudflare Worker с mock fetch
 │   ├── seo.test.js                # canonical, OG, sitemap, og-image.png
 │   └── live-check.js              # проверка опубликованного сайта
 │
@@ -123,7 +124,7 @@ orbitnet/
 │   └── Dockerfile                 # node:22-alpine, non-root, healthcheck
 │
 ├── worker/
-│   ├── src/index.js               # Cloudflare Worker: auth + SSRF-защита
+│   ├── src/index.js               # Cloudflare Worker: HTTP, DNS, propagation, email + SSRF-защита
 │   ├── package.json
 │   ├── wrangler.toml
 │   └── README.md                  # деплой и настройка секрета
@@ -257,7 +258,7 @@ npm run hooks:install
 
 ## Backend
 
-`backend/server.js` — CommonJS-приложение на встроенных модулях Node.js. Внешняя зависимость только `maxmind`. `backend/external-check.js` — клиент Cloudflare Worker: используется как fallback, когда локальная проверка не получила HTTP-ответ.
+`backend/server.js` — CommonJS-приложение на встроенных модулях Node.js. Внешняя зависимость только `maxmind`. `backend/external-check.js` — клиент Cloudflare Worker: используется как fallback для HTTP, DNS, propagation, email и цепочек редиректов, когда локальная проверка не смогла получить ответ.
 
 ### Маршруты
 
@@ -266,15 +267,15 @@ npm run hooks:install
 | `GET /health` | — | Healthcheck |
 | `GET /api/ip` | dns, geo | IP клиента, PTR, геолокация, ASN |
 | `GET /api/geo` | dns, maxmind | Геолокация по IP или домену |
-| `GET /api/dns` | dns | DNS-записи |
+| `GET /api/dns` | dns, external-check | DNS-записи; fallback в Worker при сетевой ошибке |
 | `GET /api/port` | net | TCP-проверка |
 | `GET /api/whois` | net | whois-запрос |
 | `GET /api/site` | http/https, external-check | Статус, сервер, title, время ответа; fallback в Worker |
 | `GET /api/headers` | http/https, external-check | Заголовки ответа; fallback в Worker |
 | `GET /api/tls` | tls | Сертификат и цепочка |
-| `GET /api/email` | dns | MX, SPF, DMARC, DKIM, PTR |
-| `GET /api/propagation` | dns | Несколько публичных резолверов |
-| `GET /api/redirect` | http/https | Цепочка редиректов (локально) |
+| `GET /api/email` | dns, external-check | MX, SPF, DMARC, DKIM, PTR; fallback в Worker при сбое MX |
+| `GET /api/propagation` | dns, external-check | Несколько публичных резолверов; fallback в Worker при отказе всех |
+| `GET /api/redirect` | http/https, external-check | Цепочка редиректов; fallback в Worker при сетевой ошибке |
 
 ### Защита
 
@@ -284,7 +285,8 @@ npm run hooks:install
 - Отдельная проверка каждого шага редиректа.
 - Таймауты и ограниченная очередь исходящих запросов.
 - Rate limiting с ответом HTTP 429.
-- Worker-fallback только при отсутствии HTTP-статуса; заблокированные локально адреса и IP в Worker не отправляются.
+- Worker-fallback для HTTP только при отсутствии HTTP-статуса; для DNS/email/propagation — при ошибке локального резолвера; заблокированные локально адреса в Worker не отправляются.
+- Worker не используется для TLS-сертификата, WHOIS и произвольных TCP-портов: для них нужен raw TCP.
 - `CHECKER_URL`/`CHECKER_SECRET` приходят из окружения Docker, секрет не попадает в клиентский код.
 
 IP клиента берётся из `X-Real-IP`, который выставляет nginx. nginx доверяет `CF-Connecting-IP` только от Cloudflare и локальных прокси.

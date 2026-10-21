@@ -138,7 +138,8 @@ function run() {
 function render(host, r) {
   let checks = '';
   let issues = 0;
-  const external = r.site.source === 'worker' || r.hdr.source === 'worker';
+  const external = r.site.source === 'worker' || r.hdr.source === 'worker' ||
+    r.a.source === 'worker' || r.ns.source === 'worker' || r.mx.source === 'worker';
 
   const aOk = r.a.records && r.a.records.length;
   if (aOk) checks += checkRow('ok', 'DNS A record resolves', r.a.records.join(', '));

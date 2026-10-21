@@ -967,7 +967,11 @@ async function dnsLookup(host, type) {
     }
     throw new Error('Unsupported record type: ' + type);
   } catch (e) {
-    throw new Error(e.code === 'ENODATA' ? 'No records found for ' + type : e.code + ': ' + e.message);
+    const error = new Error(e.code === 'ENODATA'
+      ? 'No records found for ' + type
+      : (e.code || 'ERROR') + ': ' + e.message);
+    error.code = e.code || 'ERROR';
+    throw error;
   }
 }
 
@@ -1215,12 +1219,12 @@ async function siteInfo(host) {
     local = localErrorResult(host, e);
   }
 
-  if (!externalCheck.shouldUseExternal(local) || net.isIP(normalizeIp(host))) {
+  if (!externalCheck.shouldUseExternal(local)) {
     delete local.blocked;
     return Object.assign(local, { source: 'local' });
   }
 
-  const external = await externalCheck.checkHost(host);
+  const external = await externalCheck.checkHttp(host, { follow: false });
   if (!external.error) {
     return {
       host,
@@ -1279,12 +1283,12 @@ async function headersInfo(host) {
     local = localErrorResult(host, e, { headers: [] });
   }
 
-  if (!externalCheck.shouldUseExternal(local) || net.isIP(normalizeIp(host))) {
+  if (!externalCheck.shouldUseExternal(local)) {
     delete local.blocked;
     return Object.assign(local, { source: 'local' });
   }
 
-  const external = await externalCheck.checkHost(host);
+  const external = await externalCheck.checkHttp(host, { follow: false });
   if (!external.error) {
     return {
       host,
@@ -1376,31 +1380,51 @@ async function tlsInfo(host, port) {
 }
 
 // ---------- /api/email ----------
-async function emailInfo(host, selector) {
+async function emailInfoLocal(host, selector) {
   const result = { host, mx: [], spf: null, dmarc: null, dkim: null, errors: {} };
-  try {
-    const mx = await withTimeout(dns.resolveMx(host), DNS_TIMEOUT, 'timeout');
-    result.mx = mx.map(r => ({ priority: r.priority, host: r.exchange }))
+  const lookup = (promise) => withTimeout(promise, DNS_TIMEOUT, 'timeout');
+  const errorOf = (settled) => {
+    if (settled.status !== 'rejected') return '';
+    const reason = settled.reason || {};
+    return reason.code || reason.message || 'error';
+  };
+
+  // Run the independent lookups in parallel so a filtered resolver costs one
+  // timeout rather than four sequential ones before the Worker fallback.
+  const [mxSettled, spfSettled, dmarcSettled, dkimSettled] = await Promise.allSettled([
+    lookup(dns.resolveMx(host)),
+    lookup(dns.resolveTxt(host)),
+    lookup(dns.resolveTxt('_dmarc.' + host)),
+    selector ? lookup(dns.resolveTxt(selector + '._domainkey.' + host)) : Promise.resolve(null)
+  ]);
+
+  if (mxSettled.status === 'fulfilled') {
+    result.mx = mxSettled.value.map(r => ({ priority: r.priority, host: r.exchange }))
       .sort((a, b) => a.priority - b.priority);
-  } catch (e) { result.errors.mx = e.code || e.message; }
+  } else {
+    result.errors.mx = errorOf(mxSettled);
+  }
 
-  try {
-    const txt = await withTimeout(dns.resolveTxt(host), DNS_TIMEOUT, 'timeout');
-    const flat = txt.map(r => r.join(''));
+  if (spfSettled.status === 'fulfilled') {
+    const flat = spfSettled.value.map(r => r.join(''));
     result.spf = flat.find(t => /^v=spf1/i.test(t)) || null;
-  } catch (e) { result.errors.spf = e.code || e.message; }
+  } else {
+    result.errors.spf = errorOf(spfSettled);
+  }
 
-  try {
-    const txt = await withTimeout(dns.resolveTxt('_dmarc.' + host), DNS_TIMEOUT, 'timeout');
-    const flat = txt.map(r => r.join(''));
+  if (dmarcSettled.status === 'fulfilled') {
+    const flat = dmarcSettled.value.map(r => r.join(''));
     result.dmarc = flat.find(t => /^v=DMARC1/i.test(t)) || null;
-  } catch (e) { result.errors.dmarc = e.code || e.message; }
+  } else {
+    result.errors.dmarc = errorOf(dmarcSettled);
+  }
 
   if (selector) {
-    try {
-      const txt = await withTimeout(dns.resolveTxt(selector + '._domainkey.' + host), DNS_TIMEOUT, 'timeout');
-      result.dkim = txt.map(r => r.join(''));
-    } catch (e) { result.errors.dkim = e.code || e.message; }
+    if (dkimSettled.status === 'fulfilled' && dkimSettled.value) {
+      result.dkim = dkimSettled.value.map(r => r.join(''));
+    } else if (dkimSettled.status === 'rejected') {
+      result.errors.dkim = errorOf(dkimSettled);
+    }
   }
 
   if (result.mx.length) {
@@ -1413,6 +1437,35 @@ async function emailInfo(host, selector) {
     } catch (e) { /* optional */ }
   }
   return result;
+}
+
+// Local DNS can be filtered or blocked as a whole. Retry through the external
+// worker when the MX lookup failed at the transport/DNS level, or when every
+// lookup came back empty (which is also what a filtered resolver looks like).
+async function emailInfo(host, selector) {
+  const local = await emailInfoLocal(host, selector);
+  const keys = ['mx', 'spf', 'dmarc'].concat(selector ? ['dkim'] : []);
+  // ENODATA for MX alone is a normal "no mail" answer. If every lookup came
+  // back empty, the local resolver may simply be filtering the domain, so let
+  // the external checker confirm it as well.
+  const allEmpty = keys.every(key => local.errors[key] === 'ENODATA');
+  const transportError = keys.some(key => {
+    const error = local.errors[key];
+    return error && error !== 'ENODATA';
+  });
+  if (!transportError && !allEmpty) {
+    return Object.assign(local, { source: 'local' });
+  }
+
+  const external = await externalCheck.checkEmail(host, selector);
+  if (external.error) {
+    return Object.assign(local, { source: 'local', workerError: external.error });
+  }
+  return Object.assign({}, external, {
+    host,
+    source: 'worker',
+    localErrors: local.errors
+  });
 }
 
 // ---------- /api/propagation ----------
@@ -1501,10 +1554,28 @@ async function redirectChainLocal(startHost) {
 }
 
 async function redirectChain(startHost) {
-  // The external checker fetches only https://host/ with redirect:"manual",
-  // so it cannot trace a multi-hop chain. Redirects stay local.
-  const result = await redirectChainLocal(startHost);
-  return Object.assign(result, { source: 'local' });
+  const local = await redirectChainLocal(startHost);
+  const first = local.chain && local.chain[0];
+  const localFailed = first && first.error && !first.status && !first.blocked;
+  if (!localFailed) {
+    return Object.assign(local, { source: 'local' });
+  }
+
+  const external = await externalCheck.checkHttp(startHost, { follow: true });
+  const chain = external.redirects || [];
+  if (!chain.length && external.error) {
+    return Object.assign(local, { source: 'local', workerError: external.error });
+  }
+
+  return {
+    host: startHost,
+    chain,
+    finalUrl: external.finalUrl || (chain.length ? chain[chain.length - 1].url : ''),
+    hops: chain.length,
+    source: 'worker',
+    localError: first.error || null,
+    workerError: external.error || null
+  };
 }
 
 // ---------- router ----------
@@ -1568,18 +1639,43 @@ const server = http.createServer(async (req, res) => {
         if (type === 'PTR') {
           let records = [];
           let err = null;
-          try { records = await withTimeout(dns.reverse(literal), DNS_TIMEOUT, 'timeout'); } catch (e) { err = e.code || 'error'; }
-          return send(res, 200, { host, type: 'PTR', records, error: err });
+          let source = 'local';
+          try {
+            records = await withTimeout(dns.reverse(literal), DNS_TIMEOUT, 'timeout');
+          } catch (e) {
+            err = e.code || 'error';
+            if (isPublicIp(literal)) {
+              const external = await externalCheck.checkDns(literal, 'PTR');
+              if (!external.error) {
+                records = Array.isArray(external.records) ? external.records : [];
+                err = null;
+                source = 'worker';
+              }
+            }
+          }
+          return send(res, 200, { host, type: 'PTR', records, error: err, source });
         }
         if (net.isIPv4(literal) && type === 'A') {
-          return send(res, 200, { host, type: 'A', records: [literal] });
+          return send(res, 200, { host, type: 'A', records: [literal], source: 'local' });
         }
         return bad(res, 'For an IP address use type=PTR (or type=A for IPv4)');
       }
       if (type === 'PTR') return bad(res, 'PTR lookup requires an IP address');
       if (!isValidHost(host)) return bad(res, 'Invalid hostname');
-      const records = await outbound(() => dnsLookup(host, type));
-      return send(res, 200, { host, type, records });
+      let records;
+      let source = 'local';
+      try {
+        records = await outbound(() => dnsLookup(host, type));
+      } catch (e) {
+        // A filtered resolver can return ENODATA/NXDOMAIN just as easily as a
+        // genuine empty answer. Ask the worker to confirm; if it is not
+        // configured, preserve the original local error.
+        const external = await externalCheck.checkDns(host, type);
+        if (external.error) throw e;
+        records = external.records;
+        source = 'worker';
+      }
+      return send(res, 200, { host, type, records, source });
     }
 
     if (path === '/api/captcha') {
@@ -1677,7 +1773,16 @@ const server = http.createServer(async (req, res) => {
       const type = parseType(query.get('type'), PROPAGATION_TYPES);
       if (!type) return bad(res, 'Unsupported record type');
       if (!isValidHost(host)) return bad(res, 'Invalid hostname');
-      return send(res, 200, { host, type, resolvers: await propagation(host, type) });
+      let resolvers = await propagation(host, type);
+      let source = 'local';
+      if (resolvers.length && resolvers.every(r => r.error)) {
+        const external = await externalCheck.checkPropagation(host, type);
+        if (!external.error && external.resolvers.length) {
+          resolvers = external.resolvers;
+          source = 'worker';
+        }
+      }
+      return send(res, 200, { host, type, resolvers, source });
     }
 
     if (path === '/api/redirect') {

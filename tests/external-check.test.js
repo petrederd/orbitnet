@@ -60,6 +60,38 @@ function okResponse(host, status = 200) {
   };
 }
 
+function workerHttpResponse(host, overrides = {}) {
+  return Object.assign({
+    ok: true,
+    type: 'http',
+    host,
+    reachable: true,
+    httpOk: true,
+    protocol: 'https',
+    status: 200,
+    statusText: 'OK',
+    responseMs: 42,
+    redirect: null,
+    finalUrl: 'https://' + host + '/',
+    redirects: [{ url: 'https://' + host + '/', status: 200, location: '', ms: 42 }],
+    contentType: 'text/html; charset=utf-8',
+    contentLength: 1234,
+    title: 'Example',
+    server: 'test-server',
+    headers: [
+      { name: 'server', value: 'test-server' },
+      { name: 'strict-transport-security', value: 'max-age=31536000' },
+      { name: 'x-content-type-options', value: 'nosniff' }
+    ],
+    headerMap: {
+      server: 'test-server',
+      'strict-transport-security': 'max-age=31536000',
+      'x-content-type-options': 'nosniff'
+    },
+    source: 'Cloudflare Worker'
+  }, overrides);
+}
+
 function failureResponse(host, error) {
   return {
     host,
@@ -110,6 +142,80 @@ test('normalizes a timeout response', () => {
 test('rejects malformed and statusless worker responses', () => {
   assert.match(checker.normalizeResponse({ nope: true }).error, /External check failed/);
   assert.match(checker.normalizeResponse(null).error, /invalid response/);
+});
+
+test('normalizes the current worker HTTP contract with real header values', () => {
+  const result = checker.normalizeHttpResponse(workerHttpResponse('example.com'), 'example.com');
+  assert.equal(result.error, undefined);
+  assert.equal(result.status, 200);
+  assert.equal(result.finalUrl, 'https://example.com/');
+  assert.deepEqual(result.headers, [
+    { name: 'server', value: 'test-server' },
+    { name: 'strict-transport-security', value: 'max-age=31536000' },
+    { name: 'x-content-type-options', value: 'nosniff' }
+  ]);
+  assert.deepEqual(result.redirects, [
+    { url: 'https://example.com/', status: 200, location: '', error: '', blocked: false, ms: 42 }
+  ]);
+});
+
+test('normalizes external DNS records, including SOA and PTR', () => {
+  const a = checker.normalizeDnsResponse({
+    ok: true,
+    host: 'example.com',
+    recordType: 'A',
+    records: ['192.0.2.1'],
+    resolver: 'Cloudflare 1.1.1.1'
+  }, 'example.com', 'A');
+  assert.deepEqual(a.records, ['192.0.2.1']);
+  assert.equal(a.source, 'worker');
+
+  const soa = checker.normalizeDnsResponse({
+    ok: true,
+    host: 'example.com',
+    recordType: 'SOA',
+    records: { nsname: 'ns1.example.com', serial: 1 }
+  }, 'example.com', 'SOA');
+  assert.deepEqual(soa.records, { nsname: 'ns1.example.com', serial: 1 });
+
+  const ptr = checker.normalizeDnsResponse({
+    ok: true,
+    host: '1.1.1.1',
+    recordType: 'PTR',
+    records: ['one.one.one.one']
+  }, '1.1.1.1', 'PTR');
+  assert.deepEqual(ptr.records, ['one.one.one.one']);
+});
+
+test('normalizes external propagation and email results', () => {
+  const propagation = checker.normalizePropagationResponse({
+    ok: true,
+    host: 'example.com',
+    recordType: 'A',
+    resolvers: [
+      { server: 'Cloudflare 1.1.1.1', records: ['192.0.2.1'] },
+      { server: 'Google 8.8.8.8', error: 'DNS timeout' }
+    ]
+  }, 'example.com', 'A');
+  assert.equal(propagation.resolvers.length, 2);
+  assert.deepEqual(propagation.resolvers[0], {
+    server: 'Cloudflare 1.1.1.1',
+    records: ['192.0.2.1']
+  });
+
+  const email = checker.normalizeEmailResponse({
+    ok: true,
+    host: 'example.com',
+    mx: [{ priority: 10, host: 'mail.example.com' }],
+    spf: 'v=spf1 -all',
+    dmarc: 'v=DMARC1; p=none',
+    dkim: null,
+    errors: { dkim: 'ENODATA' }
+  }, 'example.com');
+  assert.equal(email.host, 'example.com');
+  assert.deepEqual(email.mx, [{ priority: 10, host: 'mail.example.com' }]);
+  assert.equal(email.spf, 'v=spf1 -all');
+  assert.equal(email.errors.dkim, 'ENODATA');
 });
 
 test('only falls back when no HTTP status was received', () => {
@@ -225,4 +331,145 @@ test('siteInfo falls back to the worker when the local DNS check fails', async (
   assert.equal(result.title, 'Example');
   assert.match(result.localError, /Cannot resolve/);
   assert.equal(JSON.stringify(result).includes(secret), false);
+});
+
+
+test('calls the worker for HTTP, DNS, propagation and email checks', async (t) => {
+  const secret = 'multi-secret';
+  const { server, url } = await startWorker(secret, (payload, res) => {
+    if (payload.type === 'dns') {
+      respond(res, {
+        ok: true,
+        type: 'dns',
+        host: payload.host,
+        recordType: payload.recordType,
+        records: payload.recordType === 'PTR' ? ['one.one.one.one'] : ['192.0.2.1'],
+        resolver: 'Cloudflare 1.1.1.1',
+        source: 'Cloudflare Worker'
+      });
+      return;
+    }
+    if (payload.type === 'propagation') {
+      respond(res, {
+        ok: true,
+        type: 'propagation',
+        host: payload.host,
+        recordType: payload.recordType,
+        resolvers: [{ server: 'Cloudflare 1.1.1.1', records: ['192.0.2.1'] }],
+        source: 'Cloudflare Worker'
+      });
+      return;
+    }
+    if (payload.type === 'email') {
+      respond(res, {
+        ok: true,
+        type: 'email',
+        host: payload.host,
+        mx: [{ priority: 10, host: 'mail.example.com' }],
+        spf: 'v=spf1 -all',
+        dmarc: 'v=DMARC1; p=none',
+        dkim: null,
+        errors: {},
+        source: 'Cloudflare Worker'
+      });
+      return;
+    }
+    respond(res, workerHttpResponse(payload.host));
+  });
+  t.after(() => server.close());
+
+  process.env.CHECKER_URL = url;
+  process.env.CHECKER_SECRET = secret;
+  process.env.CHECKER_TIMEOUT = '2000';
+
+  const http = await checker.checkHttp('example.com', { follow: false });
+  assert.equal(http.status, 200);
+  assert.equal(http.headers[0].value, 'test-server');
+
+  const dns = await checker.checkDns('example.com', 'A');
+  assert.deepEqual(dns.records, ['192.0.2.1']);
+
+  const ptr = await checker.checkDns('1.1.1.1', 'PTR');
+  assert.deepEqual(ptr.records, ['one.one.one.one']);
+
+  const propagation = await checker.checkPropagation('example.com', 'A');
+  assert.equal(propagation.resolvers[0].records[0], '192.0.2.1');
+
+  const email = await checker.checkEmail('example.com', 'default');
+  assert.equal(email.mx[0].host, 'mail.example.com');
+  assert.equal(email.spf, 'v=spf1 -all');
+});
+
+test('DNS, email and redirect wrappers fall back to the worker', async (t) => {
+  const secret = 'fallback-secret';
+  const { server: worker, url } = await startWorker(secret, (payload, res) => {
+    if (payload.type === 'email') {
+      respond(res, {
+        ok: true,
+        type: 'email',
+        host: payload.host,
+        mx: [{ priority: 5, host: 'mail.example.com' }],
+        spf: 'v=spf1 include:_spf.example.com -all',
+        dmarc: 'v=DMARC1; p=reject',
+        dkim: null,
+        errors: {},
+        source: 'Cloudflare Worker'
+      });
+      return;
+    }
+    if (payload.type === 'http') {
+      respond(res, {
+        ok: true,
+        type: 'http',
+        host: payload.host,
+        reachable: true,
+        status: 301,
+        protocol: 'https',
+        finalUrl: 'https://' + payload.host + '/final',
+        redirects: [
+          { url: 'https://' + payload.host + '/', status: 301, location: '/final', ms: 10 },
+          { url: 'https://' + payload.host + '/final', status: 200, location: '', ms: 10 }
+        ],
+        responseMs: 20,
+        headers: [],
+        source: 'Cloudflare Worker'
+      });
+      return;
+    }
+    respond(res, {
+      ok: true,
+      type: 'dns',
+      host: payload.host,
+      recordType: payload.recordType,
+      records: ['192.0.2.55'],
+      resolver: 'Cloudflare 1.1.1.1',
+      source: 'Cloudflare Worker'
+    });
+  });
+  t.after(() => worker.close());
+
+  process.env.CHECKER_URL = url;
+  process.env.CHECKER_SECRET = secret;
+  process.env.CHECKER_TIMEOUT = '2000';
+
+  const { emailInfo, redirectChain, server } = require('../backend/server');
+  const target = 'no-such-subdomain.orbitnet-test.example.com';
+
+  const email = await emailInfo(target, 'default');
+  assert.equal(email.source, 'worker');
+  assert.equal(email.mx[0].host, 'mail.example.com');
+
+  const redirects = await redirectChain(target);
+  assert.equal(redirects.source, 'worker');
+  assert.equal(redirects.chain.length, 2);
+  assert.equal(redirects.finalUrl, 'https://' + target + '/final');
+
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => server.close());
+  const apiUrl = 'http://127.0.0.1:' + server.address().port +
+    '/api/dns?host=' + encodeURIComponent(target) + '&type=A';
+  const response = await fetch(apiUrl);
+  const dns = await response.json();
+  assert.equal(dns.source, 'worker');
+  assert.deepEqual(dns.records, ['192.0.2.55']);
 });
