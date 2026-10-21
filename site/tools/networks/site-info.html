@@ -116,7 +116,8 @@ function inspect() {
     .then(data => {
       if (data.error) {
         document.getElementById('results').innerHTML = '';
-        showError('Could not reach ' + host + ': ' + data.error);
+        showError('Could not reach ' + host + ': ' + data.error +
+          (data.workerError ? ' (Worker: ' + data.workerError + ')' : ''));
         return;
       }
       const statusText = data.status ? ('HTTP ' + data.status) : 'No response';

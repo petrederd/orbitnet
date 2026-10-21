@@ -466,7 +466,7 @@ function postJson(workerUrl, secret, payload, timeoutMs) {
         }
 
         if (res.statusCode === 401 || res.statusCode === 403) {
-          finish({ error: 'External checker authentication failed' });
+          finish({ error: 'External checker authentication failed: CHECKER_SECRET does not match the Worker secret' });
           return;
         }
 

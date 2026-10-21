@@ -228,6 +228,18 @@ curl -sS -X POST "$CHECKER_URL" \
 - `/api/propagation`: все локальные резолверы вернули ошибку.
 - Заблокированные локальным SSRF-guard адреса в Worker не отправляются.
 
+## Если fallback не срабатывает
+
+- `External checker authentication failed` или `401` — `CHECKER_SECRET` в
+  серверном `.env` не совпадает с секретом Worker. `wrangler secret list`
+  показывает только имена, но не значения, поэтому просто «secret set» ничего
+  не доказывает. Проще всего скопировать значение из серверного `.env` и
+  выполнить `npx wrangler secret put CHECKER_SECRET`, вставив его в prompt.
+- `source: "local"` и `workerError` в ответе API — локальная проверка не
+  удалась, а fallback тоже не отработал; причина указана в `workerError`.
+- `source: "local"` без `workerError` — локальная проверка завершилась
+  успешно, Worker для неё не нужен.
+
 ## Ограничения
 
 - Worker не отдаёт TLS-сертификат, поэтому SSL Checker (`/api/tls`) остаётся

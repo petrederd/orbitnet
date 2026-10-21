@@ -136,6 +136,8 @@ function render(d) {
 
   let html = (d.source === 'worker'
     ? '<div class="status-box info">The local check failed or looked blocked; the chain was traced by the external checker.</div>'
+    : '') + (d.workerError
+    ? '<div class="status-box info">Worker fallback did not run: ' + esc(d.workerError) + '</div>'
     : '') + status + '<div class="result-box" style="margin-top:14px;"><div class="result-label">Final URL</div>' +
     '<div class="result-value" style="font-size:.95rem;word-break:break-all;">' + esc(d.finalUrl) + '</div></div>';
 

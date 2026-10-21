@@ -135,7 +135,9 @@ function check() {
 function render(host, d) {
   let html = d.source === 'worker'
     ? '<div class="status-box info">The local resolver did not answer; the email records were fetched by the external checker.</div>'
-    : '';
+    : (d.workerError
+      ? '<div class="status-box info">Worker fallback did not run: ' + esc(d.workerError) + '</div>'
+      : '');
   const errors = d.errors || {};
 
   if (d.mx && d.mx.length) {

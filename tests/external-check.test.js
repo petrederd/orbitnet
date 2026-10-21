@@ -313,7 +313,7 @@ test('reports worker authentication failure without exposing the secret', async 
   process.env.CHECKER_TIMEOUT = '1000';
 
   const result = await checker.checkHost('example.com');
-  assert.equal(result.error, 'External checker authentication failed');
+  assert.equal(result.error, 'External checker authentication failed: CHECKER_SECRET does not match the Worker secret');
   assert.equal(JSON.stringify(result).includes('wrong-secret'), false);
 });
 

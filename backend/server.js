@@ -1680,9 +1680,14 @@ const server = http.createServer(async (req, res) => {
       } catch (e) {
         // A filtered resolver can return ENODATA/NXDOMAIN just as easily as a
         // genuine empty answer. Ask the worker to confirm; if it is not
-        // configured, preserve the original local error.
+        // configured, preserve the original local error together with the
+        // fallback reason so the caller can fix the configuration.
         const external = await externalCheck.checkDns(host, type);
-        if (external.error) throw e;
+        if (external.error) {
+          const wrapped = new Error(e.message + ' — Worker fallback: ' + external.error);
+          wrapped.code = e.code;
+          throw wrapped;
+        }
         records = external.records;
         source = 'worker';
       }

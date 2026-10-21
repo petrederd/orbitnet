@@ -131,7 +131,7 @@ function check() {
 
   fetch('/api/headers?host=' + encodeURIComponent(host))
     .then(r => r.json())
-    .then(d => { if (d.error) { showError(d.error); } render(d); })
+    .then(d => { if (d.error) { showError(d.error + (d.workerError ? ' (Worker: ' + d.workerError + ')' : '')); } render(d); })
     .catch(e => { showError(e.message); });
 }
 
