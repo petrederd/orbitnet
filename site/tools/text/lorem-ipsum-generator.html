@@ -69,7 +69,7 @@
     </div>
     <div class="input-group">
       <label for="count">Count</label>
-      <input type="number" id="count" min="1" max="100" placeholder="3">
+      <input type="number" id="count" min="1" max="100" step="1" placeholder="3"><small>Up to 100</small>
     </div>
     <label style="display:flex;align-items:center;gap:8px;margin-bottom:18px;font-size:.9rem;"><input type="checkbox" id="classic" checked> Start with "Lorem ipsum dolor sit amet..."</label>
     <div class="toolbar">
@@ -110,9 +110,7 @@ function randInt(min, max) { return min + Math.floor(Math.random() * (max - min 
 function makeSentence(wordCount) {
   const words = [];
   for (let i = 0; i < wordCount; i++) {
-    if (i === 0) words.push(pick(BANK));
-    else if (i === wordCount - 1 && Math.random() < 0.4) words.push(pick(BANK));
-    else words.push(pick(BANK));
+    words.push(pick(BANK));
   }
   let s = words.join(' ');
   s = s.charAt(0).toUpperCase() + s.slice(1);

@@ -109,12 +109,16 @@ function normalize(line) {
   return s;
 }
 
+function lines(value) {
+  return value === '' ? [] : value.split(/\r?\n/);
+}
+
 function run() {
-  const left = document.getElementById('left').value.split(/\r?\n/);
-  const right = document.getElementById('right').value.split(/\r?\n/);
+  const left = lines(document.getElementById('left').value);
+  const right = lines(document.getElementById('right').value);
 
   // Empty inputs
-  if ((left.length === 1 && left[0] === '') && (right.length === 1 && right[0] === '')) {
+  if (left.length === 0 && right.length === 0) {
     document.getElementById('diff').innerHTML = '<div style="padding:20px;color:var(--muted);">Enter text in both boxes to compare.</div>';
     document.getElementById('summary').innerHTML = '';
     return;

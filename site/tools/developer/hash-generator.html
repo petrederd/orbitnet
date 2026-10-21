@@ -147,7 +147,10 @@ const ALGOS = [
   ['MD5', 16], ['SHA-1', 20], ['SHA-256', 32], ['SHA-384', 48], ['SHA-512', 64],
 ];
 
+let runId = 0;
+
 function run() {
+  const id = ++runId;
   const text = document.getElementById('input').value;
   const resEl = document.getElementById('results');
   const statusEl = document.getElementById('status');
@@ -167,6 +170,7 @@ function run() {
   );
 
   Promise.all(jobs).then(() => {
+    if (id !== runId) return;
     const bi = new TextEncoder().encode(text).length;
     resEl.innerHTML = '<div class="result-sub" style="margin-bottom:12px;">' + bi + ' bytes · ' + text.length + ' characters</div>' +
       ALGOS.map(([name]) =>

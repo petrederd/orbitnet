@@ -44,8 +44,32 @@ test('common passwords are capped and do not throw', () => {
     const result = context.evaluate(password, 72);
     assert.ok(result.bits <= 10, password + ' entropy');
     assert.equal(result.label, 'Very weak', password + ' label');
-    assert.match(get('strengthLabel').textContent, /common password or pattern/);
+    assert.match(result.note, /common password or pattern/);
   }
+
+  context.updateStrengthPanel(context.evaluate('password', 72));
+  assert.match(get('strengthLabel').textContent, /common password or pattern/);
+});
+
+test('a common prefix only discounts its own characters', () => {
+  const { context } = load();
+  const password = '1234' + 'a'.repeat(36);
+  const result = context.evaluate(password, 72);
+
+  assert.equal(result.note, 'common prefix pattern');
+  assert.ok(result.bits > 100);
+  assert.notEqual(result.label, 'Very weak');
+});
+
+test('checking another password does not overwrite the generator panel', () => {
+  const { context, get } = load();
+  const before = get('entropy').textContent;
+
+  get('checkInput').value = 'password';
+  context.checkCustom();
+
+  assert.equal(get('entropy').textContent, before);
+  assert.match(get('checkResult').innerHTML, /Very weak/);
 });
 
 test('a long random password is rated very strong', () => {
@@ -60,6 +84,20 @@ test('a long random password is rated very strong', () => {
   assert.equal(result.bits, password.length * Math.log2(alphabet.length));
   assert.ok(result.bits > 100);
   assert.equal(result.label, 'Very strong');
+});
+
+test('generated passwords contain every selected character class', () => {
+  const { context, get } = load();
+  get('length').value = '8';
+
+  for (let i = 0; i < 100; i++) {
+    context.generate();
+    const password = get('password').textContent;
+    assert.match(password, /[A-Z]/);
+    assert.match(password, /[a-z]/);
+    assert.match(password, /[0-9]/);
+    assert.match(password, /[^A-Za-z0-9]/);
+  }
 });
 
 test('generated passwords use the selected length and character set', () => {

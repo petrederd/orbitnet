@@ -9,6 +9,25 @@ const { SITE, loadTool } = require('./helpers');
 
 const FILE = path.join(SITE, 'tools/developer/uuid-generator.html');
 
+test('bulk generation updates the total without overwriting the count input', () => {
+  const { context, get } = loadTool(FILE, {
+    year: '',
+    singleUUID: '-',
+    singleStatus: '',
+    bulkCount: '3',
+    bulkTotal: '0',
+    uuidList: '',
+    bulkList: '',
+    bulkStatus: '',
+    format: 'default',
+  });
+
+  context.generateBulk();
+  assert.equal(get('bulkCount').value, '3');
+  assert.equal(get('bulkTotal').textContent, 3);
+  assert.equal((get('uuidList').innerHTML.match(/uuid-item/g) || []).length, 3);
+});
+
 test('the fallback UUID generator uses secure random bytes', () => {
   const fallbackCrypto = {
     getRandomValues(array) {

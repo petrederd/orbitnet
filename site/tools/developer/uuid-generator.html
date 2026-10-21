@@ -107,7 +107,7 @@
         </div>
         <div id="bulkList" style="display:none; margin-top: 20px;">
           <div style="font-size: .9rem; color: var(--muted); margin-bottom: 10px;">
-            Generated<span id="bulkCount">0</span>
+            Generated <span id="bulkTotal">0</span>
             UUIDs:
           </div>
           <div class="uuid-list" id="uuidList">
@@ -281,7 +281,7 @@ function displayBulkUUIDs() {
   `).join('');
   
   document.getElementById('uuidList').innerHTML = listHTML;
-  document.getElementById('bulkCount').textContent = currentUUIDs.length;
+  document.getElementById('bulkTotal').textContent = currentUUIDs.length;
 }
 
 function copyUUID(index, btn) {
