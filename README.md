@@ -208,7 +208,7 @@ docker compose up -d --build --force-recreate orbitnet-api
 |---|---|
 | `GET /health` | Проверка доступности API |
 | `GET /api/ip` | IP клиента, версия, reverse DNS, геолокация, ASN |
-| `GET /api/geo?ip=` / `?host=` | Геолокация и провайдер |
+| `GET /api/geo?ip=` / `?host=` | Геолокация и провайдер; для домена при сбое локального DNS — fallback в Worker |
 | `GET /api/dns?host=&type=` | DNS-записи; при сетевой ошибке — fallback в Worker (`source`) |
 | `GET /api/captcha` | Одноразовая числовая капча (нужна для каждой третьей проверки порта) |
 | `POST /api/port` | Проверка TCP-порта; `host`, `port`, `captcha`, `answer` передаются в JSON-теле (не более 3 проверок в минуту с одного IP) |

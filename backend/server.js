@@ -347,6 +347,25 @@ function pickAddress(ips) {
   return ips.find(net.isIPv4) || ips[0];
 }
 
+// Geo/whois pages need a public address for a domain. If the local resolver
+// cannot see the domain, ask the Worker for A/AAAA before giving up. Blocked
+// private targets are never forwarded.
+async function resolvePublicForGeo(host) {
+  try {
+    return await resolvePublic(host);
+  } catch (e) {
+    if (e.blocked || !e.unresolved) throw e;
+    for (const type of ['A', 'AAAA']) {
+      const external = await externalCheck.checkDns(host, type);
+      if (external.error) continue;
+      const ips = (Array.isArray(external.records) ? external.records : [])
+        .filter(ip => net.isIP(ip) && isPublicIp(ip));
+      if (ips.length) return ips;
+    }
+    throw e;
+  }
+}
+
 // ---------- client IP (behind trusted reverse proxies) ----------
 // nginx (the only allowed caller of this service) sets X-Real-IP to the client
 // address after resolving the trusted proxy chain, so that header is preferred.
@@ -1634,7 +1653,7 @@ const server = http.createServer(async (req, res) => {
       let target = ipParam;
       if (!net.isIP(target)) {
         if (!isValidHost(hostParam)) return bad(res, 'Provide a valid IP address or hostname');
-        const ips = await resolvePublic(hostParam);
+        const ips = await resolvePublicForGeo(hostParam);
         target = pickAddress(ips);
       }
       return send(res, 200, { ip: target, geo: await geoLookup(target) });

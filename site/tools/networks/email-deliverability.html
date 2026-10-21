@@ -195,7 +195,12 @@ function analyse(host, selector, d) {
     out.push(finding('warn', 'No PTR for primary MX', 'Many receivers expect the mail server IP to have a matching PTR. Ask your provider to set reverse DNS.'));
   }
 
-  document.getElementById('findings').innerHTML = out.join('');
+  const sourceNote = d.source === 'worker'
+    ? '<div class="status-box info">The local resolver did not answer; the email records were fetched by the external checker.</div>'
+    : (d.workerError
+      ? '<div class="status-box info">Worker fallback did not run: ' + esc(d.workerError) + '</div>'
+      : '');
+  document.getElementById('findings').innerHTML = sourceNote + out.join('');
 
   let records = '';
   records += rec('MX', mxOk ? d.mx.map(m => m.priority + ' ' + m.host).join('\n') : 'none');
