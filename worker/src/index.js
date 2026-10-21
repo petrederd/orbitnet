@@ -17,7 +17,7 @@
 // otherwise non-public address.
 
 const MAX_REQUEST_BYTES = 16 * 1024;
-const MAX_HTML_BYTES = 64 * 1024;
+const MAX_HTML_BYTES = 200000;
 const MAX_RESPONSE_HEADERS = 100;
 const MAX_HEADER_VALUE = 2048;
 const MAX_REDIRECTS = 10;
@@ -264,6 +264,7 @@ async function readLimitedText(response, maxBytes = MAX_HTML_BYTES, contentType 
   const chunks = [];
   let total = 0;
   let complete = false;
+  let tail = "";
 
   try {
     while (total < maxBytes) {
@@ -277,6 +278,14 @@ async function readLimitedText(response, maxBytes = MAX_HTML_BYTES, contentType 
       const chunk = value.subarray(0, remaining);
       chunks.push(chunk);
       total += chunk.byteLength;
+
+      // A title almost always appears early. Stop reading as soon as the
+      // closing tag is seen, so the 200 KB cap only matters for pages without
+      // a usable title (and stays in line with the backend's limit).
+      const text = new TextDecoder("latin1").decode(chunk);
+      const search = (tail + text).toLowerCase();
+      if (search.includes("</title>")) break;
+      tail = search.slice(-16);
 
       if (chunk.byteLength < value.byteLength) break;
     }

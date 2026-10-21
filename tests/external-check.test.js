@@ -227,6 +227,18 @@ test('normalizes external propagation and email results', () => {
   assert.equal(email.errors.dkim, 'ENODATA');
 });
 
+test('blocked pages are replaced only by a non-blocked external answer', () => {
+  const { externalImproves, looksLikeBlockPage } = require('../backend/server');
+  assert.equal(externalImproves({ status: 200, blockedPage: true }, { status: 200, title: 'Example Domain' }), true);
+  assert.equal(externalImproves({ status: 200, blockedPage: true }, { status: 200, title: 'Web Page Blocked' }), false);
+  assert.equal(externalImproves({ status: 200, blockedPage: true }, { error: 'timeout' }), false);
+  assert.equal(looksLikeBlockPage('Unified dashboard'), false);
+  assert.equal(looksLikeBlockPage('Palo Alto Networks'), false);
+  assert.equal(looksLikeBlockPage('Access denied'), false);
+  assert.equal(looksLikeBlockPage('Доступ ограничен'), true);
+  assert.equal(looksLikeBlockPage('Blocked by the administrator'), true);
+});
+
 test('falls back on missing status or a likely ISP block', () => {
   assert.equal(checker.shouldUseExternal({ status: null, error: 'timeout' }), true);
   assert.equal(checker.shouldUseExternal({ status: null, error: 'Cannot resolve' }), true);

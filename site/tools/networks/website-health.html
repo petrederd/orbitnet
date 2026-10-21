@@ -141,18 +141,22 @@ function render(host, r) {
   const external = r.site.source === 'worker' || r.hdr.source === 'worker' ||
     r.a.source === 'worker' || r.ns.source === 'worker' || r.mx.source === 'worker';
 
+  const nxdomain = r.a.nxdomain || r.ns.nxdomain || r.mx.nxdomain;
   const aOk = r.a.records && r.a.records.length;
   if (aOk) checks += checkRow('ok', 'DNS A record resolves', r.a.records.join(', '));
+  else if (nxdomain) { checks += checkRow('err', 'Domain does not exist (NXDOMAIN)', 'The resolver returned NXDOMAIN.'); issues++; }
   else if (external) checks += checkRow('warn', 'DNS not checked locally', r.a.error || 'The local resolver did not answer.');
-  else { checks += checkRow('err', 'No A record', r.a.error || 'The host may not resolve.'); issues++; }
+  else { checks += checkRow('err', 'No A record', r.a.nodata ? 'No A record (NODATA).' : (r.a.error || 'The host may not resolve.')); issues++; }
 
   const nsOk = r.ns.records && r.ns.records.length;
   if (nsOk) checks += checkRow('ok', 'Nameservers configured', r.ns.records.join(', '));
-  else { checks += checkRow('warn', 'No NS records', r.ns.error || 'Could not read NS records.'); }
+  else if (nxdomain) checks += checkRow('warn', 'Nameservers not checked', 'The domain returned NXDOMAIN.');
+  else { checks += checkRow('warn', 'No NS records', r.ns.nodata ? 'No NS records (NODATA).' : (r.ns.error || 'Could not read NS records.')); }
 
   const mxOk = r.mx.records && r.mx.records.length;
   checks += checkRow(mxOk ? 'ok' : 'warn', mxOk ? 'Mail (MX) configured' : 'No MX records',
-    mxOk ? r.mx.records.map(m => m.priority + ' ' + m.host).join(', ') : 'The domain will not receive email.');
+    mxOk ? r.mx.records.map(m => m.priority + ' ' + m.host).join(', ')
+      : (nxdomain ? 'The domain returned NXDOMAIN.' : 'The domain will not receive email.'));
 
   const reachable = r.site.status && r.site.status < 400;
   if (reachable) checks += checkRow('ok', 'Site responds', 'HTTP ' + r.site.status + (r.site.server ? ' · ' + r.site.server : ''));
@@ -196,7 +200,7 @@ function render(host, r) {
   document.getElementById('checks').innerHTML = banner + checks;
 
   let details = '<div class="grid-2">';
-  details += '<div class="result-box"><div class="result-label">Resolved A</div><div class="result-value" style="font-size:.95rem;">' + esc((r.a.records || []).join(', ') || '—') + '</div></div>';
+  details += '<div class="result-box"><div class="result-label">Resolved A</div><div class="result-value" style="font-size:.95rem;">' + esc(r.a.nxdomain ? 'NXDOMAIN' : ((r.a.records || []).join(', ') || (r.a.nodata ? 'NODATA' : '—'))) + '</div></div>';
   details += '<div class="result-box"><div class="result-label">Final URL</div><div class="result-value" style="font-size:.95rem;word-break:break-all;">' + esc(r.site.finalUrl || r.hdr.redirect || ('https://' + host + '/')) + '</div></div>';
   details += '<div class="result-box"><div class="result-label">Page title</div><div class="result-value" style="font-size:.95rem;">' + esc(r.site.title || '—') + '</div></div>';
   details += '<div class="result-box"><div class="result-label">TLS issuer</div><div class="result-value" style="font-size:.95rem;">' + esc(tls.issuer ? (tls.issuer.CN || tls.issuer.O || '—') : '—') + '</div></div>';

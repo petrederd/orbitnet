@@ -370,10 +370,15 @@ async function resolvePublicForGeo(host, context) {
   } catch (e) {
     if (e.blocked || !e.unresolved) throw e;
     for (const type of ['A', 'AAAA']) {
-      const external = await callExternal(
-        opts => externalCheck.checkDns(host, type, opts),
-        context
-      );
+      const cacheKey = externalCacheKey('dns', host, type);
+      let external = getExternalCache(cacheKey);
+      if (!external) {
+        external = await callExternal(
+          opts => externalCheck.checkDns(host, type, opts),
+          context
+        );
+        if (!external.error) setExternalCache(cacheKey, external);
+      }
       if (external.error) {
         logExternalFailure(external.error);
         continue;
@@ -745,7 +750,7 @@ let externalGlobal = { start: Date.now(), count: 0 };
 let lastExternalPrune = Date.now();
 
 function takeExternalToken(clientIp) {
-  if (!clientIp) return true;
+  const key = clientIp || 'unknown';
   const now = Date.now();
   if (now - lastExternalPrune > RATE_WINDOW_MS) {
     for (const [key, rec] of externalHits) {
@@ -758,11 +763,11 @@ function takeExternalToken(clientIp) {
   }
   if (externalGlobal.count >= EXTERNAL_GLOBAL_MAX) return false;
 
-  let rec = externalHits.get(clientIp);
+  let rec = externalHits.get(key);
   if (!rec || now - rec.start > RATE_WINDOW_MS) {
     if (!rec && externalHits.size >= RATE_MAX_ENTRIES) return false;
     rec = { start: now, count: 0 };
-    externalHits.set(clientIp, rec);
+    externalHits.set(key, rec);
   }
   if (rec.count >= EXTERNAL_RATE_MAX) return false;
   rec.count++;
@@ -805,6 +810,35 @@ async function callExternal(build, context) {
       busy: e && e.busy === true
     };
   }
+}
+
+// Successful Worker answers are cached briefly. NXDOMAIN/NODATA results from
+// a poisoned local resolver are stable for a while, and caching them stops the
+// same blocked domain from consuming every fallback token on each page refresh.
+const EXTERNAL_CACHE_TTL = 60000;
+const EXTERNAL_CACHE_MAX = 2000;
+const externalCache = new Map();
+
+function externalCacheKey(prefix, host, type) {
+  return prefix + ':' + String(host || '').toLowerCase() + ':' + String(type || '').toLowerCase();
+}
+
+function getExternalCache(key) {
+  const record = externalCache.get(key);
+  if (!record) return null;
+  if (Date.now() > record.expires) {
+    externalCache.delete(key);
+    return null;
+  }
+  return record.value;
+}
+
+function setExternalCache(key, value) {
+  if (externalCache.size >= EXTERNAL_CACHE_MAX) {
+    const oldest = externalCache.keys().next().value;
+    if (oldest !== undefined) externalCache.delete(oldest);
+  }
+  externalCache.set(key, { value, expires: Date.now() + EXTERNAL_CACHE_TTL });
 }
 
 function requestContext(ip) {
@@ -1319,10 +1353,17 @@ function safeRedirect(location) {
 // enough to trigger the fallback without treating every page with the word
 // "blocked" as censorship.
 const BLOCK_PAGE_MARKERS = [
-  'доступ ограничен', 'доступ к сайту ограничен', 'сайт заблокирован',
-  'заблокировано', 'роскомнадзор', 'blocked by', 'access denied',
-  'web filter', 'fortiguard', 'sophos web', 'palo alto', 'unifi',
-  'this site has been blocked', 'website blocked'
+  'доступ ограничен',
+  'доступ к сайту ограничен',
+  'доступ к запрашиваемому ресурсу ограничен',
+  'сайт заблокирован',
+  'blocked by the administrator',
+  'blocked by administrator',
+  'blocked by your administrator',
+  'web page blocked',
+  'website blocked',
+  'this site has been blocked',
+  'access to this site has been blocked'
 ];
 function looksLikeBlockPage(title) {
   const text = String(title || '').toLowerCase();
@@ -1376,6 +1417,7 @@ function localErrorResult(host, error, extra) {
 // status or when the worker turns a likely block (403/451) into a real answer.
 function externalImproves(local, external) {
   if (!external || external.error) return false;
+  if (local && local.blockedPage) return !looksLikeBlockPage(external.title);
   if (!local || !local.status) return true;
   return local.status >= 400 && external.status < 400;
 }
@@ -1412,6 +1454,7 @@ async function siteInfo(host, context) {
       redirect: external.redirect,
       finalUrl: external.finalUrl,
       error: null,
+      blockedPage: looksLikeBlockPage(external.title),
       source: 'worker',
       localStatus: local.status || null,
       localError: local.error || null
@@ -1575,11 +1618,10 @@ function isDnsTransportError(code) {
 // resolver that stopped answering entirely.
 const DNS_HEALTH_TTL = 60000;
 let dnsHealth = { healthy: null, checkedAt: 0 };
-async function localDnsHealthy() {
+let dnsHealthPromise = null;
+
+async function checkDnsHealth() {
   const now = Date.now();
-  if (dnsHealth.healthy !== null && now - dnsHealth.checkedAt < DNS_HEALTH_TTL) {
-    return dnsHealth.healthy;
-  }
   try {
     const records = await withTimeout(dns.resolve('example.com', 'A'), 1500, 'timeout');
     dnsHealth = { healthy: Array.isArray(records) && records.length > 0, checkedAt: now };
@@ -1587,6 +1629,17 @@ async function localDnsHealthy() {
     dnsHealth = { healthy: false, checkedAt: now };
   }
   return dnsHealth.healthy;
+}
+
+async function localDnsHealthy() {
+  const now = Date.now();
+  if (dnsHealth.healthy !== null && now - dnsHealth.checkedAt < DNS_HEALTH_TTL) {
+    return dnsHealth.healthy;
+  }
+  if (!dnsHealthPromise) {
+    dnsHealthPromise = checkDnsHealth().finally(() => { dnsHealthPromise = null; });
+  }
+  return dnsHealthPromise;
 }
 
 async function emailInfoLocal(host, selector) {
@@ -1649,21 +1702,29 @@ async function emailInfoLocal(host, selector) {
 }
 
 // ENOTFOUND/ENODATA for _dmarc, a DKIM selector or an optional record is a
-// normal DNS answer, not a broken resolver. Only transport-level failures are
-// retried through the Worker, otherwise almost every domain without DMARC
-// would replace its local answer with the external one.
+// normal DNS answer, not a broken resolver. Transport failures and an ENOTFOUND
+// on the domain's MX lookup are retried through the Worker; otherwise almost
+// every domain without DMARC would replace its local answer with the external one.
 async function emailInfo(host, selector, context) {
   const local = await emailInfoLocal(host, selector);
   const keys = ['mx', 'spf', 'dmarc'].concat(selector ? ['dkim'] : []);
   const transportError = keys.some(key => isDnsTransportError(local.errors[key]));
-  if (!transportError) {
+  // A domain-level NXDOMAIN (MX lookup) is also what DNS filtering looks like.
+  // Missing DMARC/DKIM alone is normal and must not trigger a fallback.
+  const mxNxdomain = local.mx.length === 0 && local.errors.mx === 'ENOTFOUND';
+  if (!transportError && !mxNxdomain) {
     return Object.assign(local, { source: 'local' });
   }
 
-  const external = await callExternal(
-    opts => externalCheck.checkEmail(host, selector, opts),
-    context
-  );
+  const cacheKey = externalCacheKey('email', host, selector || '');
+  let external = getExternalCache(cacheKey);
+  if (!external) {
+    external = await callExternal(
+      opts => externalCheck.checkEmail(host, selector, opts),
+      context
+    );
+    if (!external.error) setExternalCache(cacheKey, external);
+  }
   if (external.error) {
     return externalFailure(local, external.error);
   }
@@ -1874,10 +1935,15 @@ const server = http.createServer(async (req, res) => {
             const fallback = isPublicIp(literal) &&
               (isDnsTransportError(e.code) || (empty && !(await localDnsHealthy())));
             if (fallback) {
-              const external = await callExternal(
-                opts => externalCheck.checkDns(literal, 'PTR', opts),
-                externalContext
-              );
+              const cacheKey = externalCacheKey('ptr', literal, 'PTR');
+              let external = getExternalCache(cacheKey);
+              if (!external) {
+                external = await callExternal(
+                  opts => externalCheck.checkDns(literal, 'PTR', opts),
+                  externalContext
+                );
+                if (!external.error) setExternalCache(cacheKey, external);
+              }
               if (!external.error) {
                 records = Array.isArray(external.records) ? external.records : [];
                 if (records.length) err = null;
@@ -1906,23 +1972,28 @@ const server = http.createServer(async (req, res) => {
       } catch (e) {
         if (e.busy) throw e;
         const empty = e.code === 'ENODATA' || e.code === 'ENOTFOUND';
-        // ENODATA is a normal "no such record" answer. Only transport errors,
-        // or a resolver that fails a canary query, justify a Worker call.
-        const fallback = isDnsTransportError(e.code) ||
+        // ENODATA is a normal "no such record" answer and only justifies a
+        // Worker call when the resolver also fails a canary query. ENOTFOUND is
+        // ambiguous: it is both a genuine NXDOMAIN and a common signature of DNS
+        // filtering. Retry through the Worker under the dedicated fallback
+        // limits, then cache the successful answer.
+        const fallback = isDnsTransportError(e.code) || e.code === 'ENOTFOUND' ||
           (empty && !(await localDnsHealthy()));
         if (!fallback) {
-          if (e.code === 'ENOTFOUND') {
-            return send(res, 200, { host, type, records: [], nxdomain: true, source: 'local' });
-          }
           if (e.code === 'ENODATA') {
             return send(res, 200, { host, type, records: [], nodata: true, source: 'local' });
           }
           throw e;
         }
-        const external = await callExternal(
-          opts => externalCheck.checkDns(host, type, opts),
-          externalContext
-        );
+        const cacheKey = externalCacheKey('dns', host, type);
+        let external = getExternalCache(cacheKey);
+        if (!external) {
+          external = await callExternal(
+            opts => externalCheck.checkDns(host, type, opts),
+            externalContext
+          );
+          if (!external.error) setExternalCache(cacheKey, external);
+        }
         if (external.error) {
           logExternalFailure(external.error);
           throw e;
@@ -2034,11 +2105,19 @@ const server = http.createServer(async (req, res) => {
       if (!isValidHost(host)) return bad(res, 'Invalid hostname');
       let resolvers = await propagation(host, type);
       let source = 'local';
-      if (resolvers.length && resolvers.every(r => r.error && isDnsTransportError(r.error))) {
-        const external = await callExternal(
-          opts => externalCheck.checkPropagation(host, type, opts),
-          externalContext
-        );
+      const allFailed = resolvers.length && resolvers.every(r => r.error);
+      const allFallbackCodes = allFailed &&
+        resolvers.every(r => isDnsTransportError(r.error) || r.error === 'ENOTFOUND');
+      if (allFallbackCodes) {
+        const cacheKey = externalCacheKey('propagation', host, type);
+        let external = getExternalCache(cacheKey);
+        if (!external) {
+          external = await callExternal(
+            opts => externalCheck.checkPropagation(host, type, opts),
+            externalContext
+          );
+          if (!external.error) setExternalCache(cacheKey, external);
+        }
         if (!external.error && external.resolvers.length) {
           resolvers = external.resolvers;
           source = 'worker';
@@ -2092,5 +2171,5 @@ if (require.main === module) {
 module.exports = {
   normalizeIp, isPublicIp, clientIp, server, siteInfo, tlsInfo, headersInfo, emailInfo,
   decodeHtml, propagation, redirectChain, anonymityInfo, anonymityPorts, torStatus,
-  hostingSignals, hostnameSignals, proxyHeaderSignals
+  hostingSignals, hostnameSignals, proxyHeaderSignals, externalImproves, looksLikeBlockPage
 };

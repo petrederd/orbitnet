@@ -116,7 +116,10 @@ function doRun() {
       .then(data => {
         const ips = data.records || [];
         if (!ips.length) {
-          resEl.innerHTML = '<div class="error">Could not resolve ' + esc(raw) + ' to an IP address.</div>';
+          const message = data.nxdomain
+            ? 'Domain does not exist (NXDOMAIN)'
+            : 'Could not resolve ' + esc(raw) + ' to an IP address.';
+          resEl.innerHTML = '<div class="error">' + message + '</div>';
           return;
         }
         return Promise.all(ips.map(ip => ptrData(ip))).then(results => renderDomain(raw, results));

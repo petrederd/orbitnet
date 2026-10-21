@@ -239,8 +239,12 @@ function render(host, port, me, portR, a, aaaa, ptr) {
   html += box('Your public IP', me.ip || '—');
 
   if (a) {
-    html += box('Forward DNS (A)', (a.records || []).join(', ') || (a.error || 'none'));
-    html += box('Forward DNS (AAAA)', (aaaa && aaaa.records || []).join(', ') || (aaaa && aaaa.error) || 'none');
+    const aText = a.nxdomain ? 'NXDOMAIN (domain does not exist)'
+      : ((a.records || []).join(', ') || (a.nodata ? 'none (NODATA)' : (a.error || 'none')));
+    const aaaaText = aaaa && aaaa.nxdomain ? 'NXDOMAIN (domain does not exist)'
+      : ((aaaa && aaaa.records || []).join(', ') || (aaaa && aaaa.nodata ? 'none (NODATA)' : (aaaa && aaaa.error) || 'none'));
+    html += box('Forward DNS (A)', aText);
+    html += box('Forward DNS (AAAA)', aaaaText);
   }
 
   const ptrHosts = (ptr && ptr.records) || [];

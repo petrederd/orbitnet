@@ -229,7 +229,7 @@ function loadDns(q) {
   Promise.all(types.map(t =>
     fetch('/api/dns?host=' + encodeURIComponent(q) + '&type=' + t)
       .then(r => r.json())
-      .then(d => ({ type: t, records: d.records || [], error: d.error }))
+      .then(d => ({ type: t, records: d.records || [], error: d.error, nxdomain: d.nxdomain, nodata: d.nodata }))
       .catch(() => ({ type: t, records: [], error: 'failed' }))
   )).then(results => {
     let html = '<div class="grid-2">';
@@ -238,8 +238,10 @@ function loadDns(q) {
       if (res.records.length) {
         html += '<div class="result-value" style="font-size:.95rem;">' +
           res.records.map(r => esc(formatRec(res.type, r))).join('<br>') + '</div>';
+      } else if (res.nxdomain) {
+        html += '<div class="result-sub">NXDOMAIN (domain does not exist)</div>';
       } else {
-        html += '<div class="result-sub">No records</div>';
+        html += '<div class="result-sub">' + (res.nodata ? 'No records (NODATA)' : 'No records') + '</div>';
       }
       html += '</div>';
     });
