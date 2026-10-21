@@ -110,7 +110,7 @@ function update() {
   const trimmed = text.trim();
 
   const wordList = trimmed ? trimmed.split(/\s+/) : [];
-  const words = wordList.filter(w => /[A-Za-z0-9\u00C0-\u024F]/.test(w)).length;
+  const words = wordList.filter(w => /[\p{L}\p{N}]/u.test(w)).length;
   const chars = text.length;
   const charsNoSpace = text.replace(/\s/g, '').length;
   const sentences = trimmed ? (trimmed.match(/[^.!?]+[.!?]*/g) || []).filter(s => s.trim()).length : 0;
@@ -142,8 +142,8 @@ function topKeywords(text) {
   const el = document.getElementById('keywords');
   if (!text) { el.innerHTML = '<div class="result-sub">No words yet.</div>'; return; }
   const counts = {};
-  (text.toLowerCase().match(/[a-z0-9\u00C0-\u024F']{3,}/g) || []).forEach(w => {
-    if (STOP.has(w)) return;
+  (text.toLowerCase().match(/[\p{L}\p{N}][\p{L}\p{N}'’]*/gu) || []).forEach(w => {
+    if ([...w].length < 3 || STOP.has(w)) return;
     counts[w] = (counts[w] || 0) + 1;
   });
   const top = Object.entries(counts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 12);

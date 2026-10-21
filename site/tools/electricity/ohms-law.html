@@ -259,15 +259,26 @@ function showError(message) {
   document.getElementById('errorMsg').innerHTML = `<div class="error"> ${esc(message)}</div>`;
 }
 
+function formatNumber(n) {
+  if (!Number.isFinite(n)) return String(n);
+  if (n === 0) return '0';
+  const abs = Math.abs(n);
+  if (abs >= 1e-4 && abs < 1e9) {
+    return String(Number(n.toPrecision(12)));
+  }
+  return n.toExponential(6).replace(/\.?0+e/, 'e');
+}
+
 function formatValue(value, baseUnit, units) {
-  // Auto-scale to appropriate unit
+  // Pick the largest unit that still gives a value >= 1.
   for (let i = units.length - 1; i >= 0; i--) {
     const [unitName, multiplier] = units[i];
-    if (Math.abs(value) >= multiplier && multiplier <= 1) {
-      return `${(value / multiplier).toFixed(6).replace(/\.?0+$/, '')} ${unitName}`;
+    if (Math.abs(value) >= multiplier) {
+      return `${formatNumber(value / multiplier)} ${unitName}`;
     }
   }
-  return `${value.toFixed(6).replace(/\.?0+$/, '')} ${baseUnit}`;
+  // Values smaller than the smallest unit fall back to the base unit.
+  return `${formatNumber(value)} ${baseUnit}`;
 }
 
 function calculate() {
@@ -279,8 +290,8 @@ function calculate() {
   const R = getBaseValue('resistance', 'resistanceUnit');
   const P = getBaseValue('power', 'powerUnit');
   
-  // Count how many values are provided
-  const provided = [V, I, R, P].filter(v => v !== null && v !== 0);
+  // Count how many values are provided (zero is a valid value, e.g. 0 V).
+  const provided = [V, I, R, P].filter(v => v !== null);
   
   if (provided.length < 2) {
     showError('Please enter at least TWO values to calculate the rest');
@@ -336,6 +347,7 @@ function calculate() {
       formulas.push('I = V ÷ R', 'P = V × I');
     }
     else if (R !== null && P !== null) {
+      if (R === 0) throw new Error('Resistance cannot be zero');
       calcI = Math.sqrt(P / R);
       calcV = calcI * R;
       formulas.push('I = √(P ÷ R)', 'V = I × R');
@@ -355,8 +367,10 @@ function calculate() {
       throw new Error('Invalid calculation result');
     }
     
-    if (calcV < 0 || calcI < 0 || calcR < 0 || calcP < 0) {
-      throw new Error('All values must be positive');
+    const negative = [['voltage', calcV], ['current', calcI], ['resistance', calcR], ['power', calcP]]
+      .find(([, v]) => v < 0);
+    if (negative) {
+      throw new Error('Negative values are not allowed (' + negative[0] + ' is negative). Enter zero or a positive value.');
     }
     
     displayResults(calcV, calcI, calcR, calcP, formulas);

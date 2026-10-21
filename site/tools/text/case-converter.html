@@ -131,26 +131,45 @@ function buildButtons() {
 }
 
 function words(text) {
-  return text.match(/[A-Za-z0-9\u00C0-\u024F]+/g) || [];
+  return text.match(/[\p{L}\p{N}]+/gu) || [];
+}
+
+// Splits identifiers as well as plain text: "myVariableName" -> ["my", "Variable", "Name"].
+function splitWords(text) {
+  return words(
+    text
+      .replace(/([\p{Ll}\p{N}])(\p{Lu})/gu, '$1 $2')
+      .replace(/(\p{Lu}+)(\p{Lu}\p{Ll})/gu, '$1 $2')
+  );
+}
+
+function upperFirst(word) {
+  const chars = [...word];
+  return chars.length ? chars[0].toUpperCase() + chars.slice(1).join('').toLowerCase() : word;
+}
+
+function upperFirstKeep(word) {
+  const chars = [...word];
+  return chars.length ? chars[0].toUpperCase() + chars.slice(1).join('') : word;
 }
 
 function convert(text, mode) {
   switch (mode) {
     case 'upper': return text.toUpperCase();
     case 'lower': return text.toLowerCase();
-    case 'title': return text.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
-    case 'sentence': return text.toLowerCase().replace(/(^\s*\w|[.!?]\s+\w)/g, c => c.toUpperCase());
+    case 'title': return text.replace(/[\p{L}\p{N}][\p{L}\p{N}'’]*/gu, upperFirst);
+    case 'sentence': return text.toLowerCase().replace(/(^|[.!?]\s+|\n\s*)(\p{L})/gu, (m, pre, ch) => pre + ch.toUpperCase());
     case 'camel': {
-      const w = words(text).map(x => x.toLowerCase());
-      return w.map((x, i) => i === 0 ? x : x.charAt(0).toUpperCase() + x.slice(1)).join('');
+      const w = splitWords(text).map(x => x.toLowerCase());
+      return w.map((x, i) => i === 0 ? x : upperFirstKeep(x)).join('');
     }
     case 'pascal': {
-      const w = words(text).map(x => x.toLowerCase());
-      return w.map(x => x.charAt(0).toUpperCase() + x.slice(1)).join('');
+      const w = splitWords(text).map(x => x.toLowerCase());
+      return w.map(x => upperFirstKeep(x)).join('');
     }
-    case 'snake': return words(text).map(x => x.toLowerCase()).join('_');
-    case 'kebab': return words(text).map(x => x.toLowerCase()).join('-');
-    case 'constant': return words(text).map(x => x.toUpperCase()).join('_');
+    case 'snake': return splitWords(text).map(x => x.toLowerCase()).join('_');
+    case 'kebab': return splitWords(text).map(x => x.toLowerCase()).join('-');
+    case 'constant': return splitWords(text).map(x => x.toUpperCase()).join('_');
     case 'alternating': return [...text].map((c, i) => i % 2 ? c.toUpperCase() : c.toLowerCase()).join('');
     case 'inverse': return [...text].map(c => c === c.toLowerCase() ? c.toUpperCase() : c.toLowerCase()).join('');
     default: return text;

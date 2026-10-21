@@ -277,19 +277,19 @@ function generateBulk() {
 
 function displayBulkUUIDs() {
   const listHTML = currentUUIDs.map((uuid, index) => `
-    <div class="uuid-item"><span class="uuid-text">${uuid}</span><button class="uuid-copy" onclick="copyUUID(${index})">Copy</button></div>
+    <div class="uuid-item"><span class="uuid-text">${uuid}</span><button class="uuid-copy" onclick="copyUUID(${index}, this)">Copy</button></div>
   `).join('');
   
   document.getElementById('uuidList').innerHTML = listHTML;
   document.getElementById('bulkCount').textContent = currentUUIDs.length;
 }
 
-function copyUUID(index) {
+function copyUUID(index, btn) {
   const uuid = currentUUIDs[index];
   navigator.clipboard.writeText(uuid).then(() => {
-    event.target.textContent = ' Copied!';
+    btn.textContent = ' Copied!';
     setTimeout(() => {
-      event.target.textContent = 'Copy';
+      btn.textContent = 'Copy';
     }, 2000);
   });
 }

@@ -224,7 +224,7 @@ function updateStats(jsonObj) {
   countTypes(jsonObj);
   
   document.getElementById('outputStats').innerHTML = `
-    <div><span>${lines}</span> lines</div><div><span>${chars.toLocaleString()}</span> characters</div><div><span>${bytes.toLocaleString()}</span> bytes</div><div><span>${objectCount}</span> objects</div><div><span>${arrayCount}</span> arrays</div>
+    <div><span>${lines}</span> lines</div><div><span>${chars.toLocaleString('en-US')}</span> characters</div><div><span>${bytes.toLocaleString('en-US')}</span> bytes</div><div><span>${objectCount}</span> objects</div><div><span>${arrayCount}</span> arrays</div>
   `;
 }
 

@@ -165,16 +165,36 @@
 <script>
 document.getElementById('year').textContent = new Date().getFullYear();
 
+function fmtNumber(n) {
+  if (!Number.isFinite(n)) return String(n);
+  if (n === 0) return '0';
+  const abs = Math.abs(n);
+  if (abs >= 1e-6 && abs < 1e15) {
+    return String(Number(n.toPrecision(12)));
+  }
+  return n.toExponential(6).replace(/\.?0+e/, 'e');
+}
+
 function updatePreview() {
-  const a = document.getElementById('coeffA').value || 'a';
-  const b = document.getElementById('coeffB').value || 'b';
-  const c = document.getElementById('coeffC').value || 'c';
-  
-  const aStr = a == 1 ? '' : (a == -1 ? '-' : a);
-  const bStr = b >= 0 ? '+ ' + b : '- ' + Math.abs(b);
-  const cStr = c >= 0 ? '+ ' + c : '- ' + Math.abs(c);
-  
-  document.getElementById('equationPreview').textContent = `${aStr}x² ${bStr}x ${cStr} = 0`;
+  const [a, b, c] = ['coeffA', 'coeffB', 'coeffC'].map(id => {
+    const v = document.getElementById(id).value.trim();
+    return v === '' ? null : parseFloat(v);
+  });
+
+  const parts = [];
+
+  if (a === null) parts.push('ax²');
+  else if (a === 1) parts.push('x²');
+  else if (a === -1) parts.push('-x²');
+  else parts.push(fmtNumber(a) + 'x²');
+
+  if (b === null) parts.push('+ bx');
+  else if (b !== 0) parts.push((b > 0 ? '+ ' : '- ') + (Math.abs(b) === 1 ? '' : fmtNumber(Math.abs(b))) + 'x');
+
+  if (c === null) parts.push('+ c');
+  else if (c !== 0) parts.push((c > 0 ? '+ ' : '- ') + fmtNumber(Math.abs(c)));
+
+  document.getElementById('equationPreview').textContent = parts.join(' ') + ' = 0';
 }
 
 function solve() {
@@ -194,32 +214,44 @@ function solve() {
     return;
   }
   
-  const discriminant = b * b - 4 * a * c;
+  // Treat a discriminant that is zero up to floating-point error as zero.
+  const scale = Math.max(1, b * b, Math.abs(4 * a * c));
+  const eps = Number.EPSILON * scale * 8;
+  let discriminant = b * b - 4 * a * c;
+  if (Math.abs(discriminant) <= eps) discriminant = 0;
   
   let html = `
-    <div class="result-box"><div class="result-label">Discriminant (D)</div><div class="result-value">${discriminant.toFixed(4)}</div><div class="result-sub">D = b² - 4ac = ${b}² - 4·${a}·${c}</div></div>
+    <div class="result-box"><div class="result-label">Discriminant (D)</div><div class="result-value">${fmtNumber(discriminant)}</div><div class="result-sub">D = b² - 4ac = ${b}² - 4·${a}·${c}</div></div>
   `;
   
   if (discriminant > 0) {
     const sqrtD = Math.sqrt(discriminant);
-    const x1 = (-b + sqrtD) / (2 * a);
-    const x2 = (-b - sqrtD) / (2 * a);
+    // Stable form: avoids cancellation when b is large relative to the roots.
+    const q = -0.5 * (b + (b >= 0 ? sqrtD : -sqrtD));
+    let x1, x2;
+    if (q === 0) {
+      x1 = 0;
+      x2 = -b / a;
+    } else {
+      x1 = q / a;
+      x2 = c / q;
+    }
     
     html += `
-      <div class="result-box highlight"><div class="result-label">Root x₁</div><div class="result-value large">${x1.toFixed(6)}</div><div class="result-sub">x₁ = (-b + √D) / 2a</div></div><div class="result-box highlight"><div class="result-label">Root x₂</div><div class="result-value large">${x2.toFixed(6)}</div><div class="result-sub">x₂ = (-b - √D) / 2a</div></div><div class="result-box"><div class="result-label">Root Type</div><div class="result-value" style="font-size: 1.1rem;">Two distinct real roots</div><div class="result-sub">D > 0</div></div>
+      <div class="result-box highlight"><div class="result-label">Root x₁</div><div class="result-value large">${fmtNumber(x1)}</div><div class="result-sub">x₁ = (-b + √D) / 2a</div></div><div class="result-box highlight"><div class="result-label">Root x₂</div><div class="result-value large">${fmtNumber(x2)}</div><div class="result-sub">x₂ = (-b - √D) / 2a</div></div><div class="result-box"><div class="result-label">Root Type</div><div class="result-value" style="font-size: 1.1rem;">Two distinct real roots</div><div class="result-sub">D > 0</div></div>
     `;
   } else if (discriminant === 0) {
     const x = -b / (2 * a);
     
     html += `
-      <div class="result-box highlight"><div class="result-label">Root x</div><div class="result-value large">${x.toFixed(6)}</div><div class="result-sub">x = -b / 2a (double root)</div></div><div class="result-box"><div class="result-label">Root Type</div><div class="result-value" style="font-size: 1.1rem;">One root (multiplicity 2)</div><div class="result-sub">D = 0</div></div>
+      <div class="result-box highlight"><div class="result-label">Root x</div><div class="result-value large">${fmtNumber(x)}</div><div class="result-sub">x = -b / 2a (double root)</div></div><div class="result-box"><div class="result-label">Root Type</div><div class="result-value" style="font-size: 1.1rem;">One root (multiplicity 2)</div><div class="result-sub">D = 0</div></div>
     `;
   } else {
     const realPart = -b / (2 * a);
-    const imagPart = Math.sqrt(-discriminant) / (2 * a);
+    const imagPart = Math.abs(Math.sqrt(-discriminant) / (2 * a));
     
     html += `
-      <div class="result-box highlight"><div class="result-label">Root x₁</div><div class="result-value large">${realPart.toFixed(4)} + ${imagPart.toFixed(4)}i</div><div class="result-sub">Complex root</div></div><div class="result-box highlight"><div class="result-label">Root x₂</div><div class="result-value large">${realPart.toFixed(4)} - ${imagPart.toFixed(4)}i</div><div class="result-sub">Complex root</div></div><div class="result-box"><div class="result-label">Root Type</div><div class="result-value" style="font-size: 1.1rem;">Complex conjugate pair</div><div class="result-sub">D < 0</div></div>
+      <div class="result-box highlight"><div class="result-label">Root x₁</div><div class="result-value large">${fmtNumber(realPart)} + ${fmtNumber(imagPart)}i</div><div class="result-sub">Complex root</div></div><div class="result-box highlight"><div class="result-label">Root x₂</div><div class="result-value large">${fmtNumber(realPart)} - ${fmtNumber(imagPart)}i</div><div class="result-sub">Complex root</div></div><div class="result-box"><div class="result-label">Root Type</div><div class="result-value" style="font-size: 1.1rem;">Complex conjugate pair</div><div class="result-sub">D < 0</div></div>
     `;
   }
   

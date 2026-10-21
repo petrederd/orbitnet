@@ -99,10 +99,17 @@ document.getElementById('year').textContent = new Date().getFullYear();
 const DIGITS = '0123456789abcdefghijklmnopqrstuvwxyz';
 
 function parseBase(str, base) {
-  str = str.trim().toLowerCase().replace(/^0([box])/, '');
+  str = str.trim().toLowerCase();
   if (!str) return null;
   let negative = false;
-  if (str[0] === '-') { negative = true; str = str.slice(1); }
+  if (str[0] === '-' || str[0] === '+') {
+    negative = str[0] === '-';
+    str = str.slice(1);
+  }
+  if (!str) return null;
+  // Strip only the prefix that matches the selected base.
+  const prefix = base === 16 ? '0x' : base === 8 ? '0o' : base === 2 ? '0b' : null;
+  if (prefix && str.startsWith(prefix)) str = str.slice(2);
   if (!str) return null;
   let result = 0n;
   for (const ch of str) {

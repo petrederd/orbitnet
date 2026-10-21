@@ -202,7 +202,7 @@ function updateStats(text, statsId) {
   const lines = text.split('\n').length;
   
   document.getElementById(statsId).innerHTML = `
-    <div><span>${chars.toLocaleString()}</span> characters</div><div><span>${bytes.toLocaleString()}</span> bytes</div><div><span>${lines}</span> lines</div>
+    <div><span>${chars.toLocaleString('en-US')}</span> characters</div><div><span>${bytes.toLocaleString('en-US')}</span> bytes</div><div><span>${lines}</span> lines</div>
   `;
 }
 
@@ -247,22 +247,32 @@ function decode() {
   }
   
   try {
-    // Remove whitespace and newlines
-    const cleaned = base64Text.replace(/\s/g, '');
-    
+    // Remove whitespace, accept the URL-safe alphabet, and restore padding.
+    let cleaned = base64Text.replace(/\s/g, '').replace(/-/g, '+').replace(/_/g, '/');
+
     // Validate Base64 format
     if (!/^[A-Za-z0-9+/]*={0,2}$/.test(cleaned)) {
       throw new Error('Invalid Base64 format');
     }
+    if (cleaned.length % 4) cleaned += '='.repeat(4 - cleaned.length % 4);
+
+    const binary = atob(cleaned);
+    const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+
+    let decoded;
+    try {
+      decoded = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } catch (decodeError) {
+      showStatus('base64Status', 'error', 'Valid Base64, but the decoded bytes are binary data, not UTF-8 text. Use a binary-aware decoder to inspect it.');
+      return;
+    }
     
-    // Decode from Base64
-    const decoded = decodeURIComponent(escape(atob(cleaned)));
     document.getElementById('plainText').value = decoded;
-    
+
     updateStats(decoded, 'plainStats');
     showStatus('base64Status', 'success', 'Base64 decoded successfully');
   } catch (error) {
-    showStatus('base64Status', 'error', 'Decoding failed: Invalid Base64 string');
+    showStatus('base64Status', 'error', 'Decoding failed: invalid Base64 string');
   }
 }
 

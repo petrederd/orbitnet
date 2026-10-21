@@ -98,8 +98,14 @@ function convert() {
   const resEl = document.getElementById('results');
   errEl.innerHTML = '';
 
-  const hex = raw.replace(/[^0-9a-fA-F]/g, '');
-  if (!hex) { resEl.innerHTML = '<div class="result-sub">Enter a MAC address to convert.</div>'; return; }
+  const cleaned = raw.trim();
+  if (!cleaned) { resEl.innerHTML = '<div class="result-sub">Enter a MAC address to convert.</div>'; return; }
+  const hex = cleaned.replace(/[\s:.-]/g, '');
+  if (/[^0-9a-fA-F]/.test(hex)) {
+    errEl.innerHTML = '<div class="error">A MAC address may contain only hexadecimal digits (0-9, a-f) and : - . separators.</div>';
+    resEl.innerHTML = '<div class="result-sub">Enter a valid MAC address.</div>';
+    return;
+  }
   if (hex.length !== 12) {
     errEl.innerHTML = '<div class="error">A MAC address must contain exactly 12 hexadecimal digits (found ' + hex.length + ').</div>';
     resEl.innerHTML = '<div class="result-sub">Enter a valid MAC address.</div>';

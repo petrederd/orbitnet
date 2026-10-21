@@ -68,8 +68,8 @@
             Configuration
           </h2>
           <div class="mode-selector">
-            <button class="mode-btn active" onclick="setMode('astable')">Astable Mode</button>
-            <button class="mode-btn" onclick="setMode('monostable')">Monostable Mode</button>
+            <button class="mode-btn active" onclick="setMode('astable', this)">Astable Mode</button>
+            <button class="mode-btn" onclick="setMode('monostable', this)">Monostable Mode</button>
           </div>
           <div id="reverseToggle" style="margin-bottom: 16px;">
             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="checkbox" id="reverseCalc" onchange="toggleCalcMode()" style="width: 18px; height: 18px; cursor: pointer;"><span style="font-size: 0.9rem; color: var(--muted);">Reverse calculation (have resistors → need frequency)</span>
@@ -93,7 +93,7 @@
             </div>
             <div class="input-group" id="dutyGroup">
               <label for="dutyCycle">Duty Cycle (%)</label>
-              <input type="number" id="dutyCycle" placeholder="50-99" min="50" max="99" step="1"><small>Percentage of time output is HIGH (50-99%)</small>
+              <input type="number" id="dutyCycle" placeholder="51-99" min="51" max="99" step="1"><small>Percentage of time output is HIGH (greater than 50%, up to 99%)</small>
             </div>
             <div class="input-group" id="r1Group" style="display: none;">
               <label for="r1Input">Resistor R1</label>
@@ -262,7 +262,7 @@
         <ul>
           <li>
             <strong>Resistors:</strong>
-            Use values between 1kΩ and 1MΩ. Higher values = lower current consumption
+            Use values between 1kΩ and 10MΩ. Higher values = lower current consumption
           </li>
           <li>
             <strong>Capacitors:</strong>
@@ -270,7 +270,7 @@
           </li>
           <li>
             <strong>Duty cycle:</strong>
-            For 50% duty cycle in astable mode, use R1 = 1kΩ and make R2 much larger
+            A standard astable circuit cannot reach exactly 50% (HIGH is always longer because R1 &gt; 0). Keep R1 small relative to R2 to get close, or add a diode across R2 for a near-50% square wave
           </li>
           <li>
             <strong>Accuracy:</strong>
@@ -303,10 +303,10 @@ document.getElementById('year').textContent = new Date().getFullYear();
 let currentMode = 'astable';
 let reverseMode = false;
 
-function setMode(mode) {
+function setMode(mode, btn) {
   currentMode = mode;
-  document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
-  event.target.classList.add('active');
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
   
   if (mode === 'astable') {
     document.getElementById('astableInputs').style.display = 'block';
@@ -428,8 +428,8 @@ function findStandardResistor(value) {
   let bestValue = value;
   let bestDiff = Infinity;
   
-  // Check across different decades
-  for (let decade = 1; decade <= 1000000; decade *= 10) {
+  // Check across different decades (up to 10 MΩ so large E12 values are reachable)
+  for (let decade = 1; decade <= 10000000; decade *= 10) {
     for (let base of e12) {
       const stdValue = base * decade;
       const diff = Math.abs(stdValue - value);
@@ -467,8 +467,8 @@ function calculateAstable() {
     return;
   }
   
-  if (isNaN(duty) || duty < 50 || duty > 99) {
-    showError('Duty cycle must be between 50% and 99%');
+  if (isNaN(duty) || duty <= 50 || duty > 99) {
+    showError('Duty cycle must be greater than 50% and at most 99%. In this astable circuit the HIGH time is always longer than the LOW time, so exactly 50% would require R1 = 0 and is not achievable.');
     return;
   }
   
@@ -526,7 +526,7 @@ function calculateAstable() {
                                   |<br>
       Pin 2,6 (Trig/Thresh) ------+<br>
                                   |<br>
-                              [C=${C*1000000}µF]<br>
+                              [C=${formatCapacitance(C)}]<br>
                                   |<br>
       GND ---------------------+---+<br><br>
       Output: Pin 3 • Vcc: Pin 8 • GND: Pin 1
@@ -617,7 +617,7 @@ function calculateMonostable() {
                                 |<br>
       Pin 6 (Threshold) --------+<br>
                                 |<br>
-                            [C=${C*1000000}µF]<br>
+                            [C=${formatCapacitance(C)}]<br>
                                 |<br>
       GND -----------------+----+<br>
                           |<br>

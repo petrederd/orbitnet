@@ -91,7 +91,9 @@ document.getElementById('year').textContent = new Date().getFullYear();
 function parseInput(raw) {
   let s = raw.trim().toLowerCase();
   if (!s) return null;
-  s = s.replace(/×10\^?/g, 'e').replace(/x10\^?/g, 'e').replace(/\s/g, '').replace(/,/g, '');
+  // Remove whitespace first so "6.02 × 10^23" is recognised.
+  s = s.replace(/\s+/g, '');
+  s = s.replace(/×10\^?/g, 'e').replace(/x10\^?/g, 'e').replace(/\*10\^?/g, 'e').replace(/,/g, '');
   if (!/^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/.test(s)) return null;
   const n = Number(s);
   return Number.isFinite(n) ? n : null;
@@ -99,9 +101,37 @@ function parseInput(raw) {
 
 function sciParts(n, sig) {
   if (n === 0) return { mantissa: 0, exponent: 0 };
-  const exp = Math.floor(Math.log10(Math.abs(n)));
-  const mantissa = Number((n / Math.pow(10, exp)).toPrecision(sig));
-  return { mantissa, exponent: exp };
+  // toExponential also works for subnormal numbers such as 5e-324.
+  const [m, e] = Math.abs(n).toExponential(sig - 1).split('e');
+  return { mantissa: Number(m) * Math.sign(n), exponent: Number(e) };
+}
+
+// Expands JS exponential notation into a plain decimal string.
+function toPlainDecimal(n) {
+  if (n === 0) return '0';
+  const s = n.toString();
+  if (!/e/i.test(s)) return s;
+  const [mant, expStr] = s.split(/e/i);
+  const exp = parseInt(expStr, 10);
+  let sign = '';
+  let m = mant;
+  if (m[0] === '-') { sign = '-'; m = m.slice(1); }
+  const [intPart, fracPart = ''] = m.split('.');
+  const digits = intPart + fracPart;
+  const point = intPart.length + exp;
+  let out;
+  if (point <= 0) out = '0.' + '0'.repeat(-point) + digits;
+  else if (point >= digits.length) out = digits + '0'.repeat(point - digits.length);
+  else out = digits.slice(0, point) + '.' + digits.slice(point);
+  return sign + out;
+}
+
+function groupThousands(str) {
+  const neg = str.startsWith('-');
+  const body = neg ? str.slice(1) : str;
+  const [intPart, fracPart] = body.split('.');
+  const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return (neg ? '-' : '') + grouped + (fracPart !== undefined ? '.' + fracPart : '');
 }
 
 function convert() {
@@ -125,9 +155,9 @@ function convert() {
   const sig = 10;
   const { mantissa, exponent } = sciParts(n, sig);
   const engExp = Math.floor(exponent / 3) * 3;
-  const engMantissa = Number((n / Math.pow(10, engExp)).toPrecision(sig));
+  const engMantissa = Number((mantissa * Math.pow(10, exponent - engExp)).toPrecision(sig));
 
-  const plain = n.toLocaleString('en-US', { maximumFractionDigits: 20 });
+  const plain = groupThousands(toPlainDecimal(n));
   const scientific = mantissa + ' × 10^' + exponent;
   const engineering = engMantissa + ' × 10^' + engExp;
   const eNotation = mantissa + 'e' + (exponent >= 0 ? '+' : '') + exponent;

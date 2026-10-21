@@ -68,10 +68,10 @@
             Calculation Type
           </h2>
           <div class="mode-selector">
-            <button class="mode-btn active" onclick="setMode('basic')">X% of Y</button>
-            <button class="mode-btn" onclick="setMode('change')">% Change</button>
-            <button class="mode-btn" onclick="setMode('reverse')">Find %</button>
-            <button class="mode-btn" onclick="setMode('increase')">Increase/Decrease</button>
+            <button class="mode-btn active" onclick="setMode('basic', this)">X% of Y</button>
+            <button class="mode-btn" onclick="setMode('change', this)">% Change</button>
+            <button class="mode-btn" onclick="setMode('reverse', this)">Find %</button>
+            <button class="mode-btn" onclick="setMode('increase', this)">Increase/Decrease</button>
           </div>
           <div id="errorMsg">
           </div>
@@ -185,10 +185,10 @@ document.getElementById('year').textContent = new Date().getFullYear();
 
 let currentMode = 'basic';
 
-function setMode(mode) {
+function setMode(mode, btn) {
   currentMode = mode;
-  document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
-  event.target.classList.add('active');
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
   
   document.getElementById('basicInputs').style.display = mode === 'basic' ? 'block' : 'none';
   document.getElementById('changeInputs').style.display = mode === 'change' ? 'block' : 'none';
@@ -230,7 +230,7 @@ function calculate() {
       return;
     }
     
-    const change = ((newVal - oldVal) / oldVal) * 100;
+    const change = ((newVal - oldVal) / Math.abs(oldVal)) * 100;
     const diff = newVal - oldVal;
     const type = change >= 0 ? 'Increase' : 'Decrease';
     
