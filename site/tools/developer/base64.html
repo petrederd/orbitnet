@@ -218,8 +218,10 @@ function encode() {
   }
   
   try {
-    // Encode to Base64
-    const encoded = btoa(unescape(encodeURIComponent(plainText)));
+    const bytes = new TextEncoder().encode(plainText);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    const encoded = btoa(binary);
     document.getElementById('base64Text').value = encoded;
     
     updateStats(encoded, 'base64Stats');

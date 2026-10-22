@@ -117,50 +117,51 @@ function getFlags() {
   return f;
 }
 
-function run() {
-  const pattern = document.getElementById('pattern').value;
-  const text = document.getElementById('text').value;
-  const errEl = document.getElementById('errorMsg');
-  const sumEl = document.getElementById('summary');
-  const hlEl = document.getElementById('highlight');
-  const mEl = document.getElementById('matches');
-  errEl.innerHTML = '';
+const MAX_MATCHES = 10000;
+const RENDER_LIMIT = 200;
+const WORKER_TIMEOUT = 2000;
 
-  if (!pattern) {
-    sumEl.innerHTML = '';
-    hlEl.innerHTML = esc(text);
-    mEl.innerHTML = '';
-    return;
-  }
+let currentWorker = null;
+let runId = 0;
 
+const workerSource = `
+self.onmessage = function(e) {
+  const pattern = e.data.pattern;
+  const flags = e.data.flags;
+  const text = e.data.text;
+  const maxMatches = e.data.maxMatches;
   let re;
   try {
-    re = new RegExp(pattern, getFlags());
-  } catch (e) {
-    errEl.innerHTML = '<div class="error">Invalid regular expression: ' + esc(e.message) + '</div>';
-    sumEl.innerHTML = '';
-    hlEl.innerHTML = esc(text);
-    mEl.innerHTML = '';
+    re = new RegExp(pattern, flags);
+  } catch (err) {
+    self.postMessage({ ok: false, error: err.message });
     return;
   }
-
-  const global = re.flags.includes('g');
   const matches = [];
-  if (global) {
+  let truncated = false;
+  if (re.flags.includes('g')) {
     let m;
-    let guard = 0;
     while ((m = re.exec(text)) !== null) {
+      if (matches.length >= maxMatches) { truncated = true; break; }
       matches.push({ value: m[0], index: m.index, groups: m.slice(1) });
       if (m[0] === '') re.lastIndex++;
-      if (++guard > 10000) break;
       if (re.lastIndex > text.length) break;
     }
   } else {
     const m = re.exec(text);
     if (m) matches.push({ value: m[0], index: m.index, groups: m.slice(1) });
   }
+  self.postMessage({ ok: true, matches: matches, truncated: truncated });
+};
+`;
 
-  // highlight
+function clearOutput(sumEl, hlEl, mEl, text) {
+  sumEl.innerHTML = '';
+  hlEl.innerHTML = esc(text);
+  mEl.innerHTML = '';
+}
+
+function renderMatches(matches, truncated, text, sumEl, hlEl, mEl) {
   let html = '';
   let last = 0;
   matches.forEach(mt => {
@@ -172,13 +173,91 @@ function run() {
   html += esc(text.slice(last));
   hlEl.innerHTML = html;
 
-  sumEl.innerHTML = '<div class="stats"><span>' + matches.length + '</span> match' + (matches.length === 1 ? '' : 'es') + '</div>';
+  const label = matches.length + (truncated ? '+' : '');
+  sumEl.innerHTML = '<div class="stats"><span>' + label + '</span> match' + (matches.length === 1 && !truncated ? '' : 'es') + (truncated ? ' (limit of ' + MAX_MATCHES.toLocaleString('en-US') + ' reached)' : '') + '</div>';
 
-  mEl.innerHTML = matches.map((mt, i) => {
+  const shown = matches.slice(0, RENDER_LIMIT);
+  let list = shown.map((mt, i) => {
     const groups = mt.groups.map((g, gi) => '<div class="result-sub">group ' + (gi + 1) + ': ' + (g === undefined ? '—' : esc(g)) + '</div>').join('');
     return '<div class="result-box"><div class="result-label">Match ' + (i + 1) + ' at index ' + mt.index + '</div>' +
       '<div class="result-value" style="font-size:1rem;">' + esc(mt.value) + '</div>' + groups + '</div>';
   }).join('');
+  if (matches.length > shown.length) {
+    list += '<div class="result-sub" style="margin-top:12px;">Showing the first ' + shown.length + ' of ' + label + ' matches.</div>';
+  }
+  mEl.innerHTML = list;
+}
+
+function run() {
+  const pattern = document.getElementById('pattern').value;
+  const text = document.getElementById('text').value;
+  const errEl = document.getElementById('errorMsg');
+  const sumEl = document.getElementById('summary');
+  const hlEl = document.getElementById('highlight');
+  const mEl = document.getElementById('matches');
+  const id = ++runId;
+  errEl.innerHTML = '';
+
+  if (currentWorker) {
+    if (currentWorker._objectUrl) URL.revokeObjectURL(currentWorker._objectUrl);
+    currentWorker.terminate();
+    currentWorker = null;
+  }
+
+  if (!pattern) {
+    clearOutput(sumEl, hlEl, mEl, text);
+    return;
+  }
+
+  const flags = getFlags();
+  try {
+    new RegExp(pattern, flags);
+  } catch (e) {
+    errEl.innerHTML = '<div class="error">Invalid regular expression: ' + esc(e.message) + '</div>';
+    clearOutput(sumEl, hlEl, mEl, text);
+    return;
+  }
+
+  const workerUrl = URL.createObjectURL(new Blob([workerSource], { type: 'application/javascript' }));
+  const worker = new Worker(workerUrl);
+  worker._objectUrl = workerUrl;
+  currentWorker = worker;
+
+  const timer = setTimeout(() => {
+    worker.terminate();
+    URL.revokeObjectURL(workerUrl);
+    if (currentWorker === worker) currentWorker = null;
+    if (id !== runId) return;
+    errEl.innerHTML = '<div class="error">Evaluation timed out after ' + (WORKER_TIMEOUT / 1000) + ' seconds. The pattern may cause catastrophic backtracking.</div>';
+    clearOutput(sumEl, hlEl, mEl, text);
+  }, WORKER_TIMEOUT);
+
+  worker.onmessage = function(ev) {
+    clearTimeout(timer);
+    worker.terminate();
+    URL.revokeObjectURL(workerUrl);
+    if (currentWorker === worker) currentWorker = null;
+    if (id !== runId) return;
+    const data = ev.data;
+    if (!data.ok) {
+      errEl.innerHTML = '<div class="error">Invalid regular expression: ' + esc(data.error) + '</div>';
+      clearOutput(sumEl, hlEl, mEl, text);
+      return;
+    }
+    renderMatches(data.matches, data.truncated, text, sumEl, hlEl, mEl);
+  };
+
+  worker.onerror = function(ev) {
+    clearTimeout(timer);
+    worker.terminate();
+    URL.revokeObjectURL(workerUrl);
+    if (currentWorker === worker) currentWorker = null;
+    if (id !== runId) return;
+    errEl.innerHTML = '<div class="error">Regex evaluation failed: ' + esc(ev.message || 'unknown error') + '</div>';
+    clearOutput(sumEl, hlEl, mEl, text);
+  };
+
+  worker.postMessage({ pattern, flags, text, maxMatches: MAX_MATCHES });
 }
 
 run();

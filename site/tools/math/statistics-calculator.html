@@ -81,7 +81,7 @@
       <li><strong>Median</strong> — the middle value of the sorted data</li>
       <li><strong>Variance</strong> — population divides by n, sample divides by n − 1</li>
       <li><strong>Standard deviation</strong> — the square root of the variance</li>
-      <li><strong>Quartiles</strong> — median of the lower and upper halves (Q1, Q3); IQR = Q3 − Q1</li>
+      <li><strong>Quartiles</strong> — Tukey's method: the median of the lower and upper halves, excluding the middle value for odd-sized sets (Q1, Q3); IQR = Q3 − Q1. Excel's QUARTILE.INC may return different values.</li>
     </ul>
   </div>
 </main>
@@ -95,6 +95,7 @@
 document.getElementById('year').textContent = new Date().getFullYear();
 
 function num(v) {
+  if (!/^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(v)) return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
@@ -108,7 +109,12 @@ function median(sorted) {
 
 function fmt(x) {
   if (!Number.isFinite(x)) return '—';
-  return (Math.round(x * 1e10) / 1e10).toLocaleString('en-US', { maximumFractionDigits: 10 });
+  if (x === 0) return '0';
+  const abs = Math.abs(x);
+  if (abs >= 1e21 || abs < 1e-9) {
+    return x.toExponential(10).replace(/\.?0+e/, 'e');
+  }
+  return Number(x.toPrecision(12)).toLocaleString('en-US', { maximumFractionDigits: 20 });
 }
 
 // Handles thousands ("1,234"), decimal commas ("3,5") and comma lists ("1,2,3").

@@ -92,7 +92,7 @@
 
   <div class="info-section">
     <h3>Seconds or milliseconds?</h3>
-    <p>Unix time counts seconds since 1 January 1970 UTC. Many languages and tools use milliseconds instead, which is 1000× larger. Auto-detect treats numbers with 10 or fewer digits as seconds and larger numbers as milliseconds. ISO 8601 strings such as <code>2026-01-01T12:00:00Z</code> are parsed directly.</p>
+    <p>Unix time counts seconds since 1 January 1970 UTC. Many languages and tools use milliseconds instead, which is 1000× larger. Auto-detect treats values with an absolute value of 1e11 or more as milliseconds. Negative values with an absolute value of 1e7 or more are also treated as milliseconds, so dates just before 1970 work correctly. ISO 8601 strings such as <code>2026-01-01T12:00:00Z</code> are parsed directly.</p>
   </div>
 </main>
 
@@ -113,11 +113,17 @@ function parseInput(raw, type) {
   // auto
   if (/^-?\d+$/.test(raw)) {
     const n = Number(raw);
-    const ms = raw.replace('-', '').length <= 10 ? n * 1000 : n;
-    return new Date(ms);
+    const isMs = Math.abs(n) >= 1e11 || (n < 0 && Math.abs(n) >= 1e7);
+    return new Date(isMs ? n : n * 1000);
   }
   const d = new Date(raw);
   return isNaN(d) ? null : d;
+}
+
+function relativeLabel(v, name) {
+  const n = Math.abs(v);
+  const word = name + (n === 1 ? '' : 's');
+  return v === 0 ? 'now' : (v > 0 ? 'in ' + n + ' ' + word : n + ' ' + word + ' ago');
 }
 
 function relative(d) {
@@ -127,12 +133,15 @@ function relative(d) {
     ['year', 31557600000], ['month', 2629800000], ['day', 86400000],
     ['hour', 3600000], ['minute', 60000], ['second', 1000]
   ];
-  for (const [name, ms] of units) {
+  for (let i = 0; i < units.length; i++) {
+    const [name, ms] = units[i];
     if (abs >= ms || name === 'second') {
       const v = Math.round(diff / ms);
-      const n = Math.abs(v);
-      const word = name + (n === 1 ? '' : 's');
-      return v === 0 ? 'now' : (v > 0 ? 'in ' + n + ' ' + word : n + ' ' + word + ' ago');
+      // Rounding can push a value into the next larger unit ("60 minutes").
+      if (i > 0 && Math.abs(v) * ms >= units[i - 1][1]) {
+        return relativeLabel(Math.round(diff / units[i - 1][1]), units[i - 1][0]);
+      }
+      return relativeLabel(v, name);
     }
   }
   return 'now';
@@ -160,6 +169,14 @@ function convert() {
   const utc = d.toUTCString();
   const local = d.toString();
 
+  const trimmed = raw.trim();
+  let dateNote = '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    dateNote = 'A date without a time is interpreted as UTC midnight.';
+  } else if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2})?(\.\d+)?$/.test(trimmed)) {
+    dateNote = 'A date-time without a timezone is interpreted in your local time zone.';
+  }
+
   resEl.innerHTML =
     '<div class="result-box highlight"><div class="result-label">Unix seconds</div><div class="result-value large">' + sec + '</div><div class="result-sub">' + relative(d) + '</div></div>' +
     '<div class="grid-2">' +
@@ -167,7 +184,8 @@ function convert() {
       '<div class="result-box"><div class="result-label">ISO 8601 (UTC)</div><div class="result-value" style="font-size:1rem;">' + iso + '</div></div>' +
       '<div class="result-box"><div class="result-label">UTC</div><div class="result-value" style="font-size:1rem;">' + utc + '</div></div>' +
       '<div class="result-box"><div class="result-label">Local time</div><div class="result-value" style="font-size:.95rem;">' + local + '</div></div>' +
-    '</div>';
+    '</div>' +
+    (dateNote ? '<div class="result-sub" style="margin-top:12px;">' + dateNote + '</div>' : '');
 }
 
 function useNow() {

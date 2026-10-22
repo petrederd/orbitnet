@@ -245,8 +245,13 @@ function calculate() {
   let subnetMask;
   
   if (subnetType === 'cidr') {
-    cidr = parseInt(document.getElementById('cidr').value, 10);
-    if (!Number.isInteger(cidr) || cidr < 0 || cidr > 32) {
+    const cidrRaw = document.getElementById('cidr').value.trim();
+    if (!/^\d{1,2}$/.test(cidrRaw)) {
+      showError('CIDR must be an integer between 0 and 32');
+      return;
+    }
+    cidr = Number(cidrRaw);
+    if (cidr < 0 || cidr > 32) {
       showError('CIDR must be an integer between 0 and 32');
       return;
     }

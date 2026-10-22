@@ -63,8 +63,8 @@
       <div id="errorMsg"></div>
       <div class="input-group">
         <label for="value">Color value</label>
-        <input type="text" id="value" placeholder="#6ecfa0, rgb(110,207,160), hsl(150,55%,62%)" oninput="fromText()">
-        <small>Accepts <code>#rgb</code>, <code>#rrggbb</code>, <code>rgb(...)</code> and <code>hsl(...)</code>.</small>
+        <input type="text" id="value" placeholder="#6ecfa0, rgb(110 207 160), hsl(150 55% 62%)" oninput="fromText()">
+        <small>Accepts <code>#rgb</code>, <code>#rrggbb</code>, <code>#rrggbbaa</code>, <code>rgb(...)</code> with commas or spaces and percentages, and <code>hsl(...)</code>.</small>
       </div>
       <div class="input-group">
         <label for="picker">Color picker</label>
@@ -134,22 +134,74 @@ function hslToRgb(h, s, l) {
   return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
 }
 
+function parseNumber(s) {
+  if (!/^[-+]?(\d+\.?\d*|\.\d+)$/.test(s)) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function parsePercent(s) {
+  if (!/^[-+]?(\d+\.?\d*|\.\d+)%?$/.test(s)) return null;
+  const n = Number(s.replace('%', ''));
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseRgbChannel(s) {
+  let n;
+  if (s.endsWith('%')) {
+    if (!/^[-+]?(\d+\.?\d*|\.\d+)%$/.test(s)) return null;
+    n = Number(s.slice(0, -1)) * 255 / 100;
+  } else {
+    n = parseNumber(s);
+  }
+  return n === null ? null : clamp(n, 0, 255);
+}
+
+function splitColorArgs(body) {
+  const slash = body.split('/');
+  if (slash.length > 2) return null;
+  const core = slash[0].trim();
+  if (!core) return null;
+  const parts = core.includes(',') ? core.split(',').map(p => p.trim()) : core.split(/\s+/);
+  if (parts.some(p => p === '' || /\s/.test(p))) return null;
+  if (slash.length === 2) {
+    if (parts.length !== 3) return null;
+    const alpha = slash[1].trim();
+    if (!alpha || /\s/.test(alpha) || parsePercent(alpha) === null) return null;
+  } else if (parts.length === 4) {
+    if (parsePercent(parts[3]) === null) return null;
+  } else if (parts.length !== 3) {
+    return null;
+  }
+  return parts;
+}
+
 function parseColor(str) {
   str = str.trim().toLowerCase();
   let m;
-  if ((m = str.match(/^#?([0-9a-f]{3})$/))) {
-    const h = m[1];
-    return [parseInt(h[0] + h[0], 16), parseInt(h[1] + h[1], 16), parseInt(h[2] + h[2], 16)];
-  }
-  if ((m = str.match(/^#?([0-9a-f]{6})$/))) {
-    const h = m[1];
+  if ((m = str.match(/^#?([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/))) {
+    let h = m[1];
+    if (h.length === 3 || h.length === 4) {
+      h = h.slice(0, 3).split('').map(c => c + c).join('');
+    } else {
+      h = h.slice(0, 6);
+    }
     return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
   }
-  if ((m = str.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/))) {
-    return [clamp(+m[1], 0, 255), clamp(+m[2], 0, 255), clamp(+m[3], 0, 255)];
+  if ((m = str.match(/^rgba?\s*\((.*)\)$/))) {
+    const parts = splitColorArgs(m[1]);
+    if (!parts) return null;
+    const rgb = parts.slice(0, 3).map(parseRgbChannel);
+    return rgb.some(v => v === null) ? null : rgb;
   }
-  if ((m = str.match(/^hsla?\(\s*([\d.]+)\s*,\s*([\d.]+)%?\s*,\s*([\d.]+)%?/))) {
-    return hslToRgb(+m[1], +m[2], +m[3]);
+  if ((m = str.match(/^hsla?\s*\((.*)\)$/))) {
+    const parts = splitColorArgs(m[1]);
+    if (!parts) return null;
+    const h = parseNumber(parts[0]);
+    const s = parsePercent(parts[1]);
+    const l = parsePercent(parts[2]);
+    if (h === null || s === null || l === null) return null;
+    return hslToRgb(h, clamp(s, 0, 100), clamp(l, 0, 100));
   }
   return null;
 }
@@ -159,7 +211,9 @@ function toHex(r, g, b) {
 }
 
 function render(rgb, updateText) {
-  const [r, g, b] = rgb;
+  const r = clamp(Math.round(rgb[0]), 0, 255);
+  const g = clamp(Math.round(rgb[1]), 0, 255);
+  const b = clamp(Math.round(rgb[2]), 0, 255);
   const hex = toHex(r, g, b);
   const [h, s, l] = rgbToHsl(r, g, b);
   document.getElementById('swatch').style.background = hex;
@@ -186,6 +240,7 @@ function fromText() {
   const rgb = parseColor(raw);
   if (!rgb) {
     errEl.innerHTML = '<div class="error">Unrecognised color format.</div>';
+    document.getElementById('results').innerHTML = '<div class="result-sub">Enter a valid color.</div>';
     return;
   }
   render(rgb, false);
