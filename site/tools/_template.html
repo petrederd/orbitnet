@@ -1,6 +1,6 @@
 <!-- Template for new tools - copy this file into a category folder.
-     Remember to update title/canonical/OG URLs, remove the noindex meta tag,
-     add the tool card to index.html and add the URL to sitemap.xml. -->
+     Remember to update title/canonical/OG/JSON-LD URLs, remove the noindex
+     meta tag, add the tool card to index.html and add the URL to sitemap.xml. -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -36,7 +36,21 @@
 <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=3">
 <link rel="manifest" href="/site.webmanifest">
 <style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>
-<link rel="stylesheet" href="../../assets/css/style.css?v=5">
+<link rel="stylesheet" href="../../assets/css/style.css?v=6">
+<script type="application/ld+json" data-orbitnet-jsonld="software">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "[Tool Name]",
+  "description": "[Tool Name] — [brief description]",
+  "url": "https://orbitnet.ru/tools/category/tool-name.html",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "Any",
+  "isAccessibleForFree": true,
+  "inLanguage": "en",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
 </head>
 <body>
 <header class="wrap topbar">

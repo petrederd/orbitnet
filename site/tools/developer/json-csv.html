@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="JSON to CSV Converter — Flatten JSON arrays or objects into CSV with quoting and delimiter options.">
+<meta name="theme-color" content="#16161a">
+<title>JSON to CSV Converter — OrbitNet</title>
+<link rel="canonical" href="https://orbitnet.ru/tools/developer/json-csv.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OrbitNet">
+<meta property="og:title" content="JSON to CSV Converter — OrbitNet">
+<meta property="og:description" content="JSON to CSV Converter — Flatten JSON arrays or objects into CSV with quoting and delimiter options.">
+<meta property="og:url" content="https://orbitnet.ru/tools/developer/json-csv.html">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://orbitnet.ru/assets/og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="OrbitNet — open tools, no noise">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="JSON to CSV Converter — OrbitNet">
+<meta name="twitter:description" content="JSON to CSV Converter — Flatten JSON arrays or objects into CSV with quoting and delimiter options.">
+<meta name="twitter:image" content="https://orbitnet.ru/assets/og-image.png">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=3">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/favicon-192x192.png?v=3">
+<link rel="icon" type="image/png" sizes="96x96" href="/icons/favicon-96x96.png?v=3">
+<link rel="icon" type="image/png" sizes="48x48" href="/icons/favicon-48x48.png?v=3">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png?v=3">
+<link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png?v=3">
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=3">
+<link rel="manifest" href="/site.webmanifest">
+<style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>
+<link rel="stylesheet" href="../../assets/css/style.css?v=6">
+<script type="application/ld+json" data-orbitnet-jsonld="software">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "JSON to CSV Converter",
+  "description": "JSON to CSV Converter — Flatten JSON arrays or objects into CSV with quoting and delimiter options.",
+  "url": "https://orbitnet.ru/tools/developer/json-csv.html",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Any",
+  "isAccessibleForFree": true,
+  "inLanguage": "en",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../about.html">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> /
+      <a href="../../index.html#tools">Tools</a> /
+      <span>JSON to CSV Converter</span>
+    </div>
+    <h1>JSON to CSV Converter</h1>
+    <p>Turn an array of JSON objects into CSV. Nested objects can be flattened into dotted column names, and arrays are kept as compact JSON strings.</p>
+  </div>
+
+  <div class="tool-layout">
+    <div class="tool-panel">
+      <h2>JSON input</h2>
+      <div id="errorMsg"></div>
+      <div class="textarea-wrapper">
+        <textarea id="jsonInput" spellcheck="false" style="min-height:330px;">[
+  {"name":"Alice","role":"admin","meta":{"active":true,"score":9.5}},
+  {"name":"Bob","role":"user","meta":{"active":false,"score":7},"tags":["a","b"]}
+]</textarea>
+      </div>
+      <div class="input-group">
+        <label for="delimiter">Delimiter</label>
+        <select id="delimiter">
+          <option value=",">Comma (,)</option>
+          <option value=";">Semicolon (;)</option>
+          <option value="&#9;">Tab</option>
+          <option value="|">Pipe (|)</option>
+        </select>
+      </div>
+      <div class="controls" style="gap:16px;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;"><input type="checkbox" id="flatten" checked> Flatten nested objects</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;"><input type="checkbox" id="header" checked> Include header row</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;"><input type="checkbox" id="bom"> Add UTF-8 BOM</label>
+      </div>
+      <div class="toolbar">
+        <button class="btn" onclick="convert()">Convert to CSV</button>
+        <button class="btn btn-secondary" onclick="copyCsv()">Copy CSV</button>
+        <button class="btn btn-secondary" onclick="clearAll()">Clear</button>
+      </div>
+    </div>
+
+    <div class="tool-panel">
+      <h2>CSV output</h2>
+      <div class="textarea-wrapper">
+        <textarea id="csvOutput" readonly spellcheck="false" style="min-height:330px;"></textarea>
+      </div>
+      <div id="stats" class="result-sub" style="margin-top:10px;"></div>
+    </div>
+  </div>
+
+  <div class="info-section">
+    <h3>How values are handled</h3>
+    <ul>
+      <li>Objects are flattened with dots: <code>{"meta":{"active":true}}</code> becomes <code>meta.active</code>.</li>
+      <li>Arrays and nested objects that are not flattened are serialized as JSON strings inside the cell.</li>
+      <li><code>null</code> becomes an empty cell; booleans and numbers use their JSON text.</li>
+      <li>Fields containing commas, quotes or newlines are quoted and embedded quotes are doubled, as required by RFC 4180.</li>
+    </ul>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../about.html">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function showError(message) {
+  const el = document.getElementById('errorMsg');
+  el.innerHTML = '';
+  if (!message) return;
+  const div = document.createElement('div');
+  div.className = 'error';
+  div.textContent = String(message);
+  el.appendChild(div);
+}
+
+function flattenObject(value, prefix, output) {
+  const result = output || {};
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    result[prefix] = value;
+    return result;
+  }
+  for (const [key, item] of Object.entries(value)) {
+    const name = prefix ? prefix + '.' + key : key;
+    if (item !== null && typeof item === 'object' && !Array.isArray(item)) {
+      flattenObject(item, name, result);
+    } else {
+      result[name] = item;
+    }
+  }
+  return result;
+}
+
+function cellText(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+function csvEscape(value, delimiter) {
+  const text = cellText(value);
+  if (text.includes(delimiter) || text.includes('"') || /[\r\n]/.test(text)) {
+    return '"' + text.replace(/"/g, '""') + '"';
+  }
+  return text;
+}
+
+function jsonToCsv(text, options) {
+  const opts = Object.assign({ delimiter: ',', flatten: true, header: true, bom: false }, options || {});
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    throw new Error('JSON error: ' + error.message);
+  }
+
+  let rows;
+  if (Array.isArray(parsed)) {
+    rows = parsed;
+  } else if (parsed !== null && typeof parsed === 'object') {
+    rows = [parsed];
+  } else {
+    throw new Error('Input must be a JSON object or an array of objects');
+  }
+  if (!rows.length) throw new Error('The JSON array is empty');
+
+  const normalized = rows.map((row, index) => {
+    if (row === null || typeof row !== 'object' || Array.isArray(row)) {
+      throw new Error('Row ' + (index + 1) + ' is not an object');
+    }
+    return opts.flatten ? flattenObject(row, '', {}) : row;
+  });
+
+  const columns = [];
+  const seen = new Set();
+  normalized.forEach(row => {
+    Object.keys(row).forEach(key => {
+      if (!seen.has(key)) { seen.add(key); columns.push(key); }
+    });
+  });
+
+  const lines = [];
+  if (opts.header) lines.push(columns.map(column => csvEscape(column, opts.delimiter)).join(opts.delimiter));
+  normalized.forEach(row => {
+    lines.push(columns.map(column => csvEscape(row[column], opts.delimiter)).join(opts.delimiter));
+  });
+
+  return {
+    csv: (opts.bom ? '\uFEFF' : '') + lines.join('\r\n'),
+    rows: normalized.length,
+    columns: columns.length
+  };
+}
+
+function optionsFromUi() {
+  return {
+    delimiter: document.getElementById('delimiter').value,
+    flatten: document.getElementById('flatten').checked,
+    header: document.getElementById('header').checked,
+    bom: document.getElementById('bom').checked
+  };
+}
+
+function convert() {
+  showError('');
+  try {
+    const result = jsonToCsv(document.getElementById('jsonInput').value, optionsFromUi());
+    document.getElementById('csvOutput').value = result.csv;
+    document.getElementById('stats').textContent = result.rows + ' row(s), ' + result.columns + ' column(s).';
+  } catch (error) {
+    document.getElementById('csvOutput').value = '';
+    document.getElementById('stats').textContent = '';
+    showError(error.message);
+  }
+}
+
+async function copyCsv() {
+  const output = document.getElementById('csvOutput');
+  output.select();
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(output.value);
+    } else {
+      document.execCommand('copy');
+    }
+  } catch (error) {
+    // Selecting the text is still useful if clipboard access is blocked.
+  }
+}
+
+function clearAll() {
+  document.getElementById('jsonInput').value = '';
+  document.getElementById('csvOutput').value = '';
+  document.getElementById('stats').textContent = '';
+  showError('');
+}
+
+document.getElementById('jsonInput').addEventListener('keydown', event => {
+  if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') convert();
+});
+convert();
+</script>
+</body>
+</html>

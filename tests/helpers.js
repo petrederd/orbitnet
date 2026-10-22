@@ -10,9 +10,30 @@ const SITE = path.join(ROOT, 'site');
 
 function scriptsFrom(file) {
   const html = fs.readFileSync(file, 'utf8');
-  return [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)]
-    .map(match => match[1])
+  return [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)]
+    .filter(match => !/type\s*=\s*["']?application\/ld\+json/i.test(match[1]))
+    .map(match => match[2])
     .join('\n');
+}
+
+function createElement(tag) {
+  return {
+    tagName: String(tag || '').toUpperCase(),
+    value: '',
+    textContent: '',
+    innerHTML: '',
+    className: '',
+    checked: false,
+    style: {},
+    children: [],
+    classList: { add() {}, remove() {}, toggle() {} },
+    appendChild(child) { this.children.push(child); this.innerHTML += child.textContent || child.innerHTML || ''; return child; },
+    removeChild(child) { this.children = this.children.filter(item => item !== child); return child; },
+    addEventListener() {},
+    focus() {},
+    blur() {},
+    select() {},
+  };
 }
 
 function createDom(values = {}) {
@@ -28,19 +49,41 @@ function createDom(values = {}) {
         className: '',
         checked: Boolean(values[id]),
         style: {},
+        options: [],
+        selectedIndex: -1,
+        children: [],
+        add(option) {
+          this.options.push(option);
+          if (this.selectedIndex === -1) {
+            this.selectedIndex = 0;
+            this.value = option.value;
+          }
+        },
+        appendChild(child) { this.children.push(child); this.innerHTML += child.textContent || child.innerHTML || ''; return child; },
+        removeChild(child) { this.children = this.children.filter(item => item !== child); return child; },
         addEventListener() {},
         focus() {},
         blur() {},
+        select() {},
       });
     }
     return elements.get(id);
   }
 
+  function Option(text, value) {
+    this.text = text;
+    this.value = value === undefined ? text : value;
+    this.label = text;
+  }
+
   return {
     elements,
     get,
+    Option,
     document: {
+      body: createElement('body'),
       getElementById: get,
+      createElement,
       addEventListener() {},
       querySelector() { return null; },
       querySelectorAll() { return []; },
@@ -50,6 +93,12 @@ function createDom(values = {}) {
 
 function loadTool(file, values = {}, globals = {}) {
   const dom = createDom(values);
+  function unrefInterval(fn, ms) {
+    const timer = setInterval(fn, ms);
+    if (timer && typeof timer.unref === 'function') timer.unref();
+    return timer;
+  }
+
   const sandbox = {
     document: dom.document,
     crypto: webcrypto,
@@ -57,6 +106,15 @@ function loadTool(file, values = {}, globals = {}) {
     console,
     setTimeout,
     clearTimeout,
+    setInterval: unrefInterval,
+    clearInterval,
+    btoa,
+    atob,
+    TextEncoder,
+    TextDecoder,
+    URL,
+    Blob,
+    Option: dom.Option,
     ...globals,
   };
   sandbox.globalThis = sandbox;

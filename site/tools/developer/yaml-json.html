@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="YAML ↔ JSON Converter — Convert YAML to JSON and JSON to YAML locally in your browser.">
+<meta name="theme-color" content="#16161a">
+<title>YAML ↔ JSON Converter — OrbitNet</title>
+<link rel="canonical" href="https://orbitnet.ru/tools/developer/yaml-json.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OrbitNet">
+<meta property="og:title" content="YAML ↔ JSON Converter — OrbitNet">
+<meta property="og:description" content="YAML ↔ JSON Converter — Convert YAML to JSON and JSON to YAML locally in your browser.">
+<meta property="og:url" content="https://orbitnet.ru/tools/developer/yaml-json.html">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://orbitnet.ru/assets/og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="OrbitNet — open tools, no noise">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="YAML ↔ JSON Converter — OrbitNet">
+<meta name="twitter:description" content="YAML ↔ JSON Converter — Convert YAML to JSON and JSON to YAML locally in your browser.">
+<meta name="twitter:image" content="https://orbitnet.ru/assets/og-image.png">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=3">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/favicon-192x192.png?v=3">
+<link rel="icon" type="image/png" sizes="96x96" href="/icons/favicon-96x96.png?v=3">
+<link rel="icon" type="image/png" sizes="48x48" href="/icons/favicon-48x48.png?v=3">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png?v=3">
+<link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png?v=3">
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=3">
+<link rel="manifest" href="/site.webmanifest">
+<style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>
+<link rel="stylesheet" href="../../assets/css/style.css?v=6">
+<script type="application/ld+json" data-orbitnet-jsonld="software">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "YAML ↔ JSON Converter",
+  "description": "YAML ↔ JSON Converter — Convert YAML to JSON and JSON to YAML locally in your browser.",
+  "url": "https://orbitnet.ru/tools/developer/yaml-json.html",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Any",
+  "isAccessibleForFree": true,
+  "inLanguage": "en",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../about.html">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> /
+      <a href="../../index.html#tools">Tools</a> /
+      <span>YAML ↔ JSON Converter</span>
+    </div>
+    <h1>YAML ↔ JSON Converter</h1>
+    <p>Convert configuration between YAML and JSON without sending it anywhere. The YAML side uses the standard <code>js-yaml</code> parser with the default schema.</p>
+  </div>
+
+  <div id="errorMsg" style="margin-bottom:0;"></div>
+  <div id="status" class="result-sub" style="margin:0 0 12px;"></div>
+
+  <div class="tool-layout">
+    <div class="tool-panel">
+      <h2>YAML</h2>
+      <div class="textarea-wrapper">
+        <textarea id="yamlInput" spellcheck="false" style="min-height:330px;">server:
+  host: 0.0.0.0
+  port: 8081
+  tls: true
+features:
+  - redirects
+  - headers
+  - rate-limit
+limits:
+  requests: 100
+  window: 60s</textarea>
+      </div>
+      <div class="toolbar">
+        <button class="btn" onclick="convertYamlToJson()">YAML → JSON</button>
+        <button class="btn btn-secondary" onclick="loadYamlExample()">Example</button>
+      </div>
+    </div>
+
+    <div class="tool-panel">
+      <h2>JSON</h2>
+      <div class="textarea-wrapper">
+        <textarea id="jsonInput" spellcheck="false" style="min-height:330px;"></textarea>
+      </div>
+      <div class="toolbar">
+        <button class="btn" onclick="convertJsonToYaml()">JSON → YAML</button>
+        <button class="btn btn-secondary" onclick="copyJson()">Copy JSON</button>
+        <button class="btn btn-secondary" onclick="copyYaml()">Copy YAML</button>
+        <button class="btn btn-secondary" onclick="clearAll()">Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="info-section">
+    <h3>Notes</h3>
+    <ul>
+      <li>Conversion happens entirely in your browser. No configuration is uploaded.</li>
+      <li>YAML anchors, custom tags and comments are not preserved when converting to JSON.</li>
+      <li>JSON numbers keep their numeric value, but formatting such as <code>1.0</code> or <code>1e3</code> is normalized by the parser.</li>
+      <li>Duplicate mapping keys are rejected by the YAML parser instead of silently overwriting one another.</li>
+    </ul>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../about.html">About</a></div>
+</footer>
+
+<script src="../../assets/vendor/js-yaml.min.js"></script>
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function showError(message) {
+  const el = document.getElementById('errorMsg');
+  el.innerHTML = '';
+  if (!message) return;
+  const div = document.createElement('div');
+  div.className = 'error';
+  div.textContent = String(message);
+  el.appendChild(div);
+}
+function setStatus(message) {
+  document.getElementById('status').textContent = message || '';
+}
+
+function yamlToJson(text) {
+  if (typeof jsyaml === 'undefined') throw new Error('YAML parser is not loaded');
+  const source = String(text == null ? '' : text);
+  if (!source.trim()) throw new Error('Please enter YAML');
+  let value;
+  try {
+    value = jsyaml.load(source);
+  } catch (error) {
+    throw new Error('YAML error: ' + error.message);
+  }
+  if (value === undefined) throw new Error('YAML contains no document');
+  return JSON.stringify(value, null, 2);
+}
+
+function jsonToYaml(text) {
+  if (typeof jsyaml === 'undefined') throw new Error('YAML parser is not loaded');
+  const source = String(text == null ? '' : text);
+  if (!source.trim()) throw new Error('Please enter JSON');
+  let value;
+  try {
+    value = JSON.parse(source);
+  } catch (error) {
+    throw new Error('JSON error: ' + error.message);
+  }
+  try {
+    return jsyaml.dump(value, { noRefs: true, lineWidth: -1, noCompatMode: true });
+  } catch (error) {
+    throw new Error('YAML serialization error: ' + error.message);
+  }
+}
+
+function convertYamlToJson() {
+  showError('');
+  setStatus('');
+  try {
+    const json = yamlToJson(document.getElementById('yamlInput').value);
+    document.getElementById('jsonInput').value = json;
+    setStatus('Converted YAML → JSON.');
+  } catch (error) {
+    showError(error.message);
+  }
+}
+
+function convertJsonToYaml() {
+  showError('');
+  setStatus('');
+  try {
+    const yaml = jsonToYaml(document.getElementById('jsonInput').value);
+    document.getElementById('yamlInput').value = yaml;
+    setStatus('Converted JSON → YAML.');
+  } catch (error) {
+    showError(error.message);
+  }
+}
+
+function loadYamlExample() {
+  document.getElementById('yamlInput').value = 'name: orbitnet\nports:\n  - 80\n  - 443\nsettings:\n  debug: false\n  retries: 3\n';
+  convertYamlToJson();
+}
+
+async function copyText(id) {
+  const el = document.getElementById(id);
+  el.select();
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(el.value);
+    } else {
+      document.execCommand('copy');
+    }
+    setStatus('Copied to clipboard.');
+  } catch (error) {
+    setStatus('Copy failed; select the text manually.');
+  }
+}
+function copyJson() { copyText('jsonInput'); }
+function copyYaml() { copyText('yamlInput'); }
+
+function clearAll() {
+  document.getElementById('yamlInput').value = '';
+  document.getElementById('jsonInput').value = '';
+  showError('');
+  setStatus('');
+}
+
+convertYamlToJson();
+</script>
+</body>
+</html>

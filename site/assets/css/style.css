@@ -147,6 +147,7 @@ section#tools { margin-top: 34px; }
 .filter-btn.active { background: var(--accent-dim); color: var(--accent); font-weight: 600; }
 .filter-btn .filter-icon { width: 20px; font-size: .9rem; text-align: center; }
 .filter-count { margin-left: auto; font-size: .78rem; opacity: .7; }
+.filter-btn.active .filter-count { opacity: 1; }
 .filter-note { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: .8rem; }
 
 /* Tools area */
@@ -156,6 +157,25 @@ section#tools { margin-top: 34px; }
 .sort { border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; background: var(--card); color: var(--ink); font-size: .85rem; }
 
 .tool-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.tool-card-wrap { position: relative; display: flex; min-width: 0; }
+.tool-card-wrap .tool-card { flex: 1; padding-right: 44px; }
+.fav-btn {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  z-index: 1;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1;
+}
+.fav-btn:hover, .fav-btn:focus-visible { color: var(--warning); border-color: var(--warning); }
+.fav-btn.active { color: var(--warning); border-color: var(--warning); background: rgba(245, 198, 107, .12); }
 .tool-card {
   min-width: 0;
   background: var(--card);
@@ -192,6 +212,11 @@ section#tools { margin-top: 34px; }
 .info-card .info-icon { display: none; }
 .info-card h2 { margin: 0 0 8px; font-size: 1.2rem; }
 .info-card p { margin: 0; color: var(--muted); font-size: .92rem; }
+#faq { grid-template-columns: 1fr; }
+.faq-list { margin: 0; }
+.faq-list dt { margin: 14px 0 4px; font-weight: 600; }
+.faq-list dt:first-child { margin-top: 0; }
+.faq-list dd { margin: 0; color: var(--muted); font-size: .92rem; }
 
 /* Footer */
 .footer { margin-top: 56px; border-top: 1px solid var(--line); padding: 22px 0 34px; display: flex; justify-content: space-between; gap: 20px; color: var(--muted); font-size: .82rem; }
@@ -210,7 +235,7 @@ section#tools { margin-top: 34px; }
 .tool-header { margin-bottom: 30px; }
 .tool-header h1 { font-size: 1.9rem; margin: 8px 0; }
 .tool-header .breadcrumb { font-size: .85rem; color: var(--muted); margin-bottom: 8px; }
-.tool-header .breadcrumb a { text-decoration: none; }
+.tool-header .breadcrumb a { text-decoration: underline; text-underline-offset: 2px; }
 .tool-header p { color: var(--muted); max-width: 700px; }
 
 .tool-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
@@ -288,7 +313,9 @@ summary:focus-visible {
 .info { color: #8ab4f8; background: rgba(138,180,248,.12); border: 1px solid rgba(138,180,248,.4); }
 
 .info-section { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; margin-top: 24px; }
-.info-section h3 { font-size: 1.05rem; margin: 0 0 10px; }
+.info-section h2 { font-size: 1.25rem; margin: 0 0 12px; }
+.info-section h3 { font-size: 1.05rem; margin: 18px 0 8px; }
+.info-section h3:first-of-type { margin-top: 12px; }
 .info-section p { margin: 0 0 10px; color: var(--muted); font-size: .9rem; line-height: 1.6; }
 .info-section ul { margin: 10px 0; padding-left: 20px; color: var(--muted); font-size: .9rem; }
 
@@ -384,3 +411,12 @@ summary:focus-visible {
   .tool-card:hover,
   .tool-card:focus-visible { transform: none; }
 }
+/* Shared data/code presentation used by developer and network tools. */
+.data-table { width: 100%; border-collapse: collapse; font-size: .84rem; margin-top: 8px; }
+.data-table th, .data-table td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.data-table th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+.data-table td { font-family: ui-monospace, Menlo, Consolas, monospace; word-break: break-word; }
+.data-table tr:last-child td { border-bottom: 0; }
+.mono { font-family: ui-monospace, Menlo, Consolas, monospace; word-break: break-all; }
+.code-block { margin: 8px 0 0; padding: 12px; background: var(--paper); border: 1px solid var(--line); border-radius: 6px; overflow: auto; white-space: pre; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .82rem; line-height: 1.55; }
+.result-box + .result-box { margin-top: 10px; }

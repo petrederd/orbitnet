@@ -32,7 +32,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=3">
 <link rel="manifest" href="/site.webmanifest">
 <style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>
-<link rel="stylesheet" href="assets/css/style.css?v=5">
+<link rel="stylesheet" href="assets/css/style.css?v=6">
 </head>
 <body>
 <header class="wrap topbar">
@@ -56,36 +56,46 @@
       <span>About</span>
     </div>
     <h1>About OrbitNet</h1>
-    <p>
-
-OrbitNet is a collection of free online tools for networking, development, electronics, mathematics, and everyday tasks.
-
-The goal is simple: provide useful tools that are easy to access, straightforward to use, and free from unnecessary clutter.
-
-No accounts, no subscriptions, no nonsense.
-
-OrbitNet uses two approaches, depending on the tool.
-
-Browser-based tools run directly on your device. Your input stays in your browser, and no server request is needed to perform the calculation.
-
-Server-based tools send requests to the OrbitNet backend when they need access to network information or services that a browser cannot access directly. These requests are processed by the server, and some technical information may appear in server logs.
-
-If a local network check is blocked or cannot complete, the backend may retry that one check through a Cloudflare Worker. The Worker may contact the target site and public DNS-over-HTTPS resolvers (Cloudflare, Google, AdGuard). Only the host or IP being checked is sent this way; ordinary successful checks stay on the OrbitNet backend.
-
-Each tool works a little differently, so check what it does before sending sensitive information.
-
-OrbitNet does not require an account. Tools that run entirely in your browser do not need to send your input to the server.
-
-Some tools require server-side processing, and the server may record technical request information in its logs. I aim to keep data collection to what is necessary for the service to work.
-
-OrbitNet is an independent project built and maintained by me.
-
-I'm learning, experimenting, and adding new tools as the project grows. Things may occasionally break, features may change, and improvements are always welcome.
-
-Yes, some of this was vibecoded. No, that doesn't mean the bugs are a feature.
-
-Thanks for stopping by!</p>
+    <p>OrbitNet is a collection of free online tools for networking, development, electronics, mathematics, and everyday tasks. The goal is simple: useful tools that are easy to access, straightforward to use, and free from unnecessary clutter.</p>
+    <p>No accounts, no subscriptions, no nonsense.</p>
   </div>
+
+  <section class="info-section" id="how-it-works">
+    <h2>How the tools work</h2>
+    <p>OrbitNet uses two approaches, depending on the tool.</p>
+    <p><strong>Browser-based tools</strong> run directly on your device. Your input stays in your browser, and no server request is needed to perform the calculation.</p>
+    <p><strong>Server-based tools</strong> send requests to the OrbitNet backend when they need access to network information or services that a browser cannot access directly. These requests are processed by the server, and some technical information may appear in server logs.</p>
+  </section>
+
+  <section class="info-section" id="privacy">
+    <h2>Privacy</h2>
+    <p>OrbitNet is designed to collect as little data as possible. There are no accounts, no analytics scripts, and no advertising trackers.</p>
+
+    <h3>Browser-based tools</h3>
+    <p>Most tools run entirely in your browser. Inputs such as text, numbers, colors, and passwords are processed locally and are not transmitted to the server.</p>
+
+    <h3>Server-based tools</h3>
+    <p>Tools that need network information send only the request required for that lookup. This may include the hostname or IP address you ask about, together with ordinary technical request data such as your IP address and user agent, which is necessary to deliver and secure the response.</p>
+
+    <h3>External fallback</h3>
+    <p>If a local network check is blocked or cannot complete, the backend may retry that one check through a Cloudflare Worker. The Worker may contact the target site and public DNS-over-HTTPS resolvers (Cloudflare, Google, AdGuard). Only the host or IP being checked is sent this way; ordinary successful checks stay on the OrbitNet backend.</p>
+
+    <h3>Logs and retention</h3>
+    <p>The server may record technical request information in its logs to keep the service running and to diagnose abuse or failures. Lookup results are not used to build profiles and are not sold or shared for advertising. Logs are kept only as long as needed for operation and troubleshooting.</p>
+
+    <h3>Local storage</h3>
+    <p>The home page can remember your favorite tools in your browser's local storage. This stays on your device and is not sent to the server. Clearing site data removes it.</p>
+
+    <h3>Your choices</h3>
+    <p>Each tool works a little differently, so check what it does before sending sensitive information. If you do not want a request to reach the server, use a browser-based tool or self-host OrbitNet.</p>
+  </section>
+
+  <section class="info-section" id="project">
+    <h2>The project</h2>
+    <p>OrbitNet is an independent project built and maintained by me. I'm learning, experimenting, and adding new tools as the project grows. Things may occasionally break, features may change, and improvements are always welcome.</p>
+    <p>Yes, some of this was vibecoded. No, that doesn't mean the bugs are a feature.</p>
+    <p>Thanks for stopping by!</p>
+  </section>
 </main>
 
 <footer class="wrap footer">

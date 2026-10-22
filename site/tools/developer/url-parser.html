@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="URL Parser — Split a URL into protocol, host, path, query and fragment, with a query parameter table.">
+<meta name="theme-color" content="#16161a">
+<title>URL Parser — OrbitNet</title>
+<link rel="canonical" href="https://orbitnet.ru/tools/developer/url-parser.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OrbitNet">
+<meta property="og:title" content="URL Parser — OrbitNet">
+<meta property="og:description" content="URL Parser — Split a URL into protocol, host, path, query and fragment, with a query parameter table.">
+<meta property="og:url" content="https://orbitnet.ru/tools/developer/url-parser.html">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://orbitnet.ru/assets/og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="OrbitNet — open tools, no noise">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="URL Parser — OrbitNet">
+<meta name="twitter:description" content="URL Parser — Split a URL into protocol, host, path, query and fragment, with a query parameter table.">
+<meta name="twitter:image" content="https://orbitnet.ru/assets/og-image.png">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=3">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/favicon-192x192.png?v=3">
+<link rel="icon" type="image/png" sizes="96x96" href="/icons/favicon-96x96.png?v=3">
+<link rel="icon" type="image/png" sizes="48x48" href="/icons/favicon-48x48.png?v=3">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png?v=3">
+<link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png?v=3">
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=3">
+<link rel="manifest" href="/site.webmanifest">
+<style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>
+<link rel="stylesheet" href="../../assets/css/style.css?v=6">
+<script type="application/ld+json" data-orbitnet-jsonld="software">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "URL Parser",
+  "description": "URL Parser — Split a URL into protocol, host, path, query and fragment, with a query parameter table.",
+  "url": "https://orbitnet.ru/tools/developer/url-parser.html",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Any",
+  "isAccessibleForFree": true,
+  "inLanguage": "en",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../about.html">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> /
+      <a href="../../index.html#tools">Tools</a> /
+      <span>URL Parser</span>
+    </div>
+    <h1>URL Parser</h1>
+    <p>Break a URL into its components and inspect query parameters as a table. Duplicate keys are preserved, and values are decoded for readability.</p>
+  </div>
+
+  <div class="tool-panel">
+    <h2>URL</h2>
+    <div id="errorMsg"></div>
+    <div class="input-group">
+      <label for="urlInput">Absolute URL</label>
+      <input type="text" id="urlInput" spellcheck="false" autocomplete="off" value="https://user:pass@example.com:8443/path/to/page?tag=a&amp;tag=b&amp;q=hello%20world#section-2">
+      <small>A missing <code>https://</code> scheme is added automatically for convenience.</small>
+    </div>
+    <div class="toolbar">
+      <button class="btn" onclick="render()">Parse URL</button>
+      <button class="btn btn-secondary" onclick="loadExample()">Example</button>
+      <button class="btn btn-secondary" onclick="clearAll()">Clear</button>
+    </div>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Components</h2>
+    <div id="results"><div style="text-align:center;padding:40px 20px;color:var(--muted);">Enter a URL to parse it.</div></div>
+  </div>
+
+  <div class="info-section">
+    <h3>What gets parsed</h3>
+    <p>The tool uses the browser's built-in URL parser, so it follows the same rules as <code>fetch()</code> and <code>new URL()</code>. It shows the normalized URL, origin, credentials, host and port separately, plus path segments and every query parameter.</p>
+    <p>Query values are decoded once. If the same key appears multiple times, each occurrence gets its own row. The original query string is shown separately for debugging.</p>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../about.html">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function showError(message) {
+  const el = document.getElementById('errorMsg');
+  el.innerHTML = '';
+  if (!message) return;
+  const div = document.createElement('div');
+  div.className = 'error';
+  div.textContent = String(message);
+  el.appendChild(div);
+}
+
+function parseUrl(raw) {
+  let value = String(raw == null ? '' : raw).trim();
+  if (!value) throw new Error('Please enter a URL');
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(value)) value = 'https://' + value;
+  let url;
+  try {
+    url = new URL(value);
+  } catch (error) {
+    throw new Error('Invalid URL: ' + error.message);
+  }
+  if (!url.hostname) throw new Error('The URL has no hostname');
+  return {
+    href: url.href,
+    protocol: url.protocol,
+    username: url.username,
+    password: url.password,
+    hostname: url.hostname,
+    port: url.port,
+    host: url.host,
+    origin: url.origin,
+    pathname: url.pathname,
+    search: url.search,
+    hash: url.hash,
+    segments: url.pathname.split('/').filter(Boolean).map(segment => {
+      try { return decodeURIComponent(segment); } catch (error) { return segment; }
+    }),
+    params: [...url.searchParams.entries()].map(([key, value]) => ({ key, value }))
+  };
+}
+
+function row(label, value) {
+  return '<tr><td>' + esc(label) + '</td><td>' + (value === '' || value == null ? '<span style="color:var(--muted)">—</span>' : esc(value)) + '</td></tr>';
+}
+
+function render() {
+  showError('');
+  let parsed;
+  try {
+    parsed = parseUrl(document.getElementById('urlInput').value);
+  } catch (error) {
+    showError(error.message);
+    document.getElementById('results').innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--muted);">Enter a valid URL to parse it.</div>';
+    return;
+  }
+
+  let html = '<div class="result-box highlight"><div class="result-label">Normalized URL</div>' +
+    '<div class="result-value mono" style="font-size:1rem;">' + esc(parsed.href) + '</div></div>';
+
+  html += '<div class="result-box"><div class="result-label">Parts</div><table class="data-table"><tbody>';
+  html += row('Protocol', parsed.protocol);
+  html += row('Origin', parsed.origin);
+  html += row('Username', parsed.username);
+  html += row('Password', parsed.password ? '••••••••' : '');
+  html += row('Hostname', parsed.hostname);
+  html += row('Port', parsed.port || '(default)');
+  html += row('Path', parsed.pathname);
+  html += row('Query string', parsed.search);
+  html += row('Fragment', parsed.hash);
+  html += '</tbody></table></div>';
+
+  html += '<div class="result-box"><div class="result-label">Path segments (' + parsed.segments.length + ')</div>';
+  if (parsed.segments.length) {
+    html += '<table class="data-table"><thead><tr><th>#</th><th>Segment</th></tr></thead><tbody>';
+    parsed.segments.forEach((segment, index) => {
+      html += '<tr><td>' + (index + 1) + '</td><td>' + esc(segment) + '</td></tr>';
+    });
+    html += '</tbody></table>';
+  } else {
+    html += '<div class="result-sub">No path segments.</div>';
+  }
+  html += '</div>';
+
+  html += '<div class="result-box"><div class="result-label">Query parameters (' + parsed.params.length + ')</div>';
+  if (parsed.params.length) {
+    html += '<table class="data-table"><thead><tr><th>#</th><th>Key (decoded)</th><th>Value (decoded)</th></tr></thead><tbody>';
+    parsed.params.forEach((param, index) => {
+      html += '<tr><td>' + (index + 1) + '</td><td>' + esc(param.key) + '</td><td>' + esc(param.value) + '</td></tr>';
+    });
+    html += '</tbody></table>';
+  } else {
+    html += '<div class="result-sub">No query parameters.</div>';
+  }
+  html += '</div>';
+
+  document.getElementById('results').innerHTML = html;
+}
+
+function loadExample() {
+  document.getElementById('urlInput').value = 'https://user:pass@example.com:8443/path/to/page?tag=a&tag=b&q=hello%20world#section-2';
+  render();
+}
+
+function clearAll() {
+  document.getElementById('urlInput').value = '';
+  showError('');
+  document.getElementById('results').innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--muted);">Enter a URL to parse it.</div>';
+}
+
+document.getElementById('urlInput').addEventListener('keydown', event => {
+  if (event.key === 'Enter') render();
+});
+render();
+</script>
+</body>
+</html>

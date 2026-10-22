@@ -2,7 +2,7 @@
 
 > Организация кода, соглашения и точки расширения.
 
-**Обновлено:** 19 октября 2026
+**Обновлено:** 22 октября 2026
 **Версия:** 0.4.0
 
 ## Общая схема
@@ -35,6 +35,10 @@ orbitnet/
 │
 ├── tests/
 │   ├── helpers.js                 # Загрузка inline-скриптов инструментов в vm
+│   ├── calculators.test.js        # timestamp, color, scientific, statistics, unit, Base64, regex worker
+│   ├── tools-extra.test.js        # cron, URL, YAML/JSON/CSV, diff, redirects, robots, headers, IPv6, Unicode, JWT
+│   ├── smoke.test.js              # Playwright: все страницы, CSP, Worker, избранное, axe
+│   ├── health.test.js             # /health и /api/health + метрики
 │   ├── subnet.test.js             # /0, /24, /31, /32 и режим маски
 │   ├── password.test.js           # обычный, распространённый и длинный пароль
 │   ├── prime.test.js              # 0, 1, 2, 97, 561, большие числа
@@ -42,15 +46,15 @@ orbitnet/
 │   ├── anonymity.test.js          # timezone, private IP, score, WebRTC
 │   ├── external-check.test.js     # Worker-клиент: HTTP/DNS/propagation/email
 │   ├── worker.test.js             # сам Cloudflare Worker с mock fetch
-│   ├── seo.test.js                # canonical, OG, sitemap, og-image.png
+│   ├── seo.test.js                # canonical, OG, JSON-LD, sitemap, og-image.png
 │   └── live-check.js              # проверка опубликованного сайта
 │
 ├── site/                          # Публичная директория nginx
-│   ├── index.html                 # Каталог 41 инструмента + IP-виджет
+│   ├── index.html                 # Каталог 53 инструментов + IP-виджет
 │   ├── about.html                 # О проекте
 │   ├── 404.html                   # Кастомная страница «не найдено»
 │   ├── robots.txt                 # Индексация и ссылка на sitemap
-│   ├── sitemap.xml                # 43 URL: главная, about, 41 инструмент
+│   ├── sitemap.xml                # 55 URL: главная, about, 53 инструмента
 │   │
 │   ├── icons/
 │   │   └── favicon.svg
@@ -65,8 +69,10 @@ orbitnet/
 │   └── tools/
 │       ├── _template.html         # Шаблон новой страницы
 │       │
-│       ├── networks/              # 19 инструментов
+│       ├── networks/              # 21 инструмент
 │       │   ├── subnet-calculator.html
+│       │   ├── ipv6-subnet-calculator.html
+│       │   ├── ipv6-converter.html
 │       │   ├── ip-lookup.html
 │       │   ├── ip-info.html
 │       │   ├── dns-lookup.html
@@ -86,7 +92,7 @@ orbitnet/
 │       │   ├── network-diagnostics.html
 │       │   └── anonymity-check.html
 │       │
-│       ├── developer/             # 9 инструментов
+│       ├── developer/             # 18 инструментов
 │       │   ├── json-formatter.html
 │       │   ├── base64.html
 │       │   ├── uuid-generator.html
@@ -95,7 +101,16 @@ orbitnet/
 │       │   ├── timestamp-converter.html
 │       │   ├── regex-tester.html
 │       │   ├── color-converter.html
-│       │   └── jwt-decoder.html
+│       │   ├── jwt-decoder.html
+│       │   ├── cron-parser.html
+│       │   ├── url-encoder.html
+│       │   ├── url-parser.html
+│       │   ├── yaml-json.html
+│       │   ├── json-csv.html
+│       │   ├── json-diff.html
+│       │   ├── redirect-generator.html
+│       │   ├── robots-generator.html
+│       │   └── security-headers.html
 │       │
 │       ├── math/                  # 7 инструментов
 │       │   ├── quadratic-solver.html
@@ -106,11 +121,12 @@ orbitnet/
 │       │   ├── statistics-calculator.html
 │       │   └── prime-checker.html
 │       │
-│       ├── text/                  # 4 инструмента
+│       ├── text/                  # 5 инструментов
 │       │   ├── case-converter.html
 │       │   ├── word-counter.html
 │       │   ├── text-diff-checker.html
-│       │   └── lorem-ipsum-generator.html
+│       │   ├── lorem-ipsum-generator.html
+│       │   └── unicode-inspector.html
 │       │
 │       └── electricity/           # 2 инструмента
 │           ├── ohms-law.html
@@ -144,7 +160,8 @@ orbitnet/
 ├── .env.example                   # Шаблон ключей MaxMind и Worker
 ├── .gitignore
 ├── LICENSE
-├── package.json                   # npm test, test:live, hooks:install
+├── package.json                   # npm test, test:smoke, test:live, hooks:install
+├── package-lock.json              # devDependencies: Playwright, axe-core и js-yaml
 ├── README.md                      # Обзор проекта и запуск
 ├── ROADMAP.md                     # Планы развития
 └── STRUCTURE.md                   # Этот файл
@@ -152,23 +169,30 @@ orbitnet/
 
 ## Тесты
 
-Тесты используют встроенный `node:test` и не требуют зависимостей.
+Unit-, SEO- и health-тесты используют встроенный `node:test`. Браузерные тесты используют Playwright и axe-core из `devDependencies`.
 
 ```bash
-npm test          # unit + локальные SEO-проверки
-npm run test:live # canonical URL и og-image.png на orbitnet.ru
+npm install                       # один раз: Playwright и axe-core
+npx playwright install chromium   # один раз: браузер для smoke-тестов
+npm test                          # unit + SEO + health + smoke + axe
+npm run test:smoke                # только браузерные проверки
+npm run test:live                 # canonical URL и og-image.png на orbitnet.ru
 npm run hooks:install
 ```
 
+- `tests/calculators.test.js` проверяет timestamp (секунды/миллисекунды, UTC/local), color (современный синтаксис, clamp, мусор после `)`), scientific notation (запятые, 2^53), statistics (hex, малые числа), unit converter (абсолютный ноль), Base64 (UTF-8/эмодзи) и regex worker (лимит совпадений, ошибки).
+- `tests/tools-extra.test.js` проверяет cron, URL encode/parse, YAML ↔ JSON, JSON → CSV, JSON diff, redirect/robots/security headers generators, IPv6, Unicode и JWT HS256 verification.
+- `tests/smoke.test.js` поднимает статический сервер с CSP из `nginx.conf`, открывает все страницы, проверяет отсутствие console/page errors, реальный Web Worker, `?q=`, избранное и serious/critical нарушения axe. Без Chromium тест пропускается; в CI `REQUIRE_BROWSER_TESTS=1` делает его обязательным.
+- `tests/health.test.js` проверяет `/health` и `/api/health`, счётчики запросов, ошибок и внешних вызовов.
 - `tests/subnet.test.js` загружает inline-скрипт Subnet Calculator в `vm` и проверяет `/0`, `/24`, `/31`, `/32` и ввод маски `255.255.255.0`.
 - `tests/password.test.js` проверяет обычный пароль, список распространённых паролей и длинный случайный пароль.
 - `tests/prime.test.js` проверяет 0, 1, 2, 97, 561, большое простое и большое составное число, факторизацию и отображение соседних простых.
 - `tests/uuid.test.js` проверяет, что fallback UUID использует `crypto.getRandomValues()`, а не `Math.random()`.
 - `tests/anonymity.test.js` проверяет расчёт часовых поясов, классификацию приватных IP, вклад сигналов в score, безопасное поведение без WebRTC, а также backend-эвристики для hosting/PTR/proxy-заголовков.
-- `tests/seo.test.js` проверяет canonical и OG на каждой странице, уникальность URL, соответствие sitemap и размеры `og-image.png`.
+- `tests/seo.test.js` проверяет canonical и OG на каждой странице, уникальность URL, соответствие sitemap, JSON-LD `SoftwareApplication`/`WebSite`/`FAQPage` и размеры `og-image.png`.
 - `tests/live-check.js` проверяет доступность всех canonical URL и `og-image.png` на опубликованном сайте.
 
-`.githooks/pre-push` запускает `npm test` перед `git push`. Хук включается командой `npm run hooks:install` (устанавливает `core.hooksPath`). CI-workflow запускает те же локальные тесты до деплоя и `test:live` после него.
+`.githooks/pre-push` запускает `npm test` перед `git push`. Хук включается командой `npm run hooks:install` (устанавливает `core.hooksPath`). CI-workflow ставит root- и backend-зависимости, Chromium, запускает те же локальные тесты до деплоя и `test:live` после него.
 
 ## Frontend
 
@@ -178,7 +202,7 @@ npm run hooks:install
 
 1. `<!doctype html>` и `<html lang="en">`.
 2. `<head>`: кодировка, viewport, description, theme-color, title.
-3. SEO-блок: canonical, Open Graph, Twitter Card.
+3. SEO-блок: canonical, Open Graph, Twitter Card, JSON-LD `SoftwareApplication`.
 4. Favicon и общий `style.css`.
 5. Шапка с навигацией.
 6. `main.tool-page`:
@@ -251,6 +275,8 @@ npm run hooks:install
 - фильтрует по `data-category`;
 - сортирует по `data-order`, имени или категории;
 - обрабатывает `/` для фокуса поиска и `Esc` для сброса;
+- читает начальный запрос из `?q=`;
+- хранит избранные инструменты в `localStorage` и показывает фильтр «Favorites»;
 - загружает IP-виджет через `/api/ip`;
 - обновляет год в подвале.
 
@@ -264,7 +290,7 @@ npm run hooks:install
 
 | Маршрут | Модули | Назначение |
 |---|---|---|
-| `GET /health` | — | Healthcheck |
+| `GET /health`, `GET /api/health` | — | Healthcheck и in-process метрики (requests, errors, rateLimited, sources, external) |
 | `GET /api/ip` | dns, geo | IP клиента, PTR, геолокация, ASN |
 | `GET /api/geo` | dns, maxmind | Геолокация по IP или домену |
 | `GET /api/dns` | dns, external-check | DNS-записи; fallback в Worker при сетевой ошибке |
@@ -317,12 +343,14 @@ IP клиента берётся из `X-Real-IP`, который выставл
 
 `.github/workflows/deploy.yml` по push в `main`:
 
-1. ставит зависимости бэкенда (`npm ci --prefix backend`) и запускает тесты;
-2. подключается к серверу по SSH;
-3. обновляет `cloudflare-ips.conf` (при наличии сети);
-4. делает `git pull --ff-only`;
-5. пересобирает контейнеры и ждёт готовности сайта до live-проверки;
-6. запускает `geoip-updater`, если в `.env` есть ключи MaxMind.
+1. ставит root-зависимости (`npm ci`) и бэкенда (`npm ci --prefix backend`);
+2. устанавливает Chromium (`npx playwright install --with-deps chromium`);
+3. запускает тесты с `REQUIRE_BROWSER_TESTS=1`;
+4. подключается к серверу по SSH;
+5. обновляет `cloudflare-ips.conf` (при наличии сети);
+6. делает `git pull --ff-only`;
+7. пересобирает контейнеры и ждёт готовности сайта до live-проверки;
+8. запускает `geoip-updater`, если в `.env` есть ключи MaxMind.
 
 Деплои сериализуются через `concurrency`, старые образы удаляются, а путь к
 проекту на сервере задаётся переменной `DEPLOY_PATH` (по умолчанию
@@ -330,17 +358,19 @@ IP клиента берётся из `X-Real-IP`, который выставл
 
 ## SEO и индексация
 
-- `site/sitemap.xml` содержит главную, `about.html` и все 41 инструмент.
+- `site/sitemap.xml` содержит главную, `about.html` и все 53 инструмента.
 - `site/robots.txt` разрешает индексацию и указывает на sitemap.
 - У всех страниц есть canonical и Open Graph.
+- У инструментов есть JSON-LD `SoftwareApplication`; на главной — `WebSite`, `SearchAction` (`/?q=`) и `FAQPage`.
 - Общее превью — `site/assets/og-image.png` (1200×630).
 
 При добавлении страницы:
 
 1. добавьте canonical с её реальным URL;
 2. заполните `og:title`, `og:description`, `og:url`;
-3. добавьте URL в `sitemap.xml`;
-4. проверьте, что карточка есть на главной.
+3. добавьте JSON-LD `SoftwareApplication` (как на существующих страницах);
+4. добавьте URL в `sitemap.xml`;
+5. проверьте, что карточка есть на главной.
 
 ## Соглашения для нового инструмента
 
@@ -353,6 +383,7 @@ IP клиента берётся из `X-Real-IP`, который выставл
 7. Для тяжёлых алгоритмов задавайте лимиты по размеру ввода и времени.
 8. Проверьте мобильную вёрстку, клавиатуру и консоль браузера.
 9. Добавьте карточку в `site/index.html` и URL в `site/sitemap.xml`.
+10. Добавьте JSON-LD `SoftwareApplication` и прогоните `npm test`.
 
 ## Что стоит знать перед изменениями
 

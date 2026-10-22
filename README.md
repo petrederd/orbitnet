@@ -16,14 +16,15 @@ OrbitNet — открытый набор небольших инструмент
 - **Без регистрации** - инструменты доступны сразу.
 - **Приватность** - вычисления выполняются локально в браузере; сетевые проверки идут через собственный бэкенд, а при блокировке — через Cloudflare Worker и публичные DNS-over-HTTPS резолверы (только для затронутой проверки).
 - **Open source** - код открыт для изучения, форка и улучшений.
+- **Избранное и поиск** - инструменты можно отметить звёздочкой (хранится локально), а поиск поддерживает прямые ссылки вида `/?q=subnet`.
 
 > Технические логи веб-сервера, reverse-proxy и хостинга могут содержать IP-адрес, время и путь запроса. Это стандартные логи инфраструктуры, а не профилирование пользователей.
 
 ## Что уже работает
 
-Сейчас в коллекции **41 инструмент** в пяти категориях.
+Сейчас в коллекции **53 инструмента** в пяти категориях.
 
-### Сети — 19
+### Сети — 21
 
 | Инструмент | Что делает |
 |---|---|
@@ -46,18 +47,20 @@ OrbitNet — открытый набор небольших инструмент
 | Website Health Check | DNS + TLS + доступность + заголовки одним отчётом |
 | Network Diagnostics | Прямой/обратный DNS и проверка порта на одной странице |
 | Anonymity Check | Proxy-заголовки, Tor/хостинг/PTR-сигналы, timezone mismatch, WebRTC и опциональная проверка портов своего IP |
+| IPv6 Subnet Calculator | Сеть, диапазон, префикс и количество адресов для IPv6 |
+| IPv6 Converter | Сжатие, развёртывание и представления IPv6 (hex/decimal/binary/PTR) |
 
-### Разработка — 9
+### Разработка — 18
 
-JSON Formatter & Validator, Base64 Encoder/Decoder, UUID Generator, Password Generator, Hash Generator (MD5/SHA-1/SHA-256/SHA-384/SHA-512), Timestamp Converter, Regex Tester, Color Converter (HEX/RGB/HSL), JWT Decoder.
+JSON Formatter & Validator, Base64 Encoder/Decoder, UUID Generator, Password Generator, Hash Generator (MD5/SHA-1/SHA-256/SHA-384/SHA-512), Timestamp Converter, Regex Tester, Color Converter (HEX/RGB/HSL), JWT Decoder (decode + HS256/HS384/HS512 verification), Cron Expression Parser, URL Encoder/Decoder, URL Parser, YAML ↔ JSON Converter, JSON to CSV Converter, JSON Diff, Redirect Generator, robots.txt Generator, Security Headers Sanitizer.
 
 ### Математика — 7
 
 Quadratic Equation Solver, Percentage Calculator, Unit Converter, Number Base Converter, Scientific Notation Converter, Statistics Calculator, Prime Number Checker.
 
-### Текст — 4
+### Текст — 5
 
-Case Converter, Word Counter, Text Diff Checker, Lorem Ipsum Generator.
+Case Converter, Word Counter, Text Diff Checker, Lorem Ipsum Generator, Unicode Inspector.
 
 ### Электроника — 2
 
@@ -75,8 +78,9 @@ Ohm's Law Calculator, NE555 Timer Calculator.
                                             └── Cloudflare Worker (fallback only)
 ```
 
-- **Frontend** — статические страницы без сборщика и фреймворков. Каждый инструмент — отдельный HTML-файл с общим `assets/css/style.css`.
-- **Backend** — небольшой HTTP-сервис на встроенных модулях Node.js. Единственная внешняя зависимость — `maxmind` для чтения GeoLite2.
+- **Frontend** — статические страницы без сборщика и фреймворков. Каждый инструмент — отдельный HTML-файл с общим `assets/css/style.css`, JSON-LD-разметкой и локальными вычислениями.
+- **Backend** — небольшой HTTP-сервис на встроенных модулях Node.js. Единственная runtime-зависимость — `maxmind` для чтения GeoLite2.
+- **Тесты** — `node:test` для unit/SEO/API и Playwright + axe-core для браузерных smoke- и accessibility-проверок.
 - **nginx** — раздаёт статику и проксирует `/api/` на бэкенд.
 - **Docker Compose** — поднимает `site`, `api` и опциональный `geoip-updater`.
 
@@ -92,14 +96,14 @@ orbitnet/
 │   ├── icons/favicon.svg
 │   ├── assets/
 │   │   ├── css/style.css
-│   │   ├── js/main.js             # Поиск, фильтры, сортировка, IP-виджет
+│   │   ├── js/main.js             # Поиск, фильтры, сортировка, избранное, IP-виджет
 │   │   └── og-image.png           # Open Graph превью
 │   └── tools/
 │       ├── _template.html         # Шаблон нового инструмента
-│       ├── networks/              # 19 инструментов
-│       ├── developer/             # 9 инструментов
+│       ├── networks/              # 21 инструмент
+│       ├── developer/             # 18 инструментов
 │       ├── math/                  # 7 инструментов
-│       ├── text/                  # 4 инструмента
+│       ├── text/                  # 5 инструментов
 │       └── electricity/           # 2 инструмента
 ├── backend/
 │   ├── server.js                  # API на Node.js
@@ -113,8 +117,11 @@ orbitnet/
 ├── data/geoip/                    # GeoLite2 (не коммитится)
 ├── nginx.conf                     # Статика + прокси /api/
 ├── docker-compose.yml
+├── tests/                         # node:test, Playwright smoke, SEO и health
 ├── .env.example
 ├── .github/workflows/deploy.yml
+├── package.json
+├── package-lock.json
 ├── README.md
 ├── ROADMAP.md
 └── STRUCTURE.md
@@ -127,7 +134,8 @@ orbitnet/
 - Vanilla JavaScript, HTML5, современный CSS (Grid, Custom Properties).
 - Node.js без фреймворков; `maxmind` для GeoIP.
 - nginx, Docker Compose, GitHub Actions.
-- SEO: `canonical`, Open Graph, Twitter Card, `sitemap.xml`, `robots.txt`.
+- SEO: `canonical`, Open Graph, Twitter Card, JSON-LD, `sitemap.xml`, `robots.txt`.
+- Тесты: `node:test`, Playwright, axe-core.
 
 ## Локальный запуск
 
@@ -149,6 +157,18 @@ npm install
 node server.js
 # API: http://localhost:3000
 ```
+
+### Тесты
+
+```bash
+npm install                       # Playwright, axe-core и js-yaml
+npx playwright install chromium   # один раз для браузерных smoke-тестов
+npm test                          # unit + SEO + health + smoke + axe
+npm run test:smoke                # только браузерные проверки
+```
+
+Без установленного Chromium smoke-тесты пропускаются. В CI они обязательны:
+workflow выставляет `REQUIRE_BROWSER_TESTS=1`.
 
 ### Docker (рекомендуется)
 
@@ -228,7 +248,7 @@ DNS-over-HTTPS резолверам Cloudflare, Google и AdGuard; для HTTP �
 
 | Endpoint | Назначение |
 |---|---|
-| `GET /health` | Проверка доступности API |
+| `GET /health` / `GET /api/health` | Проверка доступности API и in-process метрики: запросы, ошибки, rate limit, источники, внешние вызовы |
 | `GET /api/ip` | IP клиента, версия, reverse DNS, геолокация, ASN |
 | `GET /api/geo?ip=` / `?host=` | Геолокация и провайдер; для домена при сбое локального DNS — fallback в Worker |
 | `GET /api/dns?host=&type=` | DNS-записи; при сетевой ошибке — fallback в Worker (`source`) |
@@ -314,12 +334,13 @@ IP посетителя определяется по `X-Real-IP`, которы�
 ### Тесты и pre-push
 
 ```bash
-npm test          # быстрые локальные проверки
+npm test          # unit + SEO + health + smoke + axe
+npm run test:smoke # только браузерные проверки
 npm run test:live # проверка опубликованного сайта и og-image.png
 npm run hooks:install
 ```
 
-`npm run hooks:install` включает локальный Git-хук `.githooks/pre-push`, который автоматически запускает `npm test` перед каждым `git push`. Тесты проверяют Subnet Calculator (`/0`, `/24`, `/31`, `/32`, режим маски), Password Generator (обычный, распространённый и длинный пароль), Prime Checker (0, 1, 2, 97, 561, большие простые и составные числа), canonical/Open Graph, sitemap и параметры `og-image.png`.
+`npm run hooks:install` включает локальный Git-хук `.githooks/pre-push`, который автоматически запускает `npm test` перед каждым `git push`. Unit-тесты покрывают калькуляторы, IPv6, cron, URL/YAML/JSON-утилиты, JWT, Unicode и парсеры, canonical/Open Graph/JSON-LD, sitemap и API health. Playwright-тесты открывают все 53 страницы, проверяют консольные ошибки, production CSP, реальный запуск regex Web Worker, поиск `?q=` и избранное. Axe-core проверяет key-страницы на serious/critical нарушения доступности.
 
 `npm run test:live` обращается к `https://orbitnet.ru`, проверяет доступность всех canonical URL и `og-image.png`. Он запускается в CI после деплоя и требует сети.
 

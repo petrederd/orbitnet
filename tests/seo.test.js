@@ -123,3 +123,39 @@ test('favicon and manifest assets exist and are linked from every page', () => {
     assert.match(html, /<link\s+rel="manifest"\s+href="\/site\.webmanifest"/i, rel + ' manifest');
   }
 });
+
+function jsonLdBlocks(html) {
+  return [...html.matchAll(/<script\b[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)]
+    .map(match => JSON.parse(match[1]));
+}
+
+test('tool pages expose valid SoftwareApplication structured data', () => {
+  for (const file of pages()) {
+    const rel = path.relative(SITE, file).split(path.sep).join('/');
+    if (!rel.startsWith('tools/')) continue;
+
+    const html = fs.readFileSync(file, 'utf8');
+    const blocks = jsonLdBlocks(html);
+    const app = blocks.find(block => block['@type'] === 'SoftwareApplication');
+    assert.ok(app, rel + ' has SoftwareApplication JSON-LD');
+    assert.equal(app.url, urlFor(file), rel + ' JSON-LD url');
+    assert.ok(app.name, rel + ' JSON-LD name');
+    assert.ok(app.description, rel + ' JSON-LD description');
+    assert.equal(app.isAccessibleForFree, true, rel + ' free access');
+    assert.equal(app.offers.price, '0', rel + ' zero price');
+  }
+});
+
+test('home page advertises site search and FAQ structured data', () => {
+  const html = fs.readFileSync(path.join(SITE, 'index.html'), 'utf8');
+  const blocks = jsonLdBlocks(html);
+  const graph = blocks.flatMap(block => block['@graph'] || [block]);
+  const website = graph.find(item => item['@type'] === 'WebSite');
+  const faq = graph.find(item => item['@type'] === 'FAQPage');
+
+  assert.ok(website, 'WebSite JSON-LD exists');
+  assert.match(website.potentialAction.target.urlTemplate, /\?q=\{search_term_string\}/);
+  assert.ok(faq, 'FAQPage JSON-LD exists');
+  assert.equal(faq.mainEntity.length, 3);
+  assert.match(html, /id="faq"/);
+});

@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="URL Encoder & Decoder — Percent-encode or decode URLs and query components locally in your browser.">
+<meta name="theme-color" content="#16161a">
+<title>URL Encoder & Decoder — OrbitNet</title>
+<link rel="canonical" href="https://orbitnet.ru/tools/developer/url-encoder.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OrbitNet">
+<meta property="og:title" content="URL Encoder & Decoder — OrbitNet">
+<meta property="og:description" content="URL Encoder & Decoder — Percent-encode or decode URLs and query components locally in your browser.">
+<meta property="og:url" content="https://orbitnet.ru/tools/developer/url-encoder.html">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://orbitnet.ru/assets/og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="OrbitNet — open tools, no noise">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="URL Encoder & Decoder — OrbitNet">
+<meta name="twitter:description" content="URL Encoder & Decoder — Percent-encode or decode URLs and query components locally in your browser.">
+<meta name="twitter:image" content="https://orbitnet.ru/assets/og-image.png">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=3">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/favicon-192x192.png?v=3">
+<link rel="icon" type="image/png" sizes="96x96" href="/icons/favicon-96x96.png?v=3">
+<link rel="icon" type="image/png" sizes="48x48" href="/icons/favicon-48x48.png?v=3">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png?v=3">
+<link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png?v=3">
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=3">
+<link rel="manifest" href="/site.webmanifest">
+<style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>
+<link rel="stylesheet" href="../../assets/css/style.css?v=6">
+<script type="application/ld+json" data-orbitnet-jsonld="software">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "URL Encoder & Decoder",
+  "description": "URL Encoder & Decoder — Percent-encode or decode URLs and query components locally in your browser.",
+  "url": "https://orbitnet.ru/tools/developer/url-encoder.html",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Any",
+  "isAccessibleForFree": true,
+  "inLanguage": "en",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../about.html">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> /
+      <a href="../../index.html#tools">Tools</a> /
+      <span>URL Encoder &amp; Decoder</span>
+    </div>
+    <h1>URL Encoder &amp; Decoder</h1>
+    <p>Convert text to percent-encoded form and back. Use component mode for query values, or full-URI mode when you want to keep URL separators such as <code>/</code> and <code>?</code> intact.</p>
+  </div>
+
+  <div class="tool-layout">
+    <div class="tool-panel">
+      <h2>Input</h2>
+      <div id="errorMsg"></div>
+      <div class="input-group">
+        <label for="input">Text or URL</label>
+        <textarea id="input" spellcheck="false" style="min-height:150px;">Hello world &amp; 100% / path?q=1</textarea>
+      </div>
+      <div class="input-group">
+        <label for="mode">Encoding mode</label>
+        <select id="mode">
+          <option value="component">Component (encodeURIComponent)</option>
+          <option value="uri">Full URI (encodeURI)</option>
+        </select>
+        <small>Component mode encodes separators like <code>/</code>, <code>?</code> and <code>&amp;</code>. Full URI mode keeps them.</small>
+      </div>
+      <div class="toolbar">
+        <button class="btn" onclick="run('encode')">Encode</button>
+        <button class="btn btn-secondary" onclick="run('decode')">Decode</button>
+        <button class="btn btn-secondary" onclick="clearAll()">Clear</button>
+      </div>
+    </div>
+
+    <div class="tool-panel">
+      <h2>Output</h2>
+      <div class="input-group">
+        <label for="output">Result</label>
+        <textarea id="output" readonly spellcheck="false" style="min-height:150px;"></textarea>
+      </div>
+      <div class="toolbar">
+        <button class="btn btn-secondary" onclick="copyOutput()">Copy result</button>
+      </div>
+      <div id="stats" class="result-sub" style="margin-top:10px;"></div>
+    </div>
+  </div>
+
+  <div class="info-section">
+    <h3>Which mode should I use?</h3>
+    <ul>
+      <li><strong>Component</strong> — for a single query parameter, path segment or form value. It encodes <code>&amp;</code>, <code>=</code>, <code>/</code>, <code>?</code> and spaces.</li>
+      <li><strong>Full URI</strong> — for a complete URL. It leaves structural characters alone, but still encodes spaces and non-ASCII text.</li>
+    </ul>
+    <p>Decoding is strict: malformed percent sequences such as <code>%ZZ</code> or incomplete UTF-8 are rejected instead of being silently changed.</p>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../about.html">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function showError(message) {
+  const el = document.getElementById('errorMsg');
+  el.innerHTML = '';
+  if (!message) return;
+  const div = document.createElement('div');
+  div.className = 'error';
+  div.textContent = String(message);
+  el.appendChild(div);
+}
+
+function encodeText(text, mode) {
+  const value = String(text == null ? '' : text);
+  return mode === 'uri' ? encodeURI(value) : encodeURIComponent(value);
+}
+
+function decodeText(text, mode) {
+  const value = String(text == null ? '' : text);
+  try {
+    return mode === 'uri' ? decodeURI(value) : decodeURIComponent(value);
+  } catch (error) {
+    throw new Error('Invalid percent-encoding: ' + error.message);
+  }
+}
+
+function byteLength(text) {
+  return new TextEncoder().encode(String(text)).length;
+}
+
+function run(direction) {
+  showError('');
+  const input = document.getElementById('input').value;
+  const mode = document.getElementById('mode').value;
+  const outputEl = document.getElementById('output');
+  try {
+    outputEl.value = direction === 'encode' ? encodeText(input, mode) : decodeText(input, mode);
+  } catch (error) {
+    outputEl.value = '';
+    showError(error.message);
+  }
+  const before = byteLength(input);
+  const after = byteLength(outputEl.value);
+  document.getElementById('stats').textContent =
+    input.length + ' characters / ' + before + ' UTF-8 bytes → ' +
+    outputEl.value.length + ' characters / ' + after + ' UTF-8 bytes';
+}
+
+function copyOutput() {
+  const output = document.getElementById('output');
+  output.select();
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(output.value);
+  } else {
+    document.execCommand('copy');
+  }
+}
+
+function clearAll() {
+  document.getElementById('input').value = '';
+  document.getElementById('output').value = '';
+  document.getElementById('stats').textContent = '';
+  showError('');
+}
+
+document.getElementById('input').addEventListener('keydown', event => {
+  if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') run('encode');
+});
+run('encode');
+</script>
+</body>
+</html>

@@ -49,9 +49,65 @@ const EXTERNAL_NXDOMAIN_GLOBAL_MAX = positiveIntEnv('EXTERNAL_NXDOMAIN_GLOBAL_MA
 const REQUEST_BUDGET_MS = positiveIntEnv('REQUEST_BUDGET_MS', 22000);
 const EXTERNAL_UNAVAILABLE = 'External check unavailable';
 
+// Lightweight, in-process counters for /health. They reset on restart and are
+// deliberately not persisted: the goal is to spot trends and failures in the
+// current container, not to build a long-term analytics store.
+const STARTED_AT = Date.now();
+const metrics = {
+  requests: 0,
+  errors: 0,
+  rateLimited: 0,
+  totalResponseMs: 0,
+  maxResponseMs: 0,
+  sources: { local: 0, worker: 0 },
+  external: {
+    attempts: 0, successes: 0, failures: 0, limited: 0, timeouts: 0, totalMs: 0
+  }
+};
+
+function healthPayload() {
+  return {
+    ok: true,
+    service: 'orbitnet-api',
+    startedAt: new Date(STARTED_AT).toISOString(),
+    now: new Date().toISOString(),
+    uptimeSeconds: Math.floor((Date.now() - STARTED_AT) / 1000),
+    metrics: {
+      requests: metrics.requests,
+      errors: metrics.errors,
+      rateLimited: metrics.rateLimited,
+      averageResponseMs: metrics.requests
+        ? Math.round(metrics.totalResponseMs / metrics.requests)
+        : 0,
+      maxResponseMs: metrics.maxResponseMs,
+      sources: { ...metrics.sources },
+      external: {
+        ...metrics.external,
+        averageMs: metrics.external.attempts
+          ? Math.round(metrics.external.totalMs / metrics.external.attempts)
+          : 0
+      }
+    }
+  };
+}
+
 // Simple JSON helpers
 function send(res, code, obj) {
   const body = JSON.stringify(obj);
+  const now = Date.now();
+  const started = res._orbitStarted || now;
+  const duration = Math.max(0, now - started);
+
+  metrics.requests++;
+  metrics.totalResponseMs += duration;
+  if (duration > metrics.maxResponseMs) metrics.maxResponseMs = duration;
+  if (code >= 500) metrics.errors++;
+  if (code === 429) metrics.rateLimited++;
+  if (obj && typeof obj === 'object' &&
+      (obj.source === 'local' || obj.source === 'worker')) {
+    metrics.sources[obj.source]++;
+  }
+
   res.writeHead(code, {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
@@ -831,10 +887,25 @@ function externalCallOptions(context, options) {
 
 async function callExternal(build, context, options) {
   const opts = externalCallOptions(context, options);
-  if (!opts) return { error: EXTERNAL_UNAVAILABLE, unavailable: true, limited: true };
+  if (!opts) {
+    metrics.external.limited++;
+    return { error: EXTERNAL_UNAVAILABLE, unavailable: true, limited: true };
+  }
+
+  const started = Date.now();
+  metrics.external.attempts++;
   try {
-    return await outbound(() => build(opts));
+    const result = await outbound(() => build(opts));
+    metrics.external.totalMs += Date.now() - started;
+    if (result && result.error) {
+      metrics.external.failures++;
+      if (result.timeout) metrics.external.timeouts++;
+    } else {
+      metrics.external.successes++;
+    }
+    return result;
   } catch (e) {
+    metrics.external.failures++;
     return {
       error: EXTERNAL_UNAVAILABLE,
       unavailable: true,
@@ -1898,6 +1969,7 @@ async function redirectChain(startHost, context) {
 
 // ---------- router ----------
 const server = http.createServer(async (req, res) => {
+  res._orbitStarted = Date.now();
   const parsed = new URL(req.url, 'http://localhost');
   const path = parsed.pathname;
   const query = parsed.searchParams;
@@ -1926,7 +1998,7 @@ const server = http.createServer(async (req, res) => {
     path === '/api/anonymity/ping';
 
   try {
-    if (path === '/health') return send(res, 200, { ok: true });
+    if (path === '/health' || path === '/api/health') return send(res, 200, healthPayload());
 
     if (limited && isRateLimited(ip)) {
       return send(res, 429, { error: 'Too many requests, slow down' });

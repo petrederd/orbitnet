@@ -29,11 +29,23 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+
+      - name: Install test dependencies
+        run: npm ci
 
       - name: Install backend dependencies
         run: npm ci --prefix backend
 
+      - name: Install Chromium for smoke tests
+        run: npx playwright install --with-deps chromium
+
       - name: Run tests
+        env:
+          REQUIRE_BROWSER_TESTS: '1'
         run: npm test
 
       - name: Deploy via SSH

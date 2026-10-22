@@ -9,6 +9,75 @@
 
   let activeFilter = 'all';
 
+  const FAVORITES_KEY = 'orbitnet:favorites';
+  let favorites = new Set();
+  try {
+    const stored = JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]');
+    if (Array.isArray(stored)) {
+      favorites = new Set(stored.filter(item => typeof item === 'string'));
+    }
+  } catch (e) {
+    // localStorage may be disabled; favorites simply won't persist.
+  }
+
+  const favoritesCount = document.getElementById('favoritesCount');
+
+  function saveFavorites() {
+    try {
+      localStorage.setItem(FAVORITES_KEY, JSON.stringify([...favorites]));
+    } catch (e) {
+      // Ignore storage failures (private mode, quota).
+    }
+  }
+
+  function updateFavoritesCount() {
+    if (favoritesCount) favoritesCount.textContent = favorites.size;
+  }
+
+  function syncFavButton(btn, href, name) {
+    const active = favorites.has(href);
+    btn.textContent = active ? '★' : '☆';
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-pressed', String(active));
+    btn.setAttribute('aria-label', (active ? 'Remove from favorites: ' : 'Add to favorites: ') + name);
+    btn.title = active ? 'Remove from favorites' : 'Add to favorites';
+  }
+
+  function addFavoriteButton(card) {
+    const href = card.getAttribute('href');
+    const wrap = document.createElement('div');
+    wrap.className = 'tool-card-wrap';
+    card.parentNode.insertBefore(wrap, card);
+    wrap.appendChild(card);
+    card._wrap = wrap;
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'fav-btn';
+    btn.dataset.href = href;
+    wrap.appendChild(btn);
+    syncFavButton(btn, href, card.dataset.name);
+
+    btn.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (favorites.has(href)) favorites.delete(href);
+      else favorites.add(href);
+      saveFavorites();
+      updateFavoritesCount();
+      cards.forEach(item => {
+        const itemBtn = item._wrap && item._wrap.querySelector('.fav-btn');
+        if (itemBtn) syncFavButton(itemBtn, item.getAttribute('href'), item.dataset.name);
+      });
+      update();
+    });
+  }
+
+  function setCardVisible(card, visible) {
+    card.hidden = !visible;
+    if (card._wrap) card._wrap.hidden = !visible;
+  }
+
   const aliases = {
     'tools/networks/subnet-calculator.html': 'subnet subnetting netmask net mask cidr ipv4 network broadcast host hosts address calculator подсеть маска сеть адрес',
     'tools/developer/json-formatter.html': 'json format formatter beautify prettify validate validator lint minify pretty print форматирование валидатор',
@@ -105,6 +174,9 @@
     return previous[b.length];
   }
 
+  cards.forEach(addFavoriteButton);
+  updateFavoritesCount();
+
   const searchIndex = new Map(cards.map(card => {
     const name = card.dataset.name;
     const description = card.querySelector('p')?.textContent || '';
@@ -182,11 +254,14 @@
     let visible = 0;
 
     cards.forEach(card => {
-      const matchesFilter = activeFilter === 'all' || card.dataset.category === activeFilter;
+      const matchesFilter = activeFilter === 'all' ||
+        (activeFilter === 'favorites'
+          ? favorites.has(card.getAttribute('href'))
+          : card.dataset.category === activeFilter);
       const score = queryTokens.length ? matchScore(searchIndex.get(card), queryTokens, phrase) : 1;
       const show = matchesFilter && score > 0;
 
-      card.hidden = !show;
+      setCardVisible(card, show);
       if (show) {
         visible++;
         if (queryTokens.length) scores.set(card, score);
@@ -197,12 +272,14 @@
       const ranked = cards
         .filter(card => !card.hidden)
         .sort((a, b) => scores.get(b) - scores.get(a) || compareCards(a, b));
-      ranked.forEach(card => grid.appendChild(card));
+      ranked.forEach(card => grid.appendChild(card._wrap || card));
     } else {
-      sortCards(cards).forEach(card => grid.appendChild(card));
+      sortCards(cards).forEach(card => grid.appendChild(card._wrap || card));
     }
 
-    if (queryTokens.length && visible === 0) {
+    if (activeFilter === 'favorites' && !favorites.size && !queryTokens.length) {
+      results.textContent = 'No favorites yet — tap ☆ on any tool card.';
+    } else if (queryTokens.length && visible === 0) {
       results.textContent = `No tools found for "${rawQuery}"`;
     } else {
       results.textContent = `Showing ${visible} of ${cards.length} tools`;
@@ -296,6 +373,13 @@
         metaEl.textContent = 'Try the IP Lookup tool instead.';
         renderGeo(null);
       });
+  }
+
+  try {
+    const initialQuery = new URLSearchParams(location.search).get('q');
+    if (initialQuery) input.value = initialQuery;
+  } catch (e) {
+    // Ignore malformed or unavailable location.search.
   }
 
   loadIP();

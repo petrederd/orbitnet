@@ -2,7 +2,7 @@
 data/geoip/*.mmdb
 
 # Node dependencies
-backend/node_modules/
+node_modules/
 
 # Local secrets (never commit real credentials)
 .env

@@ -23,7 +23,7 @@
 <meta name="twitter:description" content="A growing collection of free, practical online tools for networking, electronics, development, mathematics and everyday tasks.">
 <meta name="twitter:image" content="https://orbitnet.ru/assets/og-image.png">
 <style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>
-<link rel="stylesheet" href="assets/css/style.css?v=5">
+<link rel="stylesheet" href="assets/css/style.css?v=6">
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=3">
 <link rel="icon" type="image/png" sizes="192x192" href="/icons/favicon-192x192.png?v=3">
@@ -33,6 +33,67 @@
 <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png?v=3">
 <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=3">
 <link rel="manifest" href="/site.webmanifest">
+<script type="application/ld+json" data-orbitnet-jsonld="website">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://orbitnet.ru/#website",
+      "url": "https://orbitnet.ru/",
+      "name": "OrbitNet",
+      "description": "A growing collection of free, practical online tools for networking, electronics, development, mathematics and everyday tasks.",
+      "inLanguage": "en",
+      "publisher": { "@id": "https://orbitnet.ru/#organization" },
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://orbitnet.ru/?q={search_term_string}"
+        },
+        "query-input": "required name=search_term_string"
+      }
+    },
+    {
+      "@type": "Organization",
+      "@id": "https://orbitnet.ru/#organization",
+      "name": "OrbitNet",
+      "url": "https://orbitnet.ru/",
+      "logo": "https://orbitnet.ru/icons/favicon-192x192.png"
+    },
+    {
+      "@type": "FAQPage",
+      "@id": "https://orbitnet.ru/#faq",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Are the tools free?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. Every tool is free, requires no account, and has no usage limits."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Do you store the data I enter?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. Most tools run entirely in your browser. Tools that need network data, such as IP, DNS or HTTP checks, send only the request needed for that lookup, and results are not stored."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can I self-host OrbitNet?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. The source code is published on GitHub. The static site can be hosted on any web server, and the optional API runs as a separate service."
+          }
+        }
+      ]
+    }
+  ]
+}
+</script>
 </head>
 <body>
 <header class="wrap topbar">
@@ -79,18 +140,19 @@
       <aside class="filters" aria-label="Filter tools by category">
         <h3>Toolboxes</h3>
         <div class="filter-list" id="filterList">
-          <button class="filter-btn active" data-filter="all"><span class="filter-icon">◈</span> All tools <span class="filter-count">41</span></button>
-          <button class="filter-btn" data-filter="networks"><span class="filter-icon">⌘</span> Networks <span class="filter-count">19</span></button>
+          <button class="filter-btn active" data-filter="all"><span class="filter-icon">◈</span> All tools <span class="filter-count">53</span></button>
+          <button class="filter-btn" data-filter="favorites"><span class="filter-icon">★</span> Favorites <span class="filter-count" id="favoritesCount">0</span></button>
+          <button class="filter-btn" data-filter="networks"><span class="filter-icon">⌘</span> Networks <span class="filter-count">21</span></button>
           <button class="filter-btn" data-filter="electricity"><span class="filter-icon">ϟ</span> Electricity <span class="filter-count">2</span></button>
-          <button class="filter-btn" data-filter="developer"><span class="filter-icon">{ }</span> Developer <span class="filter-count">9</span></button>
+          <button class="filter-btn" data-filter="developer"><span class="filter-icon">{ }</span> Developer <span class="filter-count">18</span></button>
           <button class="filter-btn" data-filter="math"><span class="filter-icon">∑</span> Math <span class="filter-count">7</span></button>
-          <button class="filter-btn" data-filter="text"><span class="filter-icon">Aa</span> Text <span class="filter-count">4</span></button>
+          <button class="filter-btn" data-filter="text"><span class="filter-icon">Aa</span> Text <span class="filter-count">5</span></button>
         </div>
       </aside>
 
       <div class="tools-area">
         <div class="tools-toolbar">
-          <div class="results-count" id="resultsCount" aria-live="polite">Showing all 41 tools</div>
+          <div class="results-count" id="resultsCount" aria-live="polite">Showing all 53 tools</div>
           <select class="sort" id="sortSelect" aria-label="Sort tools">
             <option value="featured">Sort: Default</option>
             <option value="az">Name: A to Z</option>
@@ -263,6 +325,54 @@
             <div class="tool-top"><span class="tool-icon">◈</span><span class="pill">Networks</span></div>
             <h3>Anonymity Check</h3><p>Inspect proxy headers, Tor and hosting signals, timezone mismatch, WebRTC leaks and optional port checks for your own IP.</p>
           </a>
+          <a class="tool-card" href="tools/developer/cron-parser.html" data-category="developer" data-name="Cron Expression Parser" data-order="42">
+            <div class="tool-top"><span class="tool-icon">◷</span><span class="pill">Developer</span></div>
+            <h3>Cron Expression Parser</h3><p>Explain a five-field cron expression in plain English and preview the next scheduled runs.</p>
+          </a>
+          <a class="tool-card" href="tools/developer/url-encoder.html" data-category="developer" data-name="URL Encoder &amp; Decoder" data-order="43">
+            <div class="tool-top"><span class="tool-icon">⇄</span><span class="pill">Developer</span></div>
+            <h3>URL Encoder &amp; Decoder</h3><p>Percent-encode or decode URL components and complete URIs entirely in your browser.</p>
+          </a>
+          <a class="tool-card" href="tools/developer/url-parser.html" data-category="developer" data-name="URL Parser" data-order="44">
+            <div class="tool-top"><span class="tool-icon">⌗</span><span class="pill">Developer</span></div>
+            <h3>URL Parser</h3><p>Split a URL into protocol, host, path, query and fragment, with a decoded query table.</p>
+          </a>
+          <a class="tool-card" href="tools/developer/yaml-json.html" data-category="developer" data-name="YAML &amp; JSON Converter" data-order="45">
+            <div class="tool-top"><span class="tool-icon">{ }</span><span class="pill">Developer</span></div>
+            <h3>YAML ↔ JSON Converter</h3><p>Convert configuration between YAML and JSON locally using the js-yaml parser.</p>
+          </a>
+          <a class="tool-card" href="tools/developer/json-csv.html" data-category="developer" data-name="JSON to CSV Converter" data-order="46">
+            <div class="tool-top"><span class="tool-icon">⊞</span><span class="pill">Developer</span></div>
+            <h3>JSON to CSV Converter</h3><p>Flatten nested JSON objects into CSV with configurable delimiters, headers and BOM.</p>
+          </a>
+          <a class="tool-card" href="tools/developer/json-diff.html" data-category="developer" data-name="JSON Diff" data-order="47">
+            <div class="tool-top"><span class="tool-icon">≠</span><span class="pill">Developer</span></div>
+            <h3>JSON Diff</h3><p>Compare two JSON documents structurally and list added, removed and changed values.</p>
+          </a>
+          <a class="tool-card" href="tools/developer/redirect-generator.html" data-category="developer" data-name="Redirect Generator" data-order="48">
+            <div class="tool-top"><span class="tool-icon">↪</span><span class="pill">Developer</span></div>
+            <h3>Redirect Generator</h3><p>Generate nginx or Apache .htaccess redirect rules from a simple old-to-new list.</p>
+          </a>
+          <a class="tool-card" href="tools/developer/robots-generator.html" data-category="developer" data-name="robots.txt Generator" data-order="49">
+            <div class="tool-top"><span class="tool-icon">⌘</span><span class="pill">Developer</span></div>
+            <h3>robots.txt Generator</h3><p>Build a robots.txt with allow and disallow paths, crawl delay and a sitemap URL.</p>
+          </a>
+          <a class="tool-card" href="tools/developer/security-headers.html" data-category="developer" data-name="Security Headers Sanitizer" data-order="50">
+            <div class="tool-top"><span class="tool-icon">◈</span><span class="pill">Developer</span></div>
+            <h3>Security Headers Sanitizer</h3><p>Check HTTP security headers, find weak values and generate a clean nginx snippet.</p>
+          </a>
+          <a class="tool-card" href="tools/networks/ipv6-subnet-calculator.html" data-category="networks" data-name="IPv6 Subnet Calculator" data-order="51">
+            <div class="tool-top"><span class="tool-icon">⌘</span><span class="pill">Networks</span></div>
+            <h3>IPv6 Subnet Calculator</h3><p>Calculate an IPv6 network range, prefix, address count and address type.</p>
+          </a>
+          <a class="tool-card" href="tools/networks/ipv6-converter.html" data-category="networks" data-name="IPv6 Converter" data-order="52">
+            <div class="tool-top"><span class="tool-icon">⇄</span><span class="pill">Networks</span></div>
+            <h3>IPv6 Converter</h3><p>Compress, expand and inspect IPv6 addresses in hex, decimal, binary and reverse DNS.</p>
+          </a>
+          <a class="tool-card" href="tools/text/unicode-inspector.html" data-category="text" data-name="Unicode Inspector" data-order="53">
+            <div class="tool-top"><span class="tool-icon">Aa</span><span class="pill">Text</span></div>
+            <h3>Unicode Inspector</h3><p>Inspect code points, UTF-8 bytes, normalization and invisible or bidirectional controls.</p>
+          </a>
         </div>
         <div class="empty" id="emptyState"><strong>No tools found.</strong>Try another search term or choose a different category.</div>
       </div>
@@ -279,6 +389,20 @@
       <p>OrbitNet is a personal, community-readable project. All source code is published on GitHub so anyone can inspect it, fork it, or self-host it.</p>
     </article>
   </section>
+
+  <section class="below" id="faq">
+    <article class="info-card">
+      <div class="info-icon">?</div><h2>Frequently asked</h2>
+      <dl class="faq-list">
+        <dt>Are the tools free?</dt>
+        <dd>Yes. Every tool is free, requires no account, and has no usage limits.</dd>
+        <dt>Do you store the data I enter?</dt>
+        <dd>No. Most tools run entirely in your browser. Tools that need network data, such as IP, DNS or HTTP checks, send only the request needed for that lookup, and results are not stored.</dd>
+        <dt>Can I self-host OrbitNet?</dt>
+        <dd>Yes. The source code is published on GitHub. The static site can be hosted on any web server, and the optional API runs as a separate service.</dd>
+      </dl>
+    </article>
+  </section>
 </main>
 
 <footer class="wrap footer">
@@ -286,6 +410,6 @@
   <div class="footer-links"><a href="#tools">Browse tools</a><a href="about.html">About</a><a href="https://orbitnet.ru">orbitnet.ru</a></div>
 </footer>
 
-<script src="assets/js/main.js?v=5"></script>
+<script src="assets/js/main.js?v=6"></script>
 </body>
 </html>

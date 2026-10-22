@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="robots.txt Generator — Build a robots.txt file with allow and disallow rules, crawl delay and a sitemap.">
+<meta name="theme-color" content="#16161a">
+<title>robots.txt Generator — OrbitNet</title>
+<link rel="canonical" href="https://orbitnet.ru/tools/developer/robots-generator.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OrbitNet">
+<meta property="og:title" content="robots.txt Generator — OrbitNet">
+<meta property="og:description" content="robots.txt Generator — Build a robots.txt file with allow and disallow rules, crawl delay and a sitemap.">
+<meta property="og:url" content="https://orbitnet.ru/tools/developer/robots-generator.html">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://orbitnet.ru/assets/og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="OrbitNet — open tools, no noise">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="robots.txt Generator — OrbitNet">
+<meta name="twitter:description" content="robots.txt Generator — Build a robots.txt file with allow and disallow rules, crawl delay and a sitemap.">
+<meta name="twitter:image" content="https://orbitnet.ru/assets/og-image.png">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=3">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/favicon-192x192.png?v=3">
+<link rel="icon" type="image/png" sizes="96x96" href="/icons/favicon-96x96.png?v=3">
+<link rel="icon" type="image/png" sizes="48x48" href="/icons/favicon-48x48.png?v=3">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png?v=3">
+<link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png?v=3">
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=3">
+<link rel="manifest" href="/site.webmanifest">
+<style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>
+<link rel="stylesheet" href="../../assets/css/style.css?v=6">
+<script type="application/ld+json" data-orbitnet-jsonld="software">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "robots.txt Generator",
+  "description": "robots.txt Generator — Build a robots.txt file with allow and disallow rules, crawl delay and a sitemap.",
+  "url": "https://orbitnet.ru/tools/developer/robots-generator.html",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Any",
+  "isAccessibleForFree": true,
+  "inLanguage": "en",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../about.html">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> /
+      <a href="../../index.html#tools">Tools</a> /
+      <span>robots.txt Generator</span>
+    </div>
+    <h1>robots.txt Generator</h1>
+    <p>Create a clean <code>robots.txt</code> for your site. Add user-agent rules, allow/disallow paths, an optional crawl delay and a sitemap URL.</p>
+  </div>
+
+  <div class="tool-layout">
+    <div class="tool-panel">
+      <h2>Rules</h2>
+      <div id="errorMsg"></div>
+      <div class="input-group">
+        <label for="userAgent">User-agent</label>
+        <input type="text" id="userAgent" value="*" spellcheck="false" autocomplete="off">
+        <small>Use <code>*</code> for all crawlers, or a specific bot name such as <code>Googlebot</code>.</small>
+      </div>
+      <div class="input-group">
+        <label for="allowPaths">Allow paths (one per line)</label>
+        <textarea id="allowPaths" spellcheck="false" style="min-height:90px;">/</textarea>
+      </div>
+      <div class="input-group">
+        <label for="disallowPaths">Disallow paths (one per line)</label>
+        <textarea id="disallowPaths" spellcheck="false" style="min-height:90px;">/admin/
+/private/
+/api/</textarea>
+      </div>
+      <div class="input-group">
+        <label for="crawlDelay">Crawl-delay (seconds, optional)</label>
+        <input type="number" id="crawlDelay" min="0" step="1" placeholder="e.g. 10">
+      </div>
+      <div class="input-group">
+        <label for="sitemap">Sitemap URL (optional)</label>
+        <input type="url" id="sitemap" value="https://orbitnet.ru/sitemap.xml" spellcheck="false" autocomplete="off">
+      </div>
+      <div class="toolbar">
+        <button class="btn" onclick="generate()">Generate robots.txt</button>
+        <button class="btn btn-secondary" onclick="copyOutput()">Copy</button>
+      </div>
+    </div>
+
+    <div class="tool-panel">
+      <h2>robots.txt</h2>
+      <div class="textarea-wrapper">
+        <textarea id="output" readonly spellcheck="false" style="min-height:360px;"></textarea>
+      </div>
+      <div id="stats" class="result-sub" style="margin-top:10px;"></div>
+    </div>
+  </div>
+
+  <div class="info-section">
+    <h3>Remember</h3>
+    <ul>
+      <li><code>robots.txt</code> is a voluntary convention, not an access control mechanism. It does not protect private data.</li>
+      <li>Rules are matched by path prefix. <code>Disallow: /admin/</code> blocks that directory, but not <code>/admin</code> without a trailing slash.</li>
+      <li>Use the most specific <code>Allow</code> rule to reopen a path inside a blocked directory.</li>
+      <li>Keep the file at the site root: <code>https://example.com/robots.txt</code>.</li>
+    </ul>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../about.html">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function showError(message) {
+  const el = document.getElementById('errorMsg');
+  el.innerHTML = '';
+  if (!message) return;
+  const div = document.createElement('div');
+  div.className = 'error';
+  div.textContent = String(message);
+  el.appendChild(div);
+}
+
+function normalizePaths(text, label) {
+  const paths = String(text || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  return paths.map(path => {
+    if (/\s/.test(path)) throw new Error(label + ' path must not contain spaces: ' + path);
+    if (!path.startsWith('/')) throw new Error(label + ' path must start with "/": ' + path);
+    return path;
+  });
+}
+
+function buildRobots(input) {
+  const data = Object.assign({
+    userAgent: '*', allow: [], disallow: [], crawlDelay: '', sitemap: ''
+  }, input || {});
+
+  const agent = String(data.userAgent || '').trim();
+  if (!agent) throw new Error('User-agent is required');
+  if (/\s/.test(agent)) throw new Error('User-agent must not contain spaces');
+
+  const allow = normalizePaths(Array.isArray(data.allow) ? data.allow.join('\n') : data.allow, 'Allow');
+  const disallow = normalizePaths(Array.isArray(data.disallow) ? data.disallow.join('\n') : data.disallow, 'Disallow');
+  const sitemap = String(data.sitemap || '').trim();
+  if (sitemap && !/^https?:\/\//i.test(sitemap)) throw new Error('Sitemap must be an absolute http(s) URL');
+
+  const lines = ['User-agent: ' + agent];
+  allow.forEach(path => lines.push('Allow: ' + path));
+  disallow.forEach(path => lines.push('Disallow: ' + path));
+
+  const delay = String(data.crawlDelay == null ? '' : data.crawlDelay).trim();
+  if (delay) {
+    const seconds = Number(delay);
+    if (!Number.isFinite(seconds) || seconds < 0) throw new Error('Crawl-delay must be a non-negative number');
+    lines.push('Crawl-delay: ' + seconds);
+  }
+  if (sitemap) lines.push('Sitemap: ' + sitemap);
+
+  return lines.join('\n') + '\n';
+}
+
+function generate() {
+  showError('');
+  try {
+    const output = buildRobots({
+      userAgent: document.getElementById('userAgent').value,
+      allow: document.getElementById('allowPaths').value,
+      disallow: document.getElementById('disallowPaths').value,
+      crawlDelay: document.getElementById('crawlDelay').value,
+      sitemap: document.getElementById('sitemap').value
+    });
+    document.getElementById('output').value = output;
+    document.getElementById('stats').textContent = output.split('\n').filter(Boolean).length + ' directives generated.';
+  } catch (error) {
+    document.getElementById('output').value = '';
+    document.getElementById('stats').textContent = '';
+    showError(error.message);
+  }
+}
+
+async function copyOutput() {
+  const output = document.getElementById('output');
+  output.select();
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(output.value);
+    } else {
+      document.execCommand('copy');
+    }
+  } catch (error) {
+    // The text remains selected for manual copying.
+  }
+}
+
+generate();
+</script>
+</body>
+</html>
