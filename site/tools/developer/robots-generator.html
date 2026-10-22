@@ -77,9 +77,9 @@
       <h2>Rules</h2>
       <div id="errorMsg"></div>
       <div class="input-group">
-        <label for="userAgent">User-agent</label>
+        <label for="userAgent">User-agent(s)</label>
         <input type="text" id="userAgent" value="*" spellcheck="false" autocomplete="off">
-        <small>Use <code>*</code> for all crawlers, or a specific bot name such as <code>Googlebot</code>.</small>
+        <small>Use <code>*</code> for all crawlers, or comma-separated bot names such as <code>Googlebot, Bingbot</code>. Multiple names share the rules below.</small>
       </div>
       <div class="input-group">
         <label for="allowPaths">Allow paths (one per line)</label>
@@ -90,6 +90,14 @@
         <textarea id="disallowPaths" spellcheck="false" style="min-height:90px;">/admin/
 /private/
 /api/</textarea>
+      </div>
+      <div class="controls" style="margin-bottom:12px;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;"><input type="checkbox" id="emptyDisallow"> Add an explicit empty <code>Disallow:</code> (allow all)</label>
+      </div>
+      <div class="input-group">
+        <label for="extraGroups">Additional groups (optional)</label>
+        <textarea id="extraGroups" spellcheck="false" style="min-height:100px;" placeholder="User-agent: Googlebot&#10;Disallow: /private/&#10;&#10;User-agent: Bingbot&#10;Crawl-delay: 5"></textarea>
+        <small>Add full robots.txt groups with their own <code>User-agent</code>, <code>Allow</code>, <code>Disallow</code>, <code>Crawl-delay</code> or <code>Sitemap</code> lines.</small>
       </div>
       <div class="input-group">
         <label for="crawlDelay">Crawl-delay (seconds, optional)</label>
@@ -121,6 +129,8 @@
       <li>Rules are matched by path prefix. <code>Disallow: /admin/</code> blocks that directory, but not <code>/admin</code> without a trailing slash.</li>
       <li>Use the most specific <code>Allow</code> rule to reopen a path inside a blocked directory.</li>
       <li>Keep the file at the site root: <code>https://example.com/robots.txt</code>.</li>
+      <li>An empty <code>Disallow:</code> line explicitly allows everything for its user-agent group. Use the checkbox to add it.</li>
+      <li>Use the additional-groups box for crawlers that need different rules from the main group.</li>
     </ul>
   </div>
 </main>
@@ -158,21 +168,24 @@ function normalizePaths(text, label) {
 
 function buildRobots(input) {
   const data = Object.assign({
-    userAgent: '*', allow: [], disallow: [], crawlDelay: '', sitemap: ''
+    userAgent: '*', allow: [], disallow: [], crawlDelay: '', sitemap: '', emptyDisallow: false, extraGroups: ''
   }, input || {});
 
-  const agent = String(data.userAgent || '').trim();
-  if (!agent) throw new Error('User-agent is required');
-  if (/\s/.test(agent)) throw new Error('User-agent must not contain spaces');
+  const agents = String(data.userAgent || '').split(/[,\r\n]/).map(agent => agent.trim()).filter(Boolean);
+  if (!agents.length) throw new Error('User-agent is required');
+  agents.forEach(agent => {
+    if (/\s/.test(agent)) throw new Error('User-agent must not contain spaces: ' + agent);
+  });
 
   const allow = normalizePaths(Array.isArray(data.allow) ? data.allow.join('\n') : data.allow, 'Allow');
   const disallow = normalizePaths(Array.isArray(data.disallow) ? data.disallow.join('\n') : data.disallow, 'Disallow');
   const sitemap = String(data.sitemap || '').trim();
   if (sitemap && !/^https?:\/\//i.test(sitemap)) throw new Error('Sitemap must be an absolute http(s) URL');
 
-  const lines = ['User-agent: ' + agent];
+  const lines = agents.map(agent => 'User-agent: ' + agent);
   allow.forEach(path => lines.push('Allow: ' + path));
   disallow.forEach(path => lines.push('Disallow: ' + path));
+  if (!disallow.length && data.emptyDisallow) lines.push('Disallow:');
 
   const delay = String(data.crawlDelay == null ? '' : data.crawlDelay).trim();
   if (delay) {
@@ -182,7 +195,21 @@ function buildRobots(input) {
   }
   if (sitemap) lines.push('Sitemap: ' + sitemap);
 
-  return lines.join('\n') + '\n';
+  const extra = String(data.extraGroups || '').trim();
+  if (extra) {
+    extra.split(/\r?\n/).forEach((line, index) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+      if (!/^(User-agent|Allow|Disallow|Crawl-delay|Sitemap):\s*\S/i.test(trimmed)) {
+        throw new Error('Additional group line ' + (index + 1) + ': expected a robots.txt directive');
+      }
+      if (/[\x00-\x1F\x7F]/.test(trimmed)) {
+        throw new Error('Additional group line ' + (index + 1) + ': control characters are not allowed');
+      }
+    });
+  }
+
+  return lines.join('\n') + (extra ? '\n\n' + extra : '') + '\n';
 }
 
 function generate() {
@@ -193,7 +220,9 @@ function generate() {
       allow: document.getElementById('allowPaths').value,
       disallow: document.getElementById('disallowPaths').value,
       crawlDelay: document.getElementById('crawlDelay').value,
-      sitemap: document.getElementById('sitemap').value
+      sitemap: document.getElementById('sitemap').value,
+      emptyDisallow: document.getElementById('emptyDisallow').checked,
+      extraGroups: document.getElementById('extraGroups').value
     });
     document.getElementById('output').value = output;
     document.getElementById('stats').textContent = output.split('\n').filter(Boolean).length + ' directives generated.';

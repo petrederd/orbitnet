@@ -37,6 +37,14 @@ jobs:
       - name: Install test dependencies
         run: npm ci
 
+      - name: Verify vendored js-yaml
+        run: |
+          expected=$(sha256sum node_modules/js-yaml/dist/js-yaml.min.js | cut -d' ' -f1)
+          actual=$(sha256sum site/assets/vendor/js-yaml.min.js | cut -d' ' -f1)
+          echo "js-yaml expected: $expected"
+          echo "js-yaml vendored: $actual"
+          test "$expected" = "$actual"
+
       - name: Install backend dependencies
         run: npm ci --prefix backend
 

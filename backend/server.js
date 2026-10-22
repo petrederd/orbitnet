@@ -1998,7 +1998,10 @@ const server = http.createServer(async (req, res) => {
     path === '/api/anonymity/ping';
 
   try {
-    if (path === '/health' || path === '/api/health') return send(res, 200, healthPayload());
+    // /health is internal (Docker healthcheck, localhost only). The public
+    // /api/health alias must not expose uptime or operational counters.
+    if (path === '/health') return send(res, 200, healthPayload());
+    if (path === '/api/health') return send(res, 200, { ok: true });
 
     if (limited && isRateLimited(ip)) {
       return send(res, 429, { error: 'Too many requests, slow down' });

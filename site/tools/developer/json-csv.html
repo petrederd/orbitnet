@@ -94,6 +94,7 @@
       <div class="controls" style="gap:16px;">
         <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;"><input type="checkbox" id="flatten" checked> Flatten nested objects</label>
         <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;"><input type="checkbox" id="header" checked> Include header row</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;"><input type="checkbox" id="protectFormulas" checked> Protect against spreadsheet formulas</label>
         <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;"><input type="checkbox" id="bom"> Add UTF-8 BOM</label>
       </div>
       <div class="toolbar">
@@ -119,6 +120,8 @@
       <li>Arrays and nested objects that are not flattened are serialized as JSON strings inside the cell.</li>
       <li><code>null</code> becomes an empty cell; booleans and numbers use their JSON text.</li>
       <li>Fields containing commas, quotes or newlines are quoted and embedded quotes are doubled, as required by RFC 4180.</li>
+      <li>With formula protection enabled, cells beginning with <code>=</code>, <code>+</code>, <code>-</code>, <code>@</code>, tab or carriage return get a leading apostrophe. This prevents CSV formula injection when the file is opened in Excel or LibreOffice.</li>
+      <li>Numbers are parsed with <code>JSON.parse</code>, which uses IEEE-754 doubles. Integers above <code>2^53-1</code> can lose precision, and <code>1.0</code> is indistinguishable from <code>1</code>.</li>
     </ul>
   </div>
 </main>
@@ -162,14 +165,18 @@ function flattenObject(value, prefix, output) {
   return result;
 }
 
-function cellText(value) {
-  if (value === null || value === undefined) return '';
-  if (typeof value === 'object') return JSON.stringify(value);
-  return String(value);
+function protectFormula(text) {
+  return /^[=+\-@\t\r]/.test(text) ? "'" + text : text;
 }
 
-function csvEscape(value, delimiter) {
-  const text = cellText(value);
+function cellText(value, protectFormulas) {
+  if (value === null || value === undefined) return '';
+  const text = typeof value === 'object' ? JSON.stringify(value) : String(value);
+  return protectFormulas ? protectFormula(text) : text;
+}
+
+function csvEscape(value, delimiter, protectFormulas) {
+  const text = cellText(value, protectFormulas);
   if (text.includes(delimiter) || text.includes('"') || /[\r\n]/.test(text)) {
     return '"' + text.replace(/"/g, '""') + '"';
   }
@@ -177,7 +184,7 @@ function csvEscape(value, delimiter) {
 }
 
 function jsonToCsv(text, options) {
-  const opts = Object.assign({ delimiter: ',', flatten: true, header: true, bom: false }, options || {});
+  const opts = Object.assign({ delimiter: ',', flatten: true, header: true, protectFormulas: true, bom: false }, options || {});
   let parsed;
   try {
     parsed = JSON.parse(text);
@@ -211,9 +218,9 @@ function jsonToCsv(text, options) {
   });
 
   const lines = [];
-  if (opts.header) lines.push(columns.map(column => csvEscape(column, opts.delimiter)).join(opts.delimiter));
+  if (opts.header) lines.push(columns.map(column => csvEscape(column, opts.delimiter, opts.protectFormulas)).join(opts.delimiter));
   normalized.forEach(row => {
-    lines.push(columns.map(column => csvEscape(row[column], opts.delimiter)).join(opts.delimiter));
+    lines.push(columns.map(column => csvEscape(row[column], opts.delimiter, opts.protectFormulas)).join(opts.delimiter));
   });
 
   return {
@@ -228,6 +235,7 @@ function optionsFromUi() {
     delimiter: document.getElementById('delimiter').value,
     flatten: document.getElementById('flatten').checked,
     header: document.getElementById('header').checked,
+    protectFormulas: document.getElementById('protectFormulas').checked,
     bom: document.getElementById('bom').checked
   };
 }

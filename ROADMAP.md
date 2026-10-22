@@ -38,7 +38,7 @@
 - [x] Юнит-тесты для timestamp, color, scientific notation, statistics, unit converter, Base64 и regex worker.
 - [x] Playwright smoke-тест всех 53 страниц: консольные ошибки, CSP, реальный Web Worker и избранное.
 - [x] Axe-проверка ключевых страниц (контраст, ссылки, доступность) без serious/critical нарушений.
-- [x] `/api/health` и in-process метрики API (запросы, ошибки, rate limit, источники, внешние вызовы).
+- [x] Внутренний `/health` с in-process метриками API (запросы, ошибки, rate limit, источники, внешние вызовы) и минимальный публичный `/api/health`.
 - [x] JSON-LD `SoftwareApplication` на всех инструментах, `WebSite` + `SearchAction` + `FAQPage` на главной.
 - [x] Избранные инструменты в LocalStorage, фильтр «Favorites» и поиск по `?q=`.
 - [x] Подробный раздел о приватности на `about.html`.

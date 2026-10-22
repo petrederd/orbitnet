@@ -117,6 +117,7 @@ limits:
       <li>Conversion happens entirely in your browser. No configuration is uploaded.</li>
       <li>YAML anchors, custom tags and comments are not preserved when converting to JSON.</li>
       <li>JSON numbers keep their numeric value, but formatting such as <code>1.0</code> or <code>1e3</code> is normalized by the parser.</li>
+      <li><strong>Number precision:</strong> both parsers use IEEE-754 doubles. Integers above <code>2^53-1</code> can lose precision, and <code>1.0</code> is indistinguishable from <code>1</code>.</li>
       <li>Duplicate mapping keys are rejected by the YAML parser instead of silently overwriting one another.</li>
     </ul>
   </div>

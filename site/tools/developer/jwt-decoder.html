@@ -104,7 +104,8 @@
     <div class="input-group">
       <label for="secret">HMAC secret</label>
       <input type="password" id="secret" spellcheck="false" autocomplete="off" placeholder="HS256 / HS384 / HS512 secret">
-      <small>The secret stays in this browser tab. Only HMAC algorithms are supported here; asymmetric signatures are not verified.</small>
+      <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;"><input type="checkbox" id="secretIsBase64"> Secret is base64-encoded</label>
+      <small>The secret stays in this browser tab. Enable the checkbox when the signing key is supplied as base64 (standard or base64url). Only HMAC algorithms are supported here; asymmetric signatures are not verified.</small>
     </div>
     <div class="toolbar">
       <button class="btn" onclick="verifySignature()">Verify signature</button>
@@ -123,6 +124,7 @@
     <ul>
       <li>Decoding alone does <strong>not</strong> verify a token. The optional verifier supports HS256, HS384 and HS512 only.</li>
       <li>The payload is only base64url-encoded, so treat token contents as readable. Tokens may contain sensitive data.</li>
+      <li>If your signing key is base64-encoded, tick the checkbox so the decoded bytes are used as the HMAC key.</li>
       <li>Time claims use your device clock. A passed <code>exp</code>/<code>nbf</code> check is not a substitute for server-side validation.</li>
       <li>This decoder never transmits the token or secret — everything is processed in your browser.</li>
     </ul>
@@ -152,6 +154,7 @@ function clearError() { document.getElementById('errorMsg').innerHTML = ''; }
 function clearAll() {
   document.getElementById('token').value = '';
   document.getElementById('secret').value = '';
+  document.getElementById('secretIsBase64').checked = false;
   clearError();
   clearVerification();
   document.getElementById('results').innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--muted);">Paste a token and click Decode</div>';
@@ -223,6 +226,21 @@ function clearVerification() {
   document.getElementById('verifyResult').innerHTML = '';
 }
 
+function decodeSecret(secret, isBase64) {
+  if (!isBase64) return new TextEncoder().encode(secret);
+  let value = String(secret).replace(/\s+/g, '');
+  if (!value || /[^A-Za-z0-9+/=_-]/.test(value)) throw new Error('Secret is not valid base64');
+  value = value.replace(/-/g, '+').replace(/_/g, '/');
+  if (value.length % 4 === 1) throw new Error('Secret is not valid base64');
+  while (value.length % 4) value += '=';
+  try {
+    const bin = atob(value);
+    return Uint8Array.from(bin, c => c.charCodeAt(0));
+  } catch (error) {
+    throw new Error('Secret is not valid base64');
+  }
+}
+
 async function verifySignature() {
   clearVerification();
   clearError();
@@ -244,7 +262,7 @@ async function verifySignature() {
   const hashes = { HS256: 'SHA-256', HS384: 'SHA-384', HS512: 'SHA-512' };
   const alg = header && header.alg;
   if (!hashes[alg]) {
-    showVerifyError('Local verification supports HS256, HS384 and HS512 only (token alg: ' + esc(alg || 'missing') + ').');
+    showVerifyError('Local verification supports HS256, HS384 and HS512 only (token alg: ' + String(alg || 'missing') + ').');
     return;
   }
   if (!crypto || !crypto.subtle) {
@@ -252,10 +270,18 @@ async function verifySignature() {
     return;
   }
 
+  let keyBytes;
+  try {
+    keyBytes = decodeSecret(secret, document.getElementById('secretIsBase64').checked);
+  } catch (error) {
+    showVerifyError(error.message);
+    return;
+  }
+
   try {
     const key = await crypto.subtle.importKey(
       'raw',
-      new TextEncoder().encode(secret),
+      keyBytes,
       { name: 'HMAC', hash: hashes[alg] },
       false,
       ['sign']

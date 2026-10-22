@@ -117,6 +117,7 @@
       <li>Arrays are compared by index. Inserting an item in the middle therefore shifts later indices.</li>
       <li>Types matter: <code>1</code>, <code>"1"</code>, <code>true</code> and <code>null</code> are different values.</li>
       <li>JSON paths use <code>$</code> for the root, dots for identifiers and brackets for other keys or array indices.</li>
+      <li><strong>Number precision:</strong> both sides are parsed with <code>JSON.parse</code>, so numbers use IEEE-754 doubles. Integers above <code>2^53-1</code> may compare equal after rounding, and <code>1.0</code> compares equal to <code>1</code>.</li>
     </ul>
   </div>
 </main>

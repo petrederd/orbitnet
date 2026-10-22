@@ -24,7 +24,7 @@ function get(port, pathname) {
   });
 }
 
-test('/health and /api/health expose operational metrics', async () => {
+test('/health exposes operational metrics while /api/health stays minimal', async () => {
   const port = await listen();
   try {
     const first = await get(port, '/health');
@@ -39,9 +39,7 @@ test('/health and /api/health expose operational metrics', async () => {
 
     const alias = await get(port, '/api/health');
     assert.equal(alias.status, 200);
-    assert.equal(alias.body.ok, true);
-    assert.ok(alias.body.metrics.requests >= 1);
-    assert.ok(alias.body.metrics.maxResponseMs >= 0);
+    assert.deepEqual(alias.body, { ok: true });
   } finally {
     await new Promise(resolve => server.close(resolve));
   }

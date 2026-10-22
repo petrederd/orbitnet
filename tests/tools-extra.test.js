@@ -39,6 +39,25 @@ test('cron parser expands fields, macros and next runs', () => {
     assert.equal(run.getSeconds(), 0);
   });
 
+  const restrictedDays = context.parseCron('0 0 1 * 1');
+  assert.equal(restrictedDays.daysStar, false);
+  assert.equal(restrictedDays.dowsStar, false);
+  assert.match(context.describeCron(restrictedDays), /day 1 of the month or Monday/);
+  const restrictedRuns = context.nextRuns(restrictedDays, 4, new Date(2026, 0, 15, 12, 0, 0));
+  assert.ok(restrictedRuns.some(run => run.getDate() === 1));
+  assert.ok(restrictedRuns.some(run => run.getDay() === 1));
+
+  const starStep = context.parseCron('0 0 */2 * 1');
+  assert.equal(starStep.daysStar, true);
+  assert.match(context.describeCron(starStep), /and Monday/);
+
+  const leap = context.parseCron('0 0 29 2 *');
+  const leapRuns = context.nextRuns(leap, 1, new Date(2026, 0, 1, 12, 0, 0));
+  assert.equal(leapRuns.length, 1);
+  assert.equal(leapRuns[0].getFullYear(), 2028);
+  assert.equal(leapRuns[0].getMonth(), 1);
+  assert.equal(leapRuns[0].getDate(), 29);
+
   assert.throws(() => context.parseCron('*/0 * * * *'), /Step must be a positive integer/);
   assert.throws(() => context.parseCron('60 * * * *'), /minute must be between/);
   assert.throws(() => context.parseCron('* * * *'), /Expected 5 fields/);
@@ -58,7 +77,10 @@ test('URL encoder handles component and full-URI modes', () => {
     'https://example.com/a%20b?x=1&y=2'
   );
   assert.equal(context.decodeText('Hello%20world%20%26%20100%25', 'component'), 'Hello world & 100%');
+  assert.equal(context.encodeText('a b+c', 'form'), 'a+b%2Bc');
+  assert.equal(context.decodeText('a+b%2Bc', 'form'), 'a b+c');
   assert.throws(() => context.decodeText('%ZZ', 'component'), /Invalid percent-encoding/);
+  assert.throws(() => context.encodeText('\uD800', 'component'), /Cannot encode text/);
 
   context.run('encode');
   assert.equal(get('output').value, 'Hello%20world%20%26%20100%25%20%2F%20path%3Fq%3D1');
@@ -110,8 +132,8 @@ test('YAML and JSON converter round-trips both directions', () => {
 
 test('JSON to CSV flattens objects and escapes delimiters', () => {
   const { context } = loadTool(tool('developer', 'json-csv'), {
-    jsonInput: '[{"a":1}]', delimiter: ',', flatten: true, header: true, bom: false,
-    csvOutput: '', stats: '', errorMsg: '',
+    jsonInput: '[{"a":1}]', delimiter: ',', flatten: true, header: true,
+    protectFormulas: true, bom: false, csvOutput: '', stats: '', errorMsg: '',
   });
 
   const basic = context.jsonToCsv('[{"a":1,"b":"x,y"},{"a":2,"b":"q\\"z"}]', {
@@ -128,6 +150,14 @@ test('JSON to CSV flattens objects and escapes delimiters', () => {
   assert.equal(tab.csv, 'a\tb\r\n1\t2');
 
   assert.equal(context.jsonToCsv('[{"a":1}]', { bom: true }).csv.startsWith('\uFEFF'), true);
+  assert.equal(
+    context.jsonToCsv('[{"a":"=1+1","b":"-5","c":"@x","d":"safe"}]', { protectFormulas: true }).csv,
+    'a,b,c,d\r\n\'=1+1,\'-5,\'@x,safe'
+  );
+  assert.equal(
+    context.jsonToCsv('[{"a":"=1+1"}]', { protectFormulas: false }).csv,
+    'a\r\n=1+1'
+  );
   assert.throws(() => context.jsonToCsv('[]'), /array is empty/);
   assert.throws(() => context.jsonToCsv('[1]'), /Row 1 is not an object/);
 });
@@ -156,24 +186,34 @@ test('redirect generator builds nginx and Apache rules', () => {
     output: '', stats: '', errorMsg: '',
   });
 
-  const rules = context.parseRules('/old -> /new\n/blog/* -> https://example.com/articles/$1 308', '301');
+  const rules = context.parseRules('/old -> /new\n/blog/* -> https://example.com/articles/$1 301', '301');
   assert.equal(rules.length, 2);
-  assert.equal(rules[1].code, '308');
+  assert.equal(rules[1].code, '301');
   assert.equal(rules[1].wildcard, true);
   assert.equal(rules[1].from, '/blog/');
 
   const nginx = context.generateRedirects(rules, { server: 'nginx', keepQuery: true });
   assert.ok(nginx.includes('location = /old {'));
   assert.ok(nginx.includes('return 301 /new$is_args$args;'));
-  assert.ok(nginx.includes('return 308 https://example.com/articles/$1$is_args$args;'));
+  assert.ok(nginx.includes('rewrite ^/blog/(.*)$ https://example.com/articles/$1 permanent;'));
   assert.ok(!context.generateRedirects(rules, { server: 'nginx', keepQuery: false }).includes('$is_args'));
 
   const apache = context.generateRedirects(rules, { server: 'apache' });
-  assert.ok(apache.includes('Redirect 301 /old /new'));
-  assert.ok(apache.includes('RedirectMatch 308 ^/blog/(.*)$ https://example.com/articles/$1'));
+  assert.ok(apache.includes('RedirectMatch 301 ^/old$ /new'));
+  assert.ok(apache.includes('RedirectMatch 301 ^/blog/(.*)$ https://example.com/articles/$1'));
+
+  const escaped = context.parseRules('/old.html* -> /new/$1', '301');
+  assert.ok(context.generateRedirects(escaped, { server: 'nginx' }).includes('rewrite ^/old\\.html(.*)$ /new/$1 permanent;'));
 
   assert.throws(() => context.parseRules('old -> /new'), /must start with/);
   assert.throws(() => context.parseRules('/old -> /new 200'), /status must be/);
+  assert.throws(() => context.parseRules('/old -> /new%0d%0a'), /encoded CR\/LF/);
+  assert.throws(() => context.parseRules('/a;b -> /new'), /unsafe/);
+  assert.throws(() => context.parseRules('/old -> /new$evil'), /only allowed/);
+  assert.throws(
+    () => context.generateRedirects(context.parseRules('/blog/* -> /new 308'), { server: 'nginx' }),
+    /support 301 and 302/
+  );
   assert.throws(() => context.parseRules(''), /at least one/);
 });
 
@@ -196,10 +236,24 @@ test('robots generator validates paths and emits directives', () => {
   );
 
   assert.match(context.buildRobots({ userAgent: 'Googlebot', allow: [], disallow: ['/tmp/'], crawlDelay: '0' }), /Crawl-delay: 0/);
+  assert.equal(
+    context.buildRobots({ userAgent: '*', allow: [], disallow: [], emptyDisallow: true }),
+    'User-agent: *\nDisallow:\n'
+  );
+  const multiple = context.buildRobots({
+    userAgent: 'Googlebot, Bingbot',
+    allow: [],
+    disallow: [],
+    emptyDisallow: true,
+    extraGroups: 'User-agent: Yandex\nDisallow: /private/',
+  });
+  assert.match(multiple, /User-agent: Googlebot\nUser-agent: Bingbot\nDisallow:/);
+  assert.match(multiple, /\n\nUser-agent: Yandex\nDisallow: \/private\//);
   assert.throws(() => context.buildRobots({ userAgent: '*', allow: [], disallow: ['admin'] }), /must start with/);
   assert.throws(() => context.buildRobots({ userAgent: 'bad agent' }), /must not contain spaces/);
   assert.throws(() => context.buildRobots({ userAgent: '*', sitemap: 'sitemap.xml' }), /absolute http/);
   assert.throws(() => context.buildRobots({ userAgent: '*', crawlDelay: '-1' }), /non-negative/);
+  assert.throws(() => context.buildRobots({ userAgent: '*', extraGroups: 'Not a directive' }), /expected a robots.txt directive/);
 });
 
 test('security header sanitizer normalizes names, values and duplicates', () => {
@@ -234,6 +288,22 @@ test('security header sanitizer normalizes names, values and duplicates', () => 
   ]));
   assert.ok(snippet.includes('add_header Content-Security-Policy "default-src \'self\'" always;'));
   assert.ok(snippet.includes('add_header X-Frame-Options "DENY" always;'));
+  assert.ok(context.nginxSnippet(new Map([['x-test', 'a"b\\c$d']]))
+    .includes('add_header X-Test "a\\"b\\\\c\\$d" always;'));
+
+  const disabledHsts = context.analyzeHeaders(context.parseHeaders('Strict-Transport-Security: max-age=0\n'));
+  assert.ok(disabledHsts.findings.some(item => item.name === 'Strict-Transport-Security' && item.severity === 'error' && /disables HSTS/.test(item.message)));
+
+  const nonceCsp = context.analyzeHeaders(context.parseHeaders(
+    "Content-Security-Policy: default-src 'self'; script-src 'nonce-abc123' 'unsafe-inline'\n"
+  ));
+  assert.ok(!nonceCsp.findings.some(item => item.name === 'Content-Security-Policy' && /unsafe-inline/.test(item.message)));
+
+  const wildcardFrames = context.analyzeHeaders(context.parseHeaders(
+    "Content-Security-Policy: default-src 'self'; frame-ancestors *\n"
+  ));
+  assert.ok(wildcardFrames.findings.some(item => item.name === 'Content-Security-Policy' && /does not restrict framing/.test(item.message)));
+  assert.ok(!wildcardFrames.findings.some(item => item.name === 'X-Frame-Options' && item.severity === 'good'));
 });
 
 test('IPv6 subnet parser handles compression, ranges and address types', () => {
@@ -309,7 +379,7 @@ test('JWT decoder highlights time claims and verifies HMAC signatures', async ()
   const now = Math.floor(Date.now() / 1000);
   const token = makeJwt(secret, { sub: '42', iat: now - 60, nbf: now - 30, exp: now + 3600 });
   const { context, get } = loadTool(tool('developer', 'jwt-decoder'), {
-    token, secret, results: '', errorMsg: '', verifyError: '', verifyResult: '',
+    token, secret, secretIsBase64: false, results: '', errorMsg: '', verifyError: '', verifyResult: '',
   });
 
   context.decode();
@@ -347,4 +417,22 @@ test('JWT decoder highlights time claims and verifies HMAC signatures', async ()
   get('token').value = unsupportedHeader + '.' + unsupportedBody + '.x';
   await context.verifySignature();
   assert.match(get('verifyError').innerHTML, /supports HS256/);
+
+  const oddHeader = Buffer.from(JSON.stringify({ alg: 'RS<256>', typ: 'JWT' })).toString('base64url');
+  get('token').value = oddHeader + '.' + unsupportedBody + '.x';
+  await context.verifySignature();
+  const oddError = get('verifyError').children[get('verifyError').children.length - 1];
+  assert.match(oddError.textContent, /RS<256>/);
+  assert.doesNotMatch(oddError.textContent, /&lt;/);
+
+  const key = Buffer.from('base64-encoded-test-key');
+  get('token').value = makeJwt(key, { sub: 'base64' });
+  get('secret').value = key.toString('base64');
+  get('secretIsBase64').checked = true;
+  await context.verifySignature();
+  assert.match(get('verifyResult').innerHTML, /Signature is valid/);
+
+  get('secret').value = 'not base64!';
+  await context.verifySignature();
+  assert.match(get('verifyError').children[get('verifyError').children.length - 1].textContent, /not valid base64/);
 });

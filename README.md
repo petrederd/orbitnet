@@ -248,7 +248,8 @@ DNS-over-HTTPS резолверам Cloudflare, Google и AdGuard; для HTTP �
 
 | Endpoint | Назначение |
 |---|---|
-| `GET /health` / `GET /api/health` | Проверка доступности API и in-process метрики: запросы, ошибки, rate limit, источники, внешние вызовы |
+| `GET /health` | Внутренний healthcheck и in-process метрики: запросы, ошибки, rate limit, источники, внешние вызовы |
+| `GET /api/health` | Публичная минимальная проверка доступности: `{"ok":true}` |
 | `GET /api/ip` | IP клиента, версия, reverse DNS, геолокация, ASN |
 | `GET /api/geo?ip=` / `?host=` | Геолокация и провайдер; для домена при сбое локального DNS — fallback в Worker |
 | `GET /api/dns?host=&type=` | DNS-записи; при сетевой ошибке — fallback в Worker (`source`) |

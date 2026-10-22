@@ -98,7 +98,7 @@
     <div class="code-block">minute   hour   day-of-month   month   day-of-week
 0-59     0-23   1-31           1-12    0-7 (0 and 7 = Sunday)</div>
     <p style="margin-top:12px;">Supported syntax: <code>*</code>, <code>5</code>, <code>1-10</code>, <code>*/5</code>, <code>1-10/2</code>, comma lists, three-letter month names (JAN–DEC) and weekday names (SUN–SAT). <code>?</code> is treated as <code>*</code>.</p>
-    <p>Next runs are computed by scanning minute by minute for up to one year. The preview uses your browser's local time zone.</p>
+    <p>Next runs are searched for up to eight years, which covers leap-day schedules even across skipped century leap years. The preview uses your browser's local time zone.</p>
   </div>
 </main>
 
@@ -198,12 +198,16 @@ function parseCron(expression) {
   const parts = expanded.split(/\s+/);
   if (parts.length !== 5) throw new Error('Expected 5 fields, got ' + parts.length);
 
+  const dayField = parts[2].trim().toLowerCase();
+  const dowField = parts[4].trim().toLowerCase();
   const parsed = {
     minutes: parseField(parts[0], FIELDS[0]),
     hours: parseField(parts[1], FIELDS[1]),
     days: parseField(parts[2], FIELDS[2]),
     months: parseField(parts[3], FIELDS[3]),
     dows: parseField(parts[4], FIELDS[4]),
+    daysStar: dayField === '?' || dayField.startsWith('*'),
+    dowsStar: dowField === '?' || dowField.startsWith('*'),
     normalized: expanded
   };
   return parsed;
@@ -242,18 +246,15 @@ function formatTime(hours, minutes) {
 }
 
 function describeCron(parsed) {
-  const allDays = parsed.days.length === 31 && parsed.dows.length === 7;
-  let dayText = 'every day';
-  if (!allDays) {
-    const pieces = [];
-    if (parsed.days.length !== 31) {
-      pieces.push('day ' + formatList(parsed.days, String) + ' of the month');
-    }
-    if (parsed.dows.length !== 7) {
-      pieces.push(formatList(parsed.dows, value => DOW_LABELS[value]));
-    }
-    dayText = pieces.join(' and ');
+  const pieces = [];
+  if (parsed.days.length !== 31) {
+    pieces.push('day ' + formatList(parsed.days, String) + ' of the month');
   }
+  if (parsed.dows.length !== 7) {
+    pieces.push(formatList(parsed.dows, value => DOW_LABELS[value]));
+  }
+  const bothRestricted = !parsed.daysStar && !parsed.dowsStar;
+  const dayText = pieces.length ? pieces.join(bothRestricted ? ' or ' : ' and ') : 'every day';
 
   const monthText = parsed.months.length === 12
     ? ''
@@ -262,12 +263,18 @@ function describeCron(parsed) {
   return formatTime(parsed.hours, parsed.minutes) + ', ' + dayText + monthText + '.';
 }
 
+function matchesDay(parsed, date) {
+  const dayMatch = parsed.days.includes(date.getDate());
+  const dowMatch = parsed.dows.includes(date.getDay());
+  if (!parsed.daysStar && !parsed.dowsStar) return dayMatch || dowMatch;
+  return dayMatch && dowMatch;
+}
+
 function matchesCron(parsed, date) {
   return parsed.minutes.includes(date.getMinutes()) &&
     parsed.hours.includes(date.getHours()) &&
-    parsed.days.includes(date.getDate()) &&
     parsed.months.includes(date.getMonth() + 1) &&
-    parsed.dows.includes(date.getDay());
+    matchesDay(parsed, date);
 }
 
 function nextRuns(parsed, count, from) {
@@ -275,11 +282,31 @@ function nextRuns(parsed, count, from) {
   const cursor = new Date(from ? from.getTime() : Date.now());
   cursor.setSeconds(0, 0);
   cursor.setMinutes(cursor.getMinutes() + 1);
-  const limit = 366 * 24 * 60;
+  const end = new Date(cursor);
+  end.setFullYear(end.getFullYear() + 8);
 
-  for (let i = 0; i < limit && runs.length < count; i++) {
-    if (matchesCron(parsed, cursor)) runs.push(new Date(cursor));
-    cursor.setMinutes(cursor.getMinutes() + 1);
+  while (runs.length < count && cursor <= end) {
+    if (!parsed.months.includes(cursor.getMonth() + 1)) {
+      cursor.setDate(1);
+      cursor.setMonth(cursor.getMonth() + 1);
+      cursor.setHours(0, 0, 0, 0);
+      continue;
+    }
+    if (!matchesDay(parsed, cursor)) {
+      cursor.setDate(cursor.getDate() + 1);
+      cursor.setHours(0, 0, 0, 0);
+      continue;
+    }
+    if (!parsed.hours.includes(cursor.getHours())) {
+      cursor.setHours(cursor.getHours() + 1, 0, 0, 0);
+      continue;
+    }
+    if (!parsed.minutes.includes(cursor.getMinutes())) {
+      cursor.setMinutes(cursor.getMinutes() + 1, 0, 0);
+      continue;
+    }
+    runs.push(new Date(cursor));
+    cursor.setMinutes(cursor.getMinutes() + 1, 0, 0);
   }
   return runs;
 }
@@ -328,7 +355,7 @@ function render() {
     });
     html += '</tbody></table>';
   } else {
-    html += '<div class="result-sub">No matching run found in the next year.</div>';
+    html += '<div class="result-sub">No matching run found in the next eight years.</div>';
   }
   html += '</div>';
 

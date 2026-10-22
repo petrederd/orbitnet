@@ -38,7 +38,7 @@ orbitnet/
 │   ├── calculators.test.js        # timestamp, color, scientific, statistics, unit, Base64, regex worker
 │   ├── tools-extra.test.js        # cron, URL, YAML/JSON/CSV, diff, redirects, robots, headers, IPv6, Unicode, JWT
 │   ├── smoke.test.js              # Playwright: все страницы, CSP, Worker, избранное, axe
-│   ├── health.test.js             # /health и /api/health + метрики
+│   ├── health.test.js             # /health + метрики, публичный /api/health
 │   ├── subnet.test.js             # /0, /24, /31, /32 и режим маски
 │   ├── password.test.js           # обычный, распространённый и длинный пароль
 │   ├── prime.test.js              # 0, 1, 2, 97, 561, большие числа
@@ -183,7 +183,7 @@ npm run hooks:install
 - `tests/calculators.test.js` проверяет timestamp (секунды/миллисекунды, UTC/local), color (современный синтаксис, clamp, мусор после `)`), scientific notation (запятые, 2^53), statistics (hex, малые числа), unit converter (абсолютный ноль), Base64 (UTF-8/эмодзи) и regex worker (лимит совпадений, ошибки).
 - `tests/tools-extra.test.js` проверяет cron, URL encode/parse, YAML ↔ JSON, JSON → CSV, JSON diff, redirect/robots/security headers generators, IPv6, Unicode и JWT HS256 verification.
 - `tests/smoke.test.js` поднимает статический сервер с CSP из `nginx.conf`, открывает все страницы, проверяет отсутствие console/page errors, реальный Web Worker, `?q=`, избранное и serious/critical нарушения axe. Без Chromium тест пропускается; в CI `REQUIRE_BROWSER_TESTS=1` делает его обязательным.
-- `tests/health.test.js` проверяет `/health` и `/api/health`, счётчики запросов, ошибок и внешних вызовов.
+- `tests/health.test.js` проверяет подробный внутренний `/health` и минимальный публичный `/api/health`.
 - `tests/subnet.test.js` загружает inline-скрипт Subnet Calculator в `vm` и проверяет `/0`, `/24`, `/31`, `/32` и ввод маски `255.255.255.0`.
 - `tests/password.test.js` проверяет обычный пароль, список распространённых паролей и длинный случайный пароль.
 - `tests/prime.test.js` проверяет 0, 1, 2, 97, 561, большое простое и большое составное число, факторизацию и отображение соседних простых.
@@ -290,7 +290,8 @@ npm run hooks:install
 
 | Маршрут | Модули | Назначение |
 |---|---|---|
-| `GET /health`, `GET /api/health` | — | Healthcheck и in-process метрики (requests, errors, rateLimited, sources, external) |
+| `GET /health` | — | Внутренний healthcheck и in-process метрики (requests, errors, rateLimited, sources, external) |
+| `GET /api/health` | — | Публичная проверка доступности: только `{"ok":true}` |
 | `GET /api/ip` | dns, geo | IP клиента, PTR, геолокация, ASN |
 | `GET /api/geo` | dns, maxmind | Геолокация по IP или домену |
 | `GET /api/dns` | dns, external-check | DNS-записи; fallback в Worker при сетевой ошибке |

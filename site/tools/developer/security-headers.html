@@ -197,7 +197,10 @@ function analyzeHeaders(headers) {
     } else {
       add('good', 'Content-Security-Policy', 'A script/default policy is present.');
     }
-    if (/unsafe-inline/i.test(csp)) add('warn', 'Content-Security-Policy', "Contains 'unsafe-inline'; prefer nonces or hashes.");
+    const hasNonceOrStrictDynamic = /'nonce-[^']+'/i.test(csp) || /'strict-dynamic'/i.test(csp);
+    if (/unsafe-inline/i.test(csp) && !hasNonceOrStrictDynamic) {
+      add('warn', 'Content-Security-Policy', "Contains 'unsafe-inline'; prefer nonces or hashes.");
+    }
     if (/unsafe-eval/i.test(csp)) add('warn', 'Content-Security-Policy', "Contains 'unsafe-eval'; remove it if possible.");
   }
 
@@ -208,6 +211,8 @@ function analyzeHeaders(headers) {
     const match = hsts.match(/max-age\s*=\s*(\d+)/i);
     if (!match) {
       add('error', 'Strict-Transport-Security', 'max-age is missing.');
+    } else if (Number(match[1]) === 0) {
+      add('error', 'Strict-Transport-Security', 'max-age=0 disables HSTS.');
     } else if (Number(match[1]) < 31536000) {
       add('warn', 'Strict-Transport-Security', 'max-age is below one year.');
     } else {
@@ -222,9 +227,16 @@ function analyzeHeaders(headers) {
   else add('good', 'X-Content-Type-Options', 'nosniff is set.');
 
   const xfo = value('x-frame-options');
-  const cspFrames = /frame-ancestors/i.test(value('content-security-policy'));
+  const csp = value('content-security-policy');
+  const frameDirective = csp.split(';').map(part => part.trim()).find(part => /^frame-ancestors\b/i.test(part)) || '';
+  const frameValues = frameDirective.split(/\s+/).slice(1);
+  const frameWildcard = frameValues.includes('*');
+  const cspFrames = Boolean(frameDirective) && frameValues.length > 0 && !frameWildcard;
+  if (frameWildcard) {
+    add('warn', 'Content-Security-Policy', "frame-ancestors * does not restrict framing.");
+  }
   if (!has('x-frame-options') && !cspFrames) {
-    add('warn', 'X-Frame-Options', 'Missing and no frame-ancestors directive was found.');
+    add('warn', 'X-Frame-Options', 'Missing and no restrictive frame-ancestors directive was found.');
   } else if (!has('x-frame-options') && cspFrames) {
     add('good', 'X-Frame-Options', 'Framing is restricted by the CSP frame-ancestors directive.');
   } else if (has('x-frame-options') && !/^(deny|sameorigin)$/i.test(xfo)) {
@@ -264,7 +276,7 @@ function analyzeHeaders(headers) {
 function nginxSnippet(map) {
   const names = [...map.keys()].sort();
   return names.map(name => {
-    const value = map.get(name).replace(/"/g, '\\"');
+    const value = String(map.get(name)).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$');
     return 'add_header ' + name.replace(/(^|-)([a-z])/g, (m, dash, letter) => dash + letter.toUpperCase()) + ' "' + value + '" always;';
   }).join('\n') + '\n';
 }

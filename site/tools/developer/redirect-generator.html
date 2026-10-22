@@ -122,7 +122,8 @@
     <div class="code-block">/old -> /new
 /docs/* -> https://docs.example.com/$1
 http://example.com/legacy -> https://example.com/new 308</div>
-    <p style="margin-top:12px;">nginx rules use <code>location</code> and <code>return</code>. Apache rules use <code>Redirect</code> for exact paths and <code>RedirectMatch</code> for wildcards.</p>
+    <p style="margin-top:12px;">nginx exact rules use <code>location =</code> and <code>return</code>; wildcard rules use <code>rewrite</code> so the suffix is not taken from a decoded <code>return</code> capture. Apache uses <code>RedirectMatch</code> for both exact and wildcard paths.</p>
+    <p>Source and target values reject control characters, quotes, backslashes, <code>$</code> (except the wildcard <code>$1</code> placeholder), braces and semicolons. Regex metacharacters in the source path are escaped automatically. nginx wildcard rules support 301 and 302; use Apache for wildcard 307/308.</p>
     <p>Always test redirects in a staging environment. Avoid redirect chains, and use 301/308 only when the move is permanent.</p>
   </div>
 </main>
@@ -149,29 +150,43 @@ function showError(message) {
   el.appendChild(div);
 }
 
-function sourcePath(value) {
-  const source = String(value).trim();
-  if (!source) throw new Error('Empty source path');
+function sourcePath(value, line) {
+  let source = String(value).trim();
+  if (!source) throw new Error('Line ' + line + ': empty source path');
   if (/^https?:\/\//i.test(source)) {
     try {
       const url = new URL(source);
-      return url.pathname + url.search;
+      if (url.search || url.hash) throw new Error('query strings and fragments cannot be matched');
+      source = url.pathname;
     } catch (error) {
-      throw new Error('Invalid source URL: ' + source);
+      throw new Error('Line ' + line + ': invalid source URL: ' + source);
     }
   }
-  if (!source.startsWith('/')) throw new Error('Source must start with "/": ' + source);
-  if (/\s/.test(source)) throw new Error('Source must not contain spaces: ' + source);
+  if (!source.startsWith('/')) throw new Error('Line ' + line + ': source must start with "/": ' + source);
+  if (/[\x00-\x1F\x7F\s]/.test(source)) throw new Error('Line ' + line + ': source must not contain whitespace or control characters');
+  if (/[{};"\\$#?]/.test(source)) throw new Error('Line ' + line + ': source contains a character that is unsafe in a redirect rule');
+  if (/%0d|%0a/i.test(source)) throw new Error('Line ' + line + ': source must not contain encoded CR/LF');
+  if (source.includes('*') && (!source.endsWith('*') || source.slice(0, -1).includes('*'))) {
+    throw new Error('Line ' + line + ': "*" is only allowed once at the end of the source');
+  }
   return source;
 }
 
-function targetValue(value) {
+function targetValue(value, wildcard, line) {
   const target = String(value).trim();
-  if (!target) throw new Error('Empty target URL');
-  if (/\s/.test(target)) throw new Error('Target must not contain spaces: ' + target);
+  if (!target) throw new Error('Line ' + line + ': empty target URL');
+  if (/[\x00-\x1F\x7F\s]/.test(target)) throw new Error('Line ' + line + ': target must not contain whitespace or control characters');
+  if (/[{};"\\]/.test(target)) throw new Error('Line ' + line + ': target contains a character that is unsafe in a redirect rule');
+  if (/%0d|%0a/i.test(target)) throw new Error('Line ' + line + ': target must not contain encoded CR/LF');
+  const dollarCheck = wildcard ? target.replace(/\$1/g, '') : target;
+  if (dollarCheck.includes('$')) throw new Error('Line ' + line + ': "$" is only allowed as the wildcard "$1" placeholder');
   if (target.startsWith('/')) return target;
-  if (!/^https?:\/\//i.test(target)) throw new Error('Target must be an absolute URL or start with "/": ' + target);
+  if (!/^https?:\/\//i.test(target)) throw new Error('Line ' + line + ': target must be an absolute URL or start with "/": ' + target);
   return target;
+}
+
+function escapeRegex(value) {
+  return String(value).replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
 }
 
 function parseRules(text, defaultCode) {
@@ -199,11 +214,11 @@ function parseRules(text, defaultCode) {
     }
 
     if (!/^30[1278]$/.test(code)) throw new Error('Line ' + (index + 1) + ': status must be 301, 302, 307 or 308');
-    const sourceValue = sourcePath(source);
+    const sourceValue = sourcePath(source, index + 1);
     const wildcard = sourceValue.endsWith('*');
     const from = wildcard ? sourceValue.slice(0, -1) : sourceValue;
     if (wildcard && !from) throw new Error('Line ' + (index + 1) + ': wildcard source needs a path prefix');
-    return { from, target: targetValue(target), code, wildcard };
+    return { from, target: targetValue(target, wildcard, index + 1), code, wildcard };
   });
 }
 
@@ -217,16 +232,19 @@ function generateRedirects(rules, options) {
   const opts = Object.assign({ server: 'nginx', keepQuery: true }, options || {});
   const blocks = rules.map(rule => {
     if (opts.server === 'apache') {
-      if (rule.wildcard) {
-        const target = rule.target.includes('$1') ? rule.target : rule.target + '$1';
-        return 'RedirectMatch ' + rule.code + ' ^' + rule.from + '(.*)$ ' + target;
-      }
-      return 'Redirect ' + rule.code + ' ' + rule.from + ' ' + rule.target;
+      const pattern = '^' + escapeRegex(rule.from) + (rule.wildcard ? '(.*)$' : '$');
+      const target = rule.wildcard && !rule.target.includes('$1') ? rule.target + '$1' : rule.target;
+      return 'RedirectMatch ' + rule.code + ' ' + pattern + ' ' + target;
     }
 
     if (rule.wildcard) {
-      const target = withQuery(rule.target.includes('$1') ? rule.target : rule.target + '$1', opts.keepQuery);
-      return 'location ~ ^' + rule.from + '(.*)$ {\n    return ' + rule.code + ' ' + target + ';\n}';
+      if (rule.code !== '301' && rule.code !== '302') {
+        throw new Error('nginx wildcard redirects support 301 and 302 only; use 301/302 or Apache for ' + rule.code);
+      }
+      let target = rule.target.includes('$1') ? rule.target : rule.target + '$1';
+      if (!opts.keepQuery) target += '?';
+      const flag = rule.code === '301' ? 'permanent' : 'redirect';
+      return 'rewrite ^' + escapeRegex(rule.from) + '(.*)$ ' + target + ' ' + flag + ';';
     }
     return 'location = ' + rule.from + ' {\n    return ' + rule.code + ' ' + withQuery(rule.target, opts.keepQuery) + ';\n}';
   });

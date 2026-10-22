@@ -84,9 +84,10 @@
         <label for="mode">Encoding mode</label>
         <select id="mode">
           <option value="component">Component (encodeURIComponent)</option>
+          <option value="form">Form URL-encoded (application/x-www-form-urlencoded)</option>
           <option value="uri">Full URI (encodeURI)</option>
         </select>
-        <small>Component mode encodes separators like <code>/</code>, <code>?</code> and <code>&amp;</code>. Full URI mode keeps them.</small>
+        <small>Component mode encodes separators like <code>/</code>, <code>?</code> and <code>&amp;</code>. Full URI mode keeps them. Form mode encodes spaces as <code>+</code> and decodes <code>+</code> back to a space.</small>
       </div>
       <div class="toolbar">
         <button class="btn" onclick="run('encode')">Encode</button>
@@ -112,6 +113,7 @@
     <h3>Which mode should I use?</h3>
     <ul>
       <li><strong>Component</strong> — for a single query parameter, path segment or form value. It encodes <code>&amp;</code>, <code>=</code>, <code>/</code>, <code>?</code> and spaces.</li>
+      <li><strong>Form</strong> — for <code>application/x-www-form-urlencoded</code> bodies. Spaces become <code>+</code>, and decoding turns <code>+</code> back into a space.</li>
       <li><strong>Full URI</strong> — for a complete URL. It leaves structural characters alone, but still encodes spaces and non-ASCII text.</li>
     </ul>
     <p>Decoding is strict: malformed percent sequences such as <code>%ZZ</code> or incomplete UTF-8 are rejected instead of being silently changed.</p>
@@ -142,11 +144,18 @@ function showError(message) {
 
 function encodeText(text, mode) {
   const value = String(text == null ? '' : text);
-  return mode === 'uri' ? encodeURI(value) : encodeURIComponent(value);
+  try {
+    if (mode === 'uri') return encodeURI(value);
+    const encoded = encodeURIComponent(value);
+    return mode === 'form' ? encoded.replace(/%20/g, '+') : encoded;
+  } catch (error) {
+    throw new Error('Cannot encode text: input contains an unpaired UTF-16 surrogate');
+  }
 }
 
 function decodeText(text, mode) {
-  const value = String(text == null ? '' : text);
+  let value = String(text == null ? '' : text);
+  if (mode === 'form') value = value.replace(/\+/g, ' ');
   try {
     return mode === 'uri' ? decodeURI(value) : decodeURIComponent(value);
   } catch (error) {
