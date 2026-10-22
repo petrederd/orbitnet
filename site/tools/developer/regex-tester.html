@@ -218,9 +218,18 @@ function run() {
     return;
   }
 
-  const workerUrl = URL.createObjectURL(new Blob([workerSource], { type: 'application/javascript' }));
-  const worker = new Worker(workerUrl);
-  worker._objectUrl = workerUrl;
+  let workerUrl;
+  let worker;
+  try {
+    workerUrl = URL.createObjectURL(new Blob([workerSource], { type: 'application/javascript' }));
+    worker = new Worker(workerUrl);
+    worker._objectUrl = workerUrl;
+  } catch (e) {
+    if (workerUrl) URL.revokeObjectURL(workerUrl);
+    errEl.innerHTML = '<div class="error">Could not start the regex worker. Check that your browser and Content Security Policy allow Web Workers.</div>';
+    clearOutput(sumEl, hlEl, mEl, text);
+    return;
+  }
   currentWorker = worker;
 
   const timer = setTimeout(() => {
