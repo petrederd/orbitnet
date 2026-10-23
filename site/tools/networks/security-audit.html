@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Website Security Audit — grade a site A-F on HTTPS, security headers, HSTS preload, security.txt, cookie flags and mixed content.">
+<meta name="theme-color" content="#16161a">
+<title>Website Security Audit — OrbitNet</title>
+<link rel="canonical" href="https://orbitnet.ru/tools/networks/security-audit.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OrbitNet">
+<meta property="og:title" content="Website Security Audit — OrbitNet">
+<meta property="og:description" content="Website Security Audit — grade a site A-F on HTTPS, security headers, HSTS preload, security.txt, cookie flags and mixed content.">
+<meta property="og:url" content="https://orbitnet.ru/tools/networks/security-audit.html">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://orbitnet.ru/assets/og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="OrbitNet — open tools, no noise">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Website Security Audit — OrbitNet">
+<meta name="twitter:description" content="Website Security Audit — grade a site A-F on HTTPS, security headers, HSTS preload, security.txt, cookie flags and mixed content.">
+<meta name="twitter:image" content="https://orbitnet.ru/assets/og-image.png">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=3">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/favicon-192x192.png?v=3">
+<link rel="icon" type="image/png" sizes="96x96" href="/icons/favicon-96x96.png?v=3">
+<link rel="icon" type="image/png" sizes="48x48" href="/icons/favicon-48x48.png?v=3">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png?v=3">
+<link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png?v=3">
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=3">
+<link rel="manifest" href="/site.webmanifest">
+<style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>
+<link rel="stylesheet" href="../../assets/css/style.css?v=6">
+<style>
+  .grade-row { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; }
+  .grade-badge { flex: 0 0 auto; width: 96px; height: 96px; border-radius: 18px; display: flex; align-items: center; justify-content: center; font-size: 3rem; font-weight: 800; border: 2px solid currentColor; }
+  .grade-badge.A { color: var(--accent); background: rgba(110,207,160,.12); }
+  .grade-badge.B { color: #8ab4f8; background: rgba(138,180,248,.12); }
+  .grade-badge.C { color: #e7c65b; background: rgba(231,198,91,.12); }
+  .grade-badge.D { color: var(--warning); background: rgba(245,198,107,.12); }
+  .grade-badge.E { color: #e0a06b; background: rgba(224,160,107,.12); }
+  .grade-badge.F { color: var(--danger); background: rgba(242,139,130,.12); }
+  .grade-meta { min-width: 0; }
+  .grade-meta h3 { margin: 0 0 4px; }
+  .grade-meta p { margin: 0; color: var(--muted); font-size: .86rem; word-break: break-word; }
+  .check-row { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); margin-bottom: 8px; }
+  .check-badge { flex: 0 0 auto; min-width: 72px; text-align: center; border-radius: 999px; padding: 3px 9px; font-size: .72rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; border: 1px solid currentColor; }
+  .check-badge.pass { color: var(--accent); background: rgba(110,207,160,.1); }
+  .check-badge.warn { color: var(--warning); background: rgba(245,198,107,.1); }
+  .check-badge.fail { color: var(--danger); background: rgba(242,139,130,.1); }
+  .check-badge.unknown { color: var(--muted); background: rgba(154,154,162,.08); }
+  .check-body { min-width: 0; }
+  .check-body h4 { margin: 0 0 3px; font-size: .92rem; }
+  .check-body p { margin: 0; color: var(--muted); font-size: .83rem; line-height: 1.5; word-break: break-word; }
+  .check-fix { color: var(--ink); }
+  .mono { font-family: ui-monospace, Menlo, Consolas, monospace; word-break: break-all; }
+</style>
+<script type="application/ld+json" data-orbitnet-jsonld="software">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Website Security Audit",
+  "description": "Website Security Audit — grade a site A-F on HTTPS, security headers, HSTS preload, security.txt, cookie flags and mixed content.",
+  "url": "https://orbitnet.ru/tools/networks/security-audit.html",
+  "applicationCategory": "NetworkApplication",
+  "applicationSubCategory": "networks",
+  "operatingSystem": "Any",
+  "browserRequirements": "Requires JavaScript and a modern browser.",
+  "isAccessibleForFree": true,
+  "inLanguage": "en",
+  "publisher": {
+    "@type": "Organization",
+    "name": "OrbitNet",
+    "url": "https://orbitnet.ru/"
+  },
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  }
+}
+</script>
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../about.html">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> /
+      <a href="../../index.html#tools">Tools</a> /
+      <span>Website Security Audit</span>
+    </div>
+    <h1>Website Security Audit</h1>
+    <p>Fetch a site once and grade its transport security, HTTP security headers, HSTS preload readiness, security.txt, cookie flags and mixed content on an A–F scale. It is a quick overview, not a penetration test.</p>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Audit</h2>
+    <div id="errorMsg"></div>
+    <div class="input-group">
+      <label for="host">Domain</label>
+      <input type="text" id="host" placeholder="example.com" autocomplete="off">
+      <small>Checked from the OrbitNet server over HTTPS (with a plain-HTTP fallback).</small>
+    </div>
+    <button class="btn" onclick="run()">Run audit</button>
+  </div>
+
+  <div id="gradePanel" class="tool-panel" hidden>
+    <h2>Grade</h2>
+    <div id="gradeBox"></div>
+  </div>
+
+  <div id="checksPanel" class="tool-panel" hidden>
+    <h2>Checks</h2>
+    <div id="checks"></div>
+  </div>
+
+  <div class="info-section">
+    <h3>What is graded</h3>
+    <p>Each row has a weight and a score from 0 to 1; the grade is their weighted average. <strong>A</strong> ≥ 90, <strong>B</strong> ≥ 80, <strong>C</strong> ≥ 70, <strong>D</strong> ≥ 60, <strong>E</strong> ≥ 50, otherwise <strong>F</strong>.</p>
+
+    <h3>HSTS preload</h3>
+    <p>The preload row only checks that the header has <code>max-age=31536000</code>, <code>includeSubDomains</code> and <code>preload</code>. Actually being on the preload list also requires submitting the domain at <a href="https://hstspreload.org/" target="_blank" rel="noopener">hstspreload.org</a>.</p>
+
+    <h3>security.txt</h3>
+    <p>The audit looks for <code class="mono">/.well-known/security.txt</code> and then <code class="mono">/security.txt</code>, and reads the <code>Contact</code> and <code>Expires</code> fields as defined by RFC 9116.</p>
+
+    <h3>Mixed content and cookies</h3>
+    <p>Mixed content is detected by scanning the returned HTML for <code>http://</code> resources; namespace URLs such as <code>http://www.w3.org/</code> are ignored. Cookie flags are read from <code>Set-Cookie</code> on the first response only. Because these checks need the page body, a result fetched through the Cloudflare Worker fallback (during DNS filtering or blocking) leaves them as <strong>Unknown</strong>.</p>
+
+    <h3>Scope and privacy</h3>
+    <p>Only the requested host is checked, from the OrbitNet backend. The audit does not follow redirects and does not test for vulnerabilities. Like every server-side check it appears in standard infrastructure logs.</p>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../about.html">About</a></div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function showError(m) {
+  const el = document.getElementById('errorMsg');
+  el.innerHTML = '';
+  const div = document.createElement('div');
+  div.className = 'error';
+  div.textContent = String(m == null ? '' : m);
+  el.appendChild(div);
+  document.getElementById('gradePanel').hidden = true;
+  document.getElementById('checksPanel').hidden = true;
+}
+function clearError() { document.getElementById('errorMsg').innerHTML = ''; }
+
+const LABELS = { pass: 'Pass', warn: 'Warning', fail: 'Fail', unknown: 'Unknown' };
+const ORDER = { fail: 0, warn: 1, unknown: 2, pass: 3 };
+
+function run() {
+  clearError();
+  const host = document.getElementById('host').value.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+  if (!host) { showError('Please enter a domain'); return; }
+  document.getElementById('gradePanel').hidden = true;
+  document.getElementById('checksPanel').hidden = true;
+
+  fetch('/api/security?host=' + encodeURIComponent(host))
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) { showError(d.error + (d.localError ? ' (local: ' + d.localError + ')' : '')); return; }
+      render(d);
+    })
+    .catch(e => showError(e.message));
+}
+
+function render(d) {
+  const gradeBox = document.getElementById('gradeBox');
+  gradeBox.innerHTML =
+    '<div class="grade-row">' +
+      '<div class="grade-badge ' + esc(d.grade) + '">' + esc(d.grade) + '</div>' +
+      '<div class="grade-meta">' +
+        '<h3>' + esc(d.score) + ' / 100</h3>' +
+        '<p class="mono">' + esc(d.host) + (d.ip ? ' · ' + esc(d.ip) : '') + '</p>' +
+        '<p>Source: ' + esc(d.source || 'local') +
+          ' · Status: ' + esc(d.status == null ? 'n/a' : d.status) +
+          (d.bodyChecked === false ? ' · body not inspected (header-only result)' : '') +
+        '</p>' +
+      '</div>' +
+    '</div>';
+  document.getElementById('gradePanel').hidden = false;
+
+  const checks = (d.checks || []).slice().sort((a, b) => ORDER[a.status] - ORDER[b.status]);
+  document.getElementById('checks').innerHTML = checks.map(item =>
+    '<div class="check-row">' +
+      '<span class="check-badge ' + esc(item.status) + '">' + esc(LABELS[item.status] || item.status) + '</span>' +
+      '<div class="check-body"><h4>' + esc(item.title) + '</h4>' +
+        (item.detail ? '<p class="mono">' + esc(item.detail) + '</p>' : '') +
+        (item.fix ? '<p class="check-fix">Fix: ' + esc(item.fix) + '</p>' : '') +
+      '</div>' +
+    '</div>'
+  ).join('');
+  document.getElementById('checksPanel').hidden = false;
+}
+</script>
+</body>
+</html>

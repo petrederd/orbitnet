@@ -1419,6 +1419,7 @@ function fetchOnce(ip, host, path, secure, timeout) {
           contentType: headers['content-type'] || '',
           title,
           headers,
+          body,
           finalUrl: (secure ? 'https://' : 'http://') + host + path
         };
       };
@@ -2207,6 +2208,392 @@ async function spamCheck(target, options) {
   return result;
 }
 
+// ---------- /api/security (site security audit) ----------
+// Composes the headers check with body- and file-based signals: HSTS preload
+// readiness, security.txt, mixed content and cookie flags, then derives a
+// weighted A-F grade. Body-based checks need the page HTML, so a Worker
+// fallback can only evaluate the header checks.
+function headerValue(headers, name) {
+  if (!headers) return '';
+  const raw = headers[name] != null ? headers[name] : headers[name.toLowerCase()];
+  if (raw == null) return '';
+  return Array.isArray(raw) ? raw.join(', ') : String(raw);
+}
+
+function parseMaxAge(value) {
+  const match = /max-age\s*=\s*(\d+)/i.exec(String(value || ''));
+  return match ? parseInt(match[1], 10) : null;
+}
+
+function parseCookies(headers) {
+  let raw = headers && (headers['set-cookie'] || headers['Set-Cookie']);
+  if (!raw) return [];
+  if (!Array.isArray(raw)) raw = [raw];
+
+  return raw.map(line => {
+    const text = String(line);
+    const attributes = text.split(';').slice(1).map(part => part.trim());
+    const attributeNames = attributes.map(part => part.split('=')[0].trim().toLowerCase());
+    const sameSite = attributes.find(part => /^samesite\s*=/i.test(part));
+    const first = text.split(';')[0] || '';
+    const eq = first.indexOf('=');
+    return {
+      name: (eq === -1 ? first : first.slice(0, eq)).trim().slice(0, 100),
+      secure: attributeNames.includes('secure'),
+      httpOnly: attributeNames.includes('httponly'),
+      sameSite: sameSite ? String(sameSite.split('=')[1] || '').trim().toLowerCase() : ''
+    };
+  }).filter(cookie => cookie.name);
+}
+
+// Minimal security.txt reader (RFC 9116): field names are case-insensitive and
+// comments start with "#". Only the fields the audit needs are surfaced.
+function parseSecurityTxt(text) {
+  const fields = {};
+  for (const line of String(text || '').split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const idx = trimmed.indexOf(':');
+    if (idx === -1) continue;
+    const key = trimmed.slice(0, idx).trim().toLowerCase();
+    const value = trimmed.slice(idx + 1).trim();
+    if (!key || !value) continue;
+    if (!fields[key]) fields[key] = [];
+    fields[key].push(value.slice(0, 500));
+  }
+  const expires = (fields.expires && fields.expires[0]) || '';
+  let expired = false;
+  if (expires) {
+    const time = Date.parse(expires);
+    if (!Number.isNaN(time) && time < Date.now()) expired = true;
+  }
+  return {
+    contacts: fields.contact || [],
+    expires,
+    expired,
+    canonical: (fields.canonical && fields.canonical[0]) || '',
+    policy: (fields.policy && fields.policy[0]) || ''
+  };
+}
+
+// Namespace URLs and schema hints are not mixed content, even though they use
+// the http scheme.
+const MIXED_CONTENT_IGNORE = /^http:\/\/(www\.w3\.org|schema\.org|purl\.org|ns\.adobe\.com|xmlns\.com)\b/i;
+
+function findMixedContent(html, protocol) {
+  if (protocol !== 'https') return { checked: false, count: 0, items: [] };
+  const items = [];
+  const seen = new Set();
+  const push = (url) => {
+    if (items.length >= 50 || !url) return;
+    if (MIXED_CONTENT_IGNORE.test(url) || seen.has(url)) return;
+    seen.add(url);
+    items.push(url.slice(0, 300));
+  };
+
+  const attrRe = /(?:src|href|action|poster|data)\s*=\s*["']?(http:\/\/[^"'\s>]+)/gi;
+  const cssRe = /url\(\s*["']?(http:\/\/[^"')\s>]+)/gi;
+  let match;
+  while ((match = attrRe.exec(html))) push(match[1]);
+  while ((match = cssRe.exec(html))) push(match[1]);
+  return { checked: true, count: items.length, items };
+}
+
+function securityCheck(id, title, status, score, weight, detail, fix) {
+  return {
+    id, title, status,
+    score: Math.max(0, Math.min(1, score)),
+    weight,
+    detail: detail || '',
+    fix: fix || ''
+  };
+}
+
+// Weighted average over every evaluated check. "unknown" rows are skipped so a
+// Worker-fallback report (headers only) is not penalised for the missing body.
+function gradeFromChecks(checks) {
+  let points = 0;
+  let total = 0;
+  for (const item of checks) {
+    if (item.status === 'unknown') continue;
+    total += item.weight;
+    points += item.weight * item.score;
+  }
+  const score = total ? Math.round((points / total) * 100) : 0;
+  let grade = 'F';
+  if (score >= 90) grade = 'A';
+  else if (score >= 80) grade = 'B';
+  else if (score >= 70) grade = 'C';
+  else if (score >= 60) grade = 'D';
+  else if (score >= 50) grade = 'E';
+  return { grade, score };
+}
+
+function buildSecurityReport(data) {
+  const headers = data.headers || {};
+  const ssl = data.protocol === 'https';
+  const checks = [];
+
+  checks.push(securityCheck('https', 'HTTPS',
+    ssl ? 'pass' : 'fail', ssl ? 1 : 0, 15,
+    ssl ? 'The site answered over HTTPS.' : 'The site answered over plain HTTP.',
+    'Serve the site over HTTPS and redirect HTTP to HTTPS.'));
+
+  const hsts = headerValue(headers, 'strict-transport-security');
+  if (!hsts) {
+    checks.push(securityCheck('hsts', 'HTTP Strict Transport Security', 'fail', 0, 12,
+      'No Strict-Transport-Security header.',
+      'Add "Strict-Transport-Security: max-age=31536000; includeSubDomains".'));
+  } else {
+    const maxAge = parseMaxAge(hsts);
+    const includeSub = /includesubdomains/i.test(hsts);
+    let score = 0.3;
+    if (maxAge != null && maxAge >= 31536000) score = 1;
+    else if (maxAge != null && maxAge >= 15768000) score = 0.8;
+    else if (maxAge != null && maxAge > 0) score = 0.6;
+    if (!includeSub) score = Math.min(score, 0.7);
+    checks.push(securityCheck('hsts', 'HTTP Strict Transport Security',
+      score >= 0.8 && includeSub ? 'pass' : 'warn', score, 12, hsts,
+      'Use a max-age of at least one year and add includeSubDomains.'));
+  }
+
+  const preloadReady = Boolean(hsts) && /preload/i.test(hsts) &&
+    /includesubdomains/i.test(hsts) && (parseMaxAge(hsts) || 0) >= 31536000;
+  checks.push(securityCheck('hsts-preload', 'HSTS preload readiness',
+    !hsts ? 'fail' : (preloadReady ? 'pass' : 'warn'),
+    !hsts ? 0 : (preloadReady ? 1 : 0.4), 6,
+    preloadReady
+      ? 'The HSTS header satisfies the preload requirements (submit it at hstspreload.org to be included).'
+      : 'The HSTS header is missing preload, includeSubDomains or a one-year max-age.',
+    'Emit "max-age=31536000; includeSubDomains; preload", then submit the domain to the preload list.'));
+
+  const csp = headerValue(headers, 'content-security-policy');
+  if (!csp) {
+    checks.push(securityCheck('csp', 'Content-Security-Policy', 'fail', 0, 12,
+      'No Content-Security-Policy header.',
+      "Define a policy, for example \"default-src 'self'\"."));
+  } else {
+    const weak = /unsafe-inline|unsafe-eval|(^|[\s;])\*([\s;]|$)/i.test(csp);
+    let score = weak ? 0.4 : 0.8;
+    if (/default-src/i.test(csp)) score += 0.2;
+    checks.push(securityCheck('csp', 'Content-Security-Policy', weak ? 'warn' : 'pass', score, 12,
+      csp.slice(0, 300),
+      weak ? 'Remove unsafe-inline, unsafe-eval and wildcard sources.' : ''));
+  }
+
+  const xcto = headerValue(headers, 'x-content-type-options');
+  const xctoOk = /nosniff/i.test(xcto);
+  checks.push(securityCheck('xcto', 'X-Content-Type-Options',
+    xctoOk ? 'pass' : 'fail', xctoOk ? 1 : 0, 6,
+    xctoOk ? xcto : 'Missing or invalid X-Content-Type-Options.',
+    'Add "X-Content-Type-Options: nosniff".'));
+
+  const xfo = headerValue(headers, 'x-frame-options');
+  const cspFrame = /frame-ancestors/i.test(csp);
+  const frameOk = /deny|sameorigin/i.test(xfo) || cspFrame;
+  checks.push(securityCheck('frame', 'Clickjacking protection',
+    frameOk ? 'pass' : 'fail', frameOk ? 1 : 0, 6,
+    frameOk
+      ? (cspFrame ? 'CSP frame-ancestors is set.' : xfo)
+      : 'Neither X-Frame-Options nor CSP frame-ancestors is set.',
+    "Add \"X-Frame-Options: DENY\" or CSP \"frame-ancestors 'none'\"."));
+
+  const referrer = headerValue(headers, 'referrer-policy');
+  let referrerStatus = 'fail';
+  let referrerScore = 0;
+  let referrerDetail = 'No Referrer-Policy header.';
+  if (referrer) {
+    if (/unsafe-url|no-referrer-when-downgrade/i.test(referrer)) {
+      referrerStatus = 'warn';
+      referrerScore = 0.5;
+    } else {
+      referrerStatus = 'pass';
+      referrerScore = 1;
+    }
+    referrerDetail = referrer;
+  }
+  checks.push(securityCheck('referrer', 'Referrer-Policy', referrerStatus, referrerScore, 5,
+    referrerDetail, 'Use strict-origin-when-cross-origin or no-referrer.'));
+
+  const permissions = headerValue(headers, 'permissions-policy');
+  checks.push(securityCheck('permissions', 'Permissions-Policy',
+    permissions ? 'pass' : 'warn', permissions ? 1 : 0, 4,
+    permissions || 'No Permissions-Policy header.',
+    'Restrict browser features the site does not use.'));
+
+  const coop = headerValue(headers, 'cross-origin-opener-policy');
+  checks.push(securityCheck('coop', 'Cross-Origin-Opener-Policy',
+    coop ? 'pass' : 'warn', coop ? 1 : 0, 3,
+    coop || 'No Cross-Origin-Opener-Policy header.', ''));
+
+  if (data.securityTxt == null) {
+    checks.push(securityCheck('security-txt', 'security.txt', 'unknown', 0, 8, 'Not evaluated.', ''));
+  } else if (data.securityTxt.found) {
+    const hasContact = data.securityTxt.contacts.length > 0;
+    let score = hasContact ? 1 : 0.5;
+    if (data.securityTxt.expired) score = Math.min(score, 0.5);
+    checks.push(securityCheck('security-txt', 'security.txt',
+      hasContact && !data.securityTxt.expired ? 'pass' : 'warn', score, 8,
+      data.securityTxt.url +
+        (hasContact ? '' : ' (no Contact field)') +
+        (data.securityTxt.expired ? ' (Expires is in the past)' : ''),
+      'Publish a current Contact and Expires field.'));
+  } else {
+    checks.push(securityCheck('security-txt', 'security.txt', 'warn', 0, 8,
+      'No /.well-known/security.txt found.',
+      'Add a security.txt so researchers know how to report issues.'));
+  }
+
+  if (data.cookies == null) {
+    checks.push(securityCheck('cookies', 'Cookie flags', 'unknown', 0, 8, 'Not evaluated.', ''));
+  } else if (!data.cookies.length) {
+    checks.push(securityCheck('cookies', 'Cookie flags', 'pass', 1, 8,
+      'No cookies were set on the first response.', ''));
+  } else {
+    const weak = data.cookies.filter(cookie => !cookie.secure || !cookie.httpOnly || !cookie.sameSite);
+    const score = Math.max(0, 1 - weak.length / data.cookies.length);
+    checks.push(securityCheck('cookies', 'Cookie flags', weak.length ? 'warn' : 'pass', score, 8,
+      data.cookies.map(cookie =>
+        cookie.name +
+        (cookie.secure ? ' [Secure]' : ' [no Secure]') +
+        (cookie.httpOnly ? ' [HttpOnly]' : ' [no HttpOnly]') +
+        (cookie.sameSite ? ' [SameSite=' + cookie.sameSite + ']' : ' [no SameSite]')
+      ).join('; '),
+      'Set Secure, HttpOnly and SameSite on every cookie.'));
+  }
+
+  if (data.bodyChecked === false) {
+    checks.push(securityCheck('mixed', 'Mixed content', 'unknown', 0, 8, 'Not evaluated.', ''));
+  } else if (!ssl) {
+    checks.push(securityCheck('mixed', 'Mixed content', 'unknown', 0, 8, 'Only checked over HTTPS.', ''));
+  } else if (!data.mixedContent || data.mixedContent.count === 0) {
+    checks.push(securityCheck('mixed', 'Mixed content', 'pass', 1, 8,
+      'No http:// resources were found in the HTML.', ''));
+  } else {
+    checks.push(securityCheck('mixed', 'Mixed content', 'fail', 0, 8,
+      data.mixedContent.count + ' http:// resource(s), e.g. ' +
+        data.mixedContent.items.slice(0, 3).join(', '),
+      'Load every resource over HTTPS.'));
+  }
+
+  const { grade, score } = gradeFromChecks(checks);
+  return {
+    host: data.host,
+    ip: data.ip || null,
+    protocol: data.protocol,
+    status: data.status || null,
+    finalUrl: data.finalUrl || '',
+    source: data.source || 'local',
+    bodyChecked: data.bodyChecked !== false,
+    grade,
+    score,
+    checks,
+    cookies: data.cookies || [],
+    securityTxt: data.securityTxt || { found: false },
+    mixedContent: data.mixedContent || { checked: false, count: 0, items: [] },
+    errors: data.errors || {}
+  };
+}
+
+async function fetchSecurityTxt(ip, host) {
+  for (const path of ['/.well-known/security.txt', '/security.txt']) {
+    const result = await outbound(() => fetchOnce(ip, host, path, true));
+    if (!result.error && result.status >= 200 && result.status < 300 && result.body) {
+      return Object.assign({ url: 'https://' + host + path }, parseSecurityTxt(result.body));
+    }
+  }
+  return null;
+}
+
+async function securityAuditLocal(host) {
+  const ips = await resolvePublic(host);
+  const ip = pickAddress(ips);
+  let result = await outbound(() => fetchOnce(ip, host, '/', true));
+  let protocol = 'https';
+  if (result.error) {
+    const httpResult = await outbound(() => fetchOnce(ip, host, '/', false));
+    if (!httpResult.error) { result = httpResult; protocol = 'http'; }
+  }
+  if (result.error) {
+    const error = new Error(result.error);
+    error.unresolved = true;
+    throw error;
+  }
+
+  const headers = result.headers || {};
+  const body = result.body || '';
+  const errors = {};
+  let securityTxt = null;
+  try {
+    const found = await fetchSecurityTxt(ip, host);
+    securityTxt = found || { found: false };
+  } catch (e) {
+    errors.securityTxt = e.message || 'error';
+    securityTxt = { found: false };
+  }
+
+  return buildSecurityReport({
+    host,
+    ip,
+    protocol,
+    status: result.status || null,
+    finalUrl: result.finalUrl || '',
+    headers,
+    body,
+    cookies: parseCookies(headers),
+    securityTxt,
+    mixedContent: findMixedContent(body, protocol),
+    bodyChecked: true,
+    source: 'local',
+    errors
+  });
+}
+
+// Local first. When the local fetch never produced an HTTP status (censorship,
+// blocked route, timeout) the Worker is asked for the response headers, and the
+// audit is graded from the checks that can still be evaluated.
+async function securityAudit(host, context) {
+  try {
+    return await securityAuditLocal(host);
+  } catch (e) {
+    if (e.status || e.blocked || e.busy) throw e;
+
+    const external = await callExternal(
+      opts => externalCheck.checkHttp(host, { follow: true, timeoutMs: opts.timeoutMs }),
+      context
+    );
+    if (external.error || !external.status) {
+      return {
+        host,
+        status: null,
+        protocol: 'https',
+        error: external.error || e.message || 'local check failed',
+        source: external.error ? 'local' : 'worker',
+        unavailable: Boolean(external.unavailable)
+      };
+    }
+
+    const headers = {};
+    for (const item of external.headers || []) headers[item.name.toLowerCase()] = item.value;
+    const report = buildSecurityReport({
+      host,
+      ip: null,
+      protocol: external.protocol,
+      status: external.status,
+      finalUrl: external.finalUrl || '',
+      headers,
+      body: '',
+      cookies: null,
+      securityTxt: null,
+      mixedContent: { checked: false, count: 0, items: [] },
+      bodyChecked: false,
+      source: 'worker'
+    });
+    report.localError = e.message || null;
+    return report;
+  }
+}
+
 // ---------- router ----------
 const server = http.createServer(async (req, res) => {
   res._orbitStarted = Date.now();
@@ -2234,7 +2621,7 @@ const server = http.createServer(async (req, res) => {
     path === '/api/port' || path === '/api/captcha' || path === '/api/whois' || path === '/api/site' ||
     path === '/api/tls' || path === '/api/headers' || path === '/api/email' ||
     path === '/api/propagation' || path === '/api/redirect' ||
-    path === '/api/spam' ||
+    path === '/api/spam' || path === '/api/security' ||
     path === '/api/anonymity' || path === '/api/anonymity/ports' ||
     path === '/api/anonymity/ping';
 
@@ -2488,6 +2875,12 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, await redirectChain(host, externalContext));
     }
 
+    if (path === '/api/security') {
+      const host = query.get('host') || '';
+      if (!isValidHost(host)) return bad(res, 'Invalid hostname');
+      return send(res, 200, await securityAudit(host, externalContext));
+    }
+
     if (path === '/api/spam') {
       const target = (query.get('target') || '').trim();
       if (!target) return bad(res, 'Provide an IP address, domain or email');
@@ -2538,5 +2931,7 @@ module.exports = {
   decodeHtml, propagation, redirectChain, anonymityInfo, anonymityPorts, torStatus,
   hostingSignals, hostnameSignals, proxyHeaderSignals, externalImproves, looksLikeBlockPage,
   spamCheck, parseSpamTarget, parseDnsblRecords, reverseIpName,
-  SPAM_IP_LISTS, SPAM_DOMAIN_LISTS
+  SPAM_IP_LISTS, SPAM_DOMAIN_LISTS,
+  securityAudit, buildSecurityReport, gradeFromChecks, parseSecurityTxt,
+  parseCookies, parseMaxAge, findMixedContent
 };

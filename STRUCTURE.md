@@ -45,17 +45,18 @@ orbitnet/
 │   ├── uuid.test.js               # crypto fallback для UUID
 │   ├── anonymity.test.js          # timezone, private IP, score, WebRTC
 │   ├── spam.test.js               # DNSBL: reverse-метка, коды ответов, IP/домен/email
+│   ├── security.test.js           # аудит: парсеры HSTS/security.txt/cookies/mixed, оценка A-F
 │   ├── external-check.test.js     # Worker-клиент: HTTP/DNS/propagation/email
 │   ├── worker.test.js             # сам Cloudflare Worker с mock fetch
 │   ├── seo.test.js                # canonical, OG, JSON-LD, sitemap, og-image.png
 │   └── live-check.js              # проверка опубликованного сайта
 │
 ├── site/                          # Публичная директория nginx
-│   ├── index.html                 # Каталог 54 инструментов + IP-виджет
+│   ├── index.html                 # Каталог 55 инструментов + IP-виджет
 │   ├── about.html                 # О проекте
 │   ├── 404.html                   # Кастомная страница «не найдено»
 │   ├── robots.txt                 # Индексация и ссылка на sitemap
-│   ├── sitemap.xml                # 56 URL: главная, about, 54 инструмента
+│   ├── sitemap.xml                # 57 URL: главная, about, 55 инструментов
 │   │
 │   ├── icons/
 │   │   └── favicon.svg
@@ -70,7 +71,7 @@ orbitnet/
 │   └── tools/
 │       ├── _template.html         # Шаблон новой страницы
 │       │
-│       ├── networks/              # 22 инструмента
+│       ├── networks/              # 23 инструмента
 │       │   ├── subnet-calculator.html
 │       │   ├── ipv6-subnet-calculator.html
 │       │   ├── ipv6-converter.html
@@ -92,7 +93,8 @@ orbitnet/
 │       │   ├── website-health.html
 │       │   ├── network-diagnostics.html
 │       │   ├── anonymity-check.html
-│       │   └── spam-blacklist-check.html
+│       │   ├── spam-blacklist-check.html
+│       │   └── security-audit.html
 │       │
 │       ├── developer/             # 18 инструментов
 │       │   ├── json-formatter.html
@@ -192,6 +194,7 @@ npm run hooks:install
 - `tests/uuid.test.js` проверяет, что fallback UUID использует `crypto.getRandomValues()`, а не `Math.random()`.
 - `tests/anonymity.test.js` проверяет расчёт часовых поясов, классификацию приватных IP, вклад сигналов в score, безопасное поведение без WebRTC, а также backend-эвристики для hosting/PTR/proxy-заголовков.
 - `tests/spam.test.js` проверяет reverse-метку IPv4, разбор ответов DNSBL (листинг, `127.255.255.x` как blocked, NXDOMAIN как «не в списке»), разбор цели IP/домен/email и `spamCheck` с внедрённым резолвером для IP, домена и MX.
+- `tests/security.test.js` проверяет парсеры HSTS `max-age`, `Set-Cookie`, `security.txt`, mixed content (игнор namespace-URL), отображение score в A–F и сборку отчёта для «хорошего», «плохого» и header-only (Worker) случая.
 - `tests/seo.test.js` проверяет canonical и OG на каждой странице, уникальность URL, соответствие sitemap, JSON-LD `SoftwareApplication`/`WebSite`/`FAQPage` и размеры `og-image.png`.
 - `tests/live-check.js` проверяет доступность всех canonical URL и `og-image.png` на опубликованном сайте.
 
@@ -307,6 +310,7 @@ npm run hooks:install
 | `GET /api/propagation` | dns, external-check | Несколько публичных резолверов; fallback в Worker при отказе всех |
 | `GET /api/redirect` | http/https, external-check | Цепочка редиректов; fallback в Worker при сетевой ошибке |
 | `GET /api/spam` | dns | IP/домен/email по DNSBL/URIBL; reverse-метка, MX-адреса для домена, кэш и лимит запросов |
+| `GET /api/security` | http/https, dns, external-check | Аудит безопасности с оценкой A–F; header-only fallback в Worker при отсутствии локального статуса |
 
 ### Защита
 
@@ -363,7 +367,7 @@ IP клиента берётся из `X-Real-IP`, который выставл
 
 ## SEO и индексация
 
-- `site/sitemap.xml` содержит главную, `about.html` и все 54 инструмента.
+- `site/sitemap.xml` содержит главную, `about.html` и все 55 инструментов.
 - `site/robots.txt` разрешает индексацию и указывает на sitemap.
 - У всех страниц есть canonical и Open Graph.
 - У инструментов есть JSON-LD `SoftwareApplication`; на главной — `WebSite`, `SearchAction` (`/?q=`) и `FAQPage`.
