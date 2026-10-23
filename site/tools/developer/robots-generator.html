@@ -97,7 +97,7 @@
       <div class="input-group">
         <label for="extraGroups">Additional groups (optional)</label>
         <textarea id="extraGroups" spellcheck="false" style="min-height:100px;" placeholder="User-agent: Googlebot&#10;Disallow: /private/&#10;&#10;User-agent: Bingbot&#10;Crawl-delay: 5"></textarea>
-        <small>Add full robots.txt groups with their own <code>User-agent</code>, <code>Allow</code>, <code>Disallow</code>, <code>Crawl-delay</code> or <code>Sitemap</code> lines.</small>
+        <small>Add full robots.txt groups with their own <code>User-agent</code>, <code>Allow</code>, <code>Disallow</code>, <code>Crawl-delay</code> or <code>Sitemap</code> lines. Lines starting with <code>#</code> are comments.</small>
       </div>
       <div class="input-group">
         <label for="crawlDelay">Crawl-delay (seconds, optional)</label>
@@ -199,7 +199,7 @@ function buildRobots(input) {
   if (extra) {
     extra.split(/\r?\n/).forEach((line, index) => {
       const trimmed = line.trim();
-      if (!trimmed) return;
+      if (!trimmed || trimmed.startsWith('#')) return;
       if (!/^(User-agent|Allow|Disallow|Crawl-delay|Sitemap):\s*\S/i.test(trimmed)) {
         throw new Error('Additional group line ' + (index + 1) + ': expected a robots.txt directive');
       }

@@ -151,8 +151,8 @@ test('JSON to CSV flattens objects and escapes delimiters', () => {
 
   assert.equal(context.jsonToCsv('[{"a":1}]', { bom: true }).csv.startsWith('\uFEFF'), true);
   assert.equal(
-    context.jsonToCsv('[{"a":"=1+1","b":"-5","c":"@x","d":"safe"}]', { protectFormulas: true }).csv,
-    'a,b,c,d\r\n\'=1+1,\'-5,\'@x,safe'
+    context.jsonToCsv('[{"a":"=1+1","b":"-5","c":"@x","d":"safe","e":false,"t":-5,"u":-0.5}]', { protectFormulas: true }).csv,
+    'a,b,c,d,e,t,u\r\n\'=1+1,-5,\'@x,safe,false,-5,-0.5'
   );
   assert.equal(
     context.jsonToCsv('[{"a":"=1+1"}]', { protectFormulas: false }).csv,
@@ -209,6 +209,8 @@ test('redirect generator builds nginx and Apache rules', () => {
   assert.throws(() => context.parseRules('/old -> /new 200'), /status must be/);
   assert.throws(() => context.parseRules('/old -> /new%0d%0a'), /encoded CR\/LF/);
   assert.throws(() => context.parseRules('/a;b -> /new'), /unsafe/);
+  assert.throws(() => context.parseRules("/it's -> /x"), /unsafe/);
+  assert.throws(() => context.parseRules('/old -> /x`'), /unsafe/);
   assert.throws(() => context.parseRules('/old -> /new$evil'), /only allowed/);
   assert.throws(
     () => context.generateRedirects(context.parseRules('/blog/* -> /new 308'), { server: 'nginx' }),
@@ -249,6 +251,11 @@ test('robots generator validates paths and emits directives', () => {
   });
   assert.match(multiple, /User-agent: Googlebot\nUser-agent: Bingbot\nDisallow:/);
   assert.match(multiple, /\n\nUser-agent: Yandex\nDisallow: \/private\//);
+  const commented = context.buildRobots({
+    userAgent: '*',
+    extraGroups: '# crawler override\nUser-agent: Yandex\nDisallow: /private/',
+  });
+  assert.match(commented, /# crawler override\nUser-agent: Yandex\nDisallow: \/private\//);
   assert.throws(() => context.buildRobots({ userAgent: '*', allow: [], disallow: ['admin'] }), /must start with/);
   assert.throws(() => context.buildRobots({ userAgent: 'bad agent' }), /must not contain spaces/);
   assert.throws(() => context.buildRobots({ userAgent: '*', sitemap: 'sitemap.xml' }), /absolute http/);
@@ -289,7 +296,9 @@ test('security header sanitizer normalizes names, values and duplicates', () => 
   assert.ok(snippet.includes('add_header Content-Security-Policy "default-src \'self\'" always;'));
   assert.ok(snippet.includes('add_header X-Frame-Options "DENY" always;'));
   assert.ok(context.nginxSnippet(new Map([['x-test', 'a"b\\c$d']]))
-    .includes('add_header X-Test "a\\"b\\\\c\\$d" always;'));
+    .includes('add_header X-Test "a\\"b\\\\c$d" always;'));
+  const dollarHeader = context.analyzeHeaders(context.parseHeaders('X-Test: $value\n'));
+  assert.ok(dollarHeader.findings.some(item => item.name === 'x-test' && /expands it as a variable/.test(item.message)));
 
   const disabledHsts = context.analyzeHeaders(context.parseHeaders('Strict-Transport-Security: max-age=0\n'));
   assert.ok(disabledHsts.findings.some(item => item.name === 'Strict-Transport-Security' && item.severity === 'error' && /disables HSTS/.test(item.message)));

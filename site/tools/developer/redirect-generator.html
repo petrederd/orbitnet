@@ -123,7 +123,8 @@
 /docs/* -> https://docs.example.com/$1
 http://example.com/legacy -> https://example.com/new 308</div>
     <p style="margin-top:12px;">nginx exact rules use <code>location =</code> and <code>return</code>; wildcard rules use <code>rewrite</code> so the suffix is not taken from a decoded <code>return</code> capture. Apache uses <code>RedirectMatch</code> for both exact and wildcard paths.</p>
-    <p>Source and target values reject control characters, quotes, backslashes, <code>$</code> (except the wildcard <code>$1</code> placeholder), braces and semicolons. Regex metacharacters in the source path are escaped automatically. nginx wildcard rules support 301 and 302; use Apache for wildcard 307/308.</p>
+    <p>Source and target values reject control characters, single/double quotes, backticks, backslashes, <code>$</code> (except the wildcard <code>$1</code> placeholder), braces and semicolons. Regex metacharacters in the source path are escaped automatically. nginx wildcard rules support 301 and 302; use Apache for wildcard 307/308.</p>
+    <p><strong>nginx ordering:</strong> wildcard <code>rewrite</code> rules run at server level before nginx selects a <code>location</code>. If a wildcard source is a prefix of an exact source, the wildcard handles the request regardless of the order in this list. Avoid overlapping rules, put exact-only paths under a non-overlapping prefix, or use Apache for mixed rules.</p>
     <p>Always test redirects in a staging environment. Avoid redirect chains, and use 301/308 only when the move is permanent.</p>
   </div>
 </main>
@@ -164,7 +165,7 @@ function sourcePath(value, line) {
   }
   if (!source.startsWith('/')) throw new Error('Line ' + line + ': source must start with "/": ' + source);
   if (/[\x00-\x1F\x7F\s]/.test(source)) throw new Error('Line ' + line + ': source must not contain whitespace or control characters');
-  if (/[{};"\\$#?]/.test(source)) throw new Error('Line ' + line + ': source contains a character that is unsafe in a redirect rule');
+  if (/[{};"'`\\$#?]/.test(source)) throw new Error('Line ' + line + ': source contains a character that is unsafe in a redirect rule');
   if (/%0d|%0a/i.test(source)) throw new Error('Line ' + line + ': source must not contain encoded CR/LF');
   if (source.includes('*') && (!source.endsWith('*') || source.slice(0, -1).includes('*'))) {
     throw new Error('Line ' + line + ': "*" is only allowed once at the end of the source');
@@ -176,7 +177,7 @@ function targetValue(value, wildcard, line) {
   const target = String(value).trim();
   if (!target) throw new Error('Line ' + line + ': empty target URL');
   if (/[\x00-\x1F\x7F\s]/.test(target)) throw new Error('Line ' + line + ': target must not contain whitespace or control characters');
-  if (/[{};"\\]/.test(target)) throw new Error('Line ' + line + ': target contains a character that is unsafe in a redirect rule');
+  if (/[{};"'`\\]/.test(target)) throw new Error('Line ' + line + ': target contains a character that is unsafe in a redirect rule');
   if (/%0d|%0a/i.test(target)) throw new Error('Line ' + line + ': target must not contain encoded CR/LF');
   const dollarCheck = wildcard ? target.replace(/\$1/g, '') : target;
   if (dollarCheck.includes('$')) throw new Error('Line ' + line + ': "$" is only allowed as the wildcard "$1" placeholder');

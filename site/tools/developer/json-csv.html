@@ -120,7 +120,7 @@
       <li>Arrays and nested objects that are not flattened are serialized as JSON strings inside the cell.</li>
       <li><code>null</code> becomes an empty cell; booleans and numbers use their JSON text.</li>
       <li>Fields containing commas, quotes or newlines are quoted and embedded quotes are doubled, as required by RFC 4180.</li>
-      <li>With formula protection enabled, cells beginning with <code>=</code>, <code>+</code>, <code>-</code>, <code>@</code>, tab or carriage return get a leading apostrophe. This prevents CSV formula injection when the file is opened in Excel or LibreOffice.</li>
+      <li>With formula protection enabled, string cells beginning with <code>=</code>, <code>+</code>, <code>-</code>, <code>@</code>, tab or carriage return get a leading apostrophe. Numbers, booleans and numeric strings such as <code>-5</code> are left unchanged, so negative values stay numeric.</li>
       <li>Numbers are parsed with <code>JSON.parse</code>, which uses IEEE-754 doubles. Integers above <code>2^53-1</code> can lose precision, and <code>1.0</code> is indistinguishable from <code>1</code>.</li>
     </ul>
   </div>
@@ -166,13 +166,15 @@ function flattenObject(value, prefix, output) {
 }
 
 function protectFormula(text) {
+  if (/^[+-]?\d+(?:\.\d+)?$/.test(text)) return text;
   return /^[=+\-@\t\r]/.test(text) ? "'" + text : text;
 }
 
 function cellText(value, protectFormulas) {
   if (value === null || value === undefined) return '';
   const text = typeof value === 'object' ? JSON.stringify(value) : String(value);
-  return protectFormulas ? protectFormula(text) : text;
+  const needsProtection = protectFormulas && typeof value !== 'number' && typeof value !== 'boolean';
+  return needsProtection ? protectFormula(text) : text;
 }
 
 function csvEscape(value, delimiter, protectFormulas) {

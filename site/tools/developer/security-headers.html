@@ -109,6 +109,7 @@ Server: nginx/1.27.0</textarea>
       <li><strong>Fingerprinting / legacy</strong> headers such as <code>Server</code>, <code>X-Powered-By</code> and <code>X-XSS-Protection</code>.</li>
     </ul>
     <p>The sanitizer normalizes names, trims values, removes duplicates and empty headers, and keeps the first occurrence of each header.</p>
+    <p>nginx expands <code>$name</code> inside <code>add_header</code> values. The report warns when a value contains <code>$</code>, because there is no reliable backslash escape; rename or avoid the variable text in nginx.</p>
   </div>
 </main>
 
@@ -187,6 +188,11 @@ function analyzeHeaders(headers) {
   const value = name => map.get(name) || '';
 
   duplicates.forEach(name => add('error', name, 'Duplicate header; only the first occurrence is kept.'));
+  for (const [name, headerValue] of map) {
+    if (headerValue.includes('$')) {
+      add('warn', name, 'Value contains "$"; nginx add_header expands it as a variable. There is no reliable backslash escape; remove or rename the dollar text.');
+    }
+  }
 
   if (!has('content-security-policy')) {
     add('warn', 'Content-Security-Policy', 'Missing. Add a policy that restricts scripts, objects and framing.');
@@ -276,7 +282,7 @@ function analyzeHeaders(headers) {
 function nginxSnippet(map) {
   const names = [...map.keys()].sort();
   return names.map(name => {
-    const value = String(map.get(name)).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$');
+    const value = String(map.get(name)).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
     return 'add_header ' + name.replace(/(^|-)([a-z])/g, (m, dash, letter) => dash + letter.toUpperCase()) + ' "' + value + '" always;';
   }).join('\n') + '\n';
 }

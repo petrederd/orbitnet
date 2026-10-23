@@ -98,6 +98,7 @@
     <div class="code-block">minute   hour   day-of-month   month   day-of-week
 0-59     0-23   1-31           1-12    0-7 (0 and 7 = Sunday)</div>
     <p style="margin-top:12px;">Supported syntax: <code>*</code>, <code>5</code>, <code>1-10</code>, <code>*/5</code>, <code>1-10/2</code>, comma lists, three-letter month names (JAN–DEC) and weekday names (SUN–SAT). <code>?</code> is treated as <code>*</code>.</p>
+    <p>When both day-of-month and day-of-week are restricted, either field matching is enough (classic Vixie cron). A field beginning with <code>*</code>, including <code>*/2</code>, counts as unrestricted for this rule. Quartz and some other cron implementations interpret these combinations differently.</p>
     <p>Next runs are searched for up to eight years, which covers leap-day schedules even across skipped century leap years. The preview uses your browser's local time zone.</p>
   </div>
 </main>
