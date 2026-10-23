@@ -6,7 +6,10 @@ const path = require('node:path');
 
 const api = require(path.join('..', 'backend', 'server.js'));
 
-const { parseSpamTarget, parseDnsblRecords, reverseIpName, spamCheck, SPAM_IP_LISTS } = api;
+const {
+  parseSpamTarget, parseDnsblRecords, reverseIpName, spamCheck,
+  SPAM_IP_LISTS, SPAM_CACHE_TTL, SPAM_BLOCKED_CACHE_TTL, domainSuffixes
+} = api;
 
 function nxdomain() {
   return Promise.reject(Object.assign(new Error('not found'), { code: 'ENOTFOUND' }));
@@ -38,6 +41,47 @@ test('parseDnsblRecords classifies listed, blocked and clean answers', () => {
   assert.deepEqual(parseDnsblRecords(null), { listed: false, blocked: false, code: '', reason: '' });
 });
 
+test('Spamhaus PBL and Mailspike reputation codes are not spam listings', () => {
+  const zen = SPAM_IP_LISTS.find(item => item.zone === 'zen.spamhaus.org');
+  const pbl = parseDnsblRecords(['127.0.0.10'], zen);
+  assert.equal(pbl.listed, true);
+  assert.equal(pbl.spam, false);
+  assert.equal(pbl.category, 'pbl');
+  assert.equal(pbl.label, 'PBL: dynamic IP range');
+
+  const mailspike = SPAM_IP_LISTS.find(item => item.zone === 'bl.mailspike.net');
+  const reputation = parseDnsblRecords(['127.9.0.1'], mailspike);
+  assert.equal(reputation.listed, true);
+  assert.equal(reputation.spam, false);
+  assert.equal(reputation.category, 'reputation');
+  assert.match(reputation.label, /Mailspike reputation/);
+});
+
+test('domain checks use the registrable parent and never a public suffix', () => {
+  assert.deepEqual(domainSuffixes('mail.example.com'), ['mail.example.com', 'example.com']);
+  assert.deepEqual(domainSuffixes('example.co.uk'), ['example.co.uk']);
+  assert.deepEqual(domainSuffixes('mail.example.co.uk'), ['mail.example.co.uk', 'example.co.uk']);
+});
+
+test('blocked answers use a much shorter cache TTL than clean answers', () => {
+  assert.equal(SPAM_CACHE_TTL, 10 * 60 * 1000);
+  assert.ok(SPAM_BLOCKED_CACHE_TTL >= 30 * 1000);
+  assert.ok(SPAM_BLOCKED_CACHE_TTL <= 60 * 1000);
+});
+
+test('spamCheck queries the parent domain for a subdomain target', async () => {
+  const resolve = (name, type) => {
+    if (type === 'A' && name === 'example.com.dbl.spamhaus.org') return Promise.resolve(['127.0.1.168']);
+    if (type === 'A' && name === 'mail.example.com') return Promise.resolve(['93.184.216.34']);
+    return nxdomain();
+  };
+
+  const result = await spamCheck('mail.example.com', { resolve });
+  const dbl = result.domains[0].lists.find(item =>
+    item.name === 'Spamhaus DBL' && item.lookup === 'example.com');
+  assert.equal(dbl.listed, true);
+});
+
 test('parseSpamTarget detects IP, domain and email; rejects junk', () => {
   assert.deepEqual(parseSpamTarget('1.2.3.4'), { kind: 'ip', ip: '1.2.3.4' });
   assert.deepEqual(parseSpamTarget('Example.COM'), { kind: 'domain', host: 'example.com' });
@@ -66,6 +110,19 @@ test('spamCheck reports a listed and a blocked IP', async () => {
   const blockedZen = blocked.ips[0].lists.find(item => item.name === 'Spamhaus ZEN');
   assert.equal(blockedZen.listed, false);
   assert.equal(blockedZen.blocked, true);
+});
+
+test('spamCheck flags a blocked resolver with the Spamhaus canary', async () => {
+  const resolve = (name, type) => {
+    if (type === 'A' && name === '2.0.0.127.zen.spamhaus.org') {
+      return Promise.resolve(['127.255.255.254']);
+    }
+    return nxdomain();
+  };
+
+  const result = await spamCheck('8.8.8.8', { resolve });
+  assert.equal(result.resolver.blocked, true);
+  assert.equal(result.resolver.code, '127.255.255.254');
 });
 
 test('spamCheck keeps query errors separate from clean answers', async () => {

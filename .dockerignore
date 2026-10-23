@@ -1,0 +1,10 @@
+.git
+.github
+.env
+node_modules
+backend/node_modules
+worker
+data
+tests
+site/**
+!site/assets/js/security-header-rules.js

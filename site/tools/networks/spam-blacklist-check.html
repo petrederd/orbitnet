@@ -43,6 +43,7 @@
   .bl-badge.listed { color: var(--danger); background: rgba(242,139,130,.1); }
   .bl-badge.clean { color: var(--accent); background: rgba(110,207,160,.1); }
   .bl-badge.blocked { color: var(--warning); background: rgba(245,198,107,.1); }
+  .bl-badge.info { color: var(--warning); background: rgba(245,198,107,.07); }
   .bl-badge.error { color: var(--muted); background: rgba(154,154,162,.08); }
   .bl-detail { flex: 1 1 220px; color: var(--muted); font-size: .82rem; line-height: 1.45; }
   .mono { font-family: ui-monospace, Menlo, Consolas, monospace; word-break: break-all; }
@@ -159,7 +160,10 @@ function clearError() { document.getElementById('errorMsg').innerHTML = ''; }
 function verdict(item) {
   if (item.error) return { kind: 'error', label: 'Error' };
   if (item.blocked) return { kind: 'blocked', label: 'Blocked' };
-  if (item.listed) return { kind: 'listed', label: 'Listed' };
+  if (item.listed) {
+    if (item.spam === false) return { kind: 'info', label: item.label || 'Informational listing' };
+    return { kind: 'listed', label: item.label || 'Listed' };
+  }
   return { kind: 'clean', label: 'Not listed' };
 }
 
@@ -175,7 +179,7 @@ function listRows(lists) {
           : ''));
     return '<div class="bl-row">' +
       '<span class="bl-name">' + esc(item.name) + '</span>' +
-      '<span class="bl-badge ' + v.kind + '">' + v.label + '</span>' +
+      '<span class="bl-badge ' + v.kind + '">' + esc(v.label) + '</span>' +
       '<span class="bl-detail">' + detail + '</span>' +
       '</div>';
   }).join('');
@@ -207,7 +211,7 @@ function run() {
 }
 
 function render(d) {
-  let listed = 0, blocked = 0, errors = 0, unsupported = 0;
+  let listed = 0, blocked = 0, errors = 0, informational = 0, unsupported = 0;
   const allGroups = [];
 
   if (d.kind === 'ip') {
@@ -236,22 +240,31 @@ function render(d) {
       totalLists++;
       const v = verdict(item);
       if (v.kind === 'listed') listed++;
+      else if (v.kind === 'info') informational++;
       else if (v.kind === 'blocked') blocked++;
       else if (v.kind === 'error') errors++;
     });
   });
 
   const kindLabel = { ip: 'IP address', domain: 'Domain', email: 'Email' }[d.kind] || 'Target';
-  const summaryClass = listed ? 'error' : (blocked || !totalLists ? 'info' : 'success');
+  const resolverBlocked = Boolean(d.resolver && d.resolver.blocked);
+  const incomplete = blocked > 0 || errors > 0 || resolverBlocked;
+  const summaryClass = listed ? 'error' : ((incomplete || !totalLists) ? 'warning' : 'success');
   const summaryText = listed
     ? listed + ' listing' + (listed === 1 ? '' : 's') + ' found'
-    : (!totalLists
-      ? 'No database was queried for this target'
-      : (blocked ? 'No listing found, but some lists refused the query' : 'Not listed on the checked databases'));
+    : (incomplete
+      ? 'Could not verify all lists'
+      : (!totalLists
+        ? 'No database was queried for this target'
+        : (informational
+          ? 'No spam listings found, but some lists returned informational codes'
+          : 'Not listed on the checked databases')));
   const notes = [];
   if (blocked) notes.push(blocked + ' blocked');
+  if (informational) notes.push(informational + ' informational');
   if (unsupported) notes.push(unsupported + ' not supported');
   if (errors) notes.push(errors + ' query error' + (errors === 1 ? '' : 's'));
+  if (resolverBlocked) notes.push('DNSBL resolver blocked');
 
   document.getElementById('summary').innerHTML =
     '<div class="status-box ' + summaryClass + '"><strong>' + esc(summaryText) + '</strong>' +
@@ -260,7 +273,11 @@ function render(d) {
     (notes.length ? ' · ' + esc(notes.join(', ')) : '') +
     '</div></div>';
 
-  document.getElementById('details').innerHTML = allGroups.join('');
+  const resolverWarning = resolverBlocked
+    ? '<div class="status-box warning"><strong>DNSBL resolver is blocked.</strong> ' +
+      esc(d.resolver.reason || 'Spamhaus refused the test query; results may be incomplete.') + '</div>'
+    : '';
+  document.getElementById('details').innerHTML = resolverWarning + allGroups.join('');
 }
 </script>
 </body>

@@ -118,6 +118,7 @@ Server: nginx/1.27.0</textarea>
   <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../about.html">About</a></div>
 </footer>
 
+<script src="../../assets/js/security-header-rules.js"></script>
 <script>
 document.getElementById('year').textContent = new Date().getFullYear();
 
@@ -198,33 +199,33 @@ function analyzeHeaders(headers) {
     add('warn', 'Content-Security-Policy', 'Missing. Add a policy that restricts scripts, objects and framing.');
   } else {
     const csp = value('content-security-policy');
-    if (!/(^|;)\s*(default-src|script-src)\b/i.test(csp)) {
+    const cspInfo = SecurityHeaderRules.evaluateCsp(csp);
+    if (!cspInfo.hasScriptPolicy) {
       add('error', 'Content-Security-Policy', 'No default-src or script-src directive found.');
     } else {
       add('good', 'Content-Security-Policy', 'A script/default policy is present.');
     }
-    const hasNonceOrStrictDynamic = /'nonce-[^']+'/i.test(csp) || /'strict-dynamic'/i.test(csp);
-    if (/unsafe-inline/i.test(csp) && !hasNonceOrStrictDynamic) {
+    if (cspInfo.unsafeInline) {
       add('warn', 'Content-Security-Policy', "Contains 'unsafe-inline'; prefer nonces or hashes.");
     }
-    if (/unsafe-eval/i.test(csp)) add('warn', 'Content-Security-Policy', "Contains 'unsafe-eval'; remove it if possible.");
+    if (cspInfo.unsafeEval) add('warn', 'Content-Security-Policy', "Contains 'unsafe-eval'; remove it if possible.");
   }
 
   if (!has('strict-transport-security')) {
     add('warn', 'Strict-Transport-Security', 'Missing. Add HSTS once HTTPS is reliable.');
   } else {
     const hsts = value('strict-transport-security');
-    const match = hsts.match(/max-age\s*=\s*(\d+)/i);
-    if (!match) {
+    const hstsInfo = SecurityHeaderRules.evaluateHsts(hsts);
+    if (hstsInfo.maxAge == null) {
       add('error', 'Strict-Transport-Security', 'max-age is missing.');
-    } else if (Number(match[1]) === 0) {
+    } else if (hstsInfo.maxAge === 0) {
       add('error', 'Strict-Transport-Security', 'max-age=0 disables HSTS.');
-    } else if (Number(match[1]) < 31536000) {
+    } else if (hstsInfo.maxAge < 31536000) {
       add('warn', 'Strict-Transport-Security', 'max-age is below one year.');
     } else {
       add('good', 'Strict-Transport-Security', 'max-age is at least one year.');
     }
-    if (!/includeSubDomains/i.test(hsts)) add('info', 'Strict-Transport-Security', 'includeSubDomains is not set.');
+    if (!hstsInfo.includeSubDomains) add('info', 'Strict-Transport-Security', 'includeSubDomains is not set.');
   }
 
   const xcto = value('x-content-type-options');
@@ -234,16 +235,13 @@ function analyzeHeaders(headers) {
 
   const xfo = value('x-frame-options');
   const csp = value('content-security-policy');
-  const frameDirective = csp.split(';').map(part => part.trim()).find(part => /^frame-ancestors\b/i.test(part)) || '';
-  const frameValues = frameDirective.split(/\s+/).slice(1);
-  const frameWildcard = frameValues.includes('*');
-  const cspFrames = Boolean(frameDirective) && frameValues.length > 0 && !frameWildcard;
-  if (frameWildcard) {
+  const frameInfo = SecurityHeaderRules.evaluateFrameProtection(xfo, csp);
+  if (frameInfo.wildcard) {
     add('warn', 'Content-Security-Policy', "frame-ancestors * does not restrict framing.");
   }
-  if (!has('x-frame-options') && !cspFrames) {
+  if (!has('x-frame-options') && !frameInfo.cspRestrictive) {
     add('warn', 'X-Frame-Options', 'Missing and no restrictive frame-ancestors directive was found.');
-  } else if (!has('x-frame-options') && cspFrames) {
+  } else if (!has('x-frame-options') && frameInfo.cspRestrictive) {
     add('good', 'X-Frame-Options', 'Framing is restricted by the CSP frame-ancestors directive.');
   } else if (has('x-frame-options') && !/^(deny|sameorigin)$/i.test(xfo)) {
     add('error', 'X-Frame-Options', 'Use DENY or SAMEORIGIN.');

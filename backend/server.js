@@ -9,7 +9,14 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 const maxmind = require('maxmind');
+const { getDomain } = require('tldts');
 const externalCheck = require('./external-check');
+let securityHeaderRules;
+try {
+  securityHeaderRules = require('./site/assets/js/security-header-rules.js');
+} catch (e) {
+  securityHeaderRules = require('../site/assets/js/security-header-rules.js');
+}
 
 const PORT = process.env.PORT || 3000;
 const OUTBOUND_TIMEOUT = 8000;
@@ -33,6 +40,10 @@ function positiveIntEnv(name, def) {
 }
 const MAX_CONCURRENT = positiveIntEnv('MAX_CONCURRENT', 24);
 const MAX_QUEUE = positiveIntEnv('MAX_QUEUE', 100);
+// DNS queries do not hold sockets, so DNSBL lookups get their own larger
+// process-wide pool instead of competing with whois/port/TLS jobs.
+const DNSBL_MAX_CONCURRENT = positiveIntEnv('DNSBL_MAX_CONCURRENT', 48);
+const DNSBL_MAX_QUEUE = positiveIntEnv('DNSBL_MAX_QUEUE', 200);
 const RATE_WINDOW_MS = 60000;
 const RATE_MAX = 60;
 const RATE_MAX_ENTRIES = 10000;
@@ -771,17 +782,24 @@ function createLimiter(max, maxQueue) {
   });
 }
 const outbound = createLimiter(MAX_CONCURRENT, MAX_QUEUE);
+const dnsbl = createLimiter(DNSBL_MAX_CONCURRENT, DNSBL_MAX_QUEUE);
+// A deep scan costs 16 handshakes. Cap how many scans run at once across the
+// whole process so one client cannot fill the shared outbound queue.
+const TLS_DEEP_GLOBAL_MAX = positiveIntEnv('TLS_DEEP_GLOBAL_MAX', 2);
+const tlsDeepGate = createLimiter(TLS_DEEP_GLOBAL_MAX, 8);
 
 const rateHits = new Map();
 const portHits = new Map();
 const tlsDeepHits = new Map();
+const securityHits = new Map();
 const PORT_RATE_MAX = 3;
 const TLS_DEEP_RATE_MAX = 8;
+const SECURITY_RATE_MAX = 10;
 let lastRatePrune = Date.now();
 function isRateLimited(ip, store = rateHits, max = RATE_MAX) {
   const now = Date.now();
   if (now - lastRatePrune > RATE_WINDOW_MS) {
-    for (const map of [rateHits, portHits, tlsDeepHits]) {
+    for (const map of [rateHits, portHits, tlsDeepHits, securityHits, spamHits]) {
       for (const [key, rec] of map) {
         if (now - rec.start > RATE_WINDOW_MS) map.delete(key);
       }
@@ -1178,6 +1196,29 @@ function verifyCaptcha(id, answer, ip) {
 const HOSTNAME_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/i;
 function isValidHost(host) {
   return typeof host === 'string' && host.length <= 253 && HOSTNAME_RE.test(host);
+}
+
+// Public-suffix aware helpers. DNSBLs and CAA expect a registrable domain, not
+// an arbitrary subdomain or a public suffix such as co.uk.
+function registrableDomain(host) {
+  const value = String(host || '').toLowerCase();
+  if (!value || net.isIP(value)) return '';
+  return getDomain(value, { allowPrivateDomains: false }) || '';
+}
+
+function domainSuffixes(host) {
+  const value = String(host || '').toLowerCase().replace(/\.$/, '');
+  const labels = value.split('.').filter(Boolean);
+  const registrable = registrableDomain(value);
+  if (!registrable) return labels.length ? [value] : [];
+  const regLabels = registrable.split('.');
+  const count = labels.length - regLabels.length + 1;
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    const name = labels.slice(i).join('.');
+    if (!out.includes(name)) out.push(name);
+  }
+  return out;
 }
 const DNS_TYPES = new Set(['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'SOA', 'CAA', 'PTR']);
 const PROPAGATION_TYPES = new Set(['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'SOA', 'CAA']);
@@ -1648,19 +1689,22 @@ const TLS_PROBE_TIMEOUT = 5000;
 // "TLSv1" is how Node names TLS 1.0.
 const TLS_VERSION_PROBES = ['TLSv1.3', 'TLSv1.2', 'TLSv1.1', 'TLSv1'];
 const TLS_CIPHER_PROBES = [
-  { name: 'ECDHE-ECDSA-AES128-GCM-SHA256', weak: false },
-  { name: 'ECDHE-RSA-AES128-GCM-SHA256', weak: false },
-  { name: 'ECDHE-ECDSA-AES256-GCM-SHA384', weak: false },
-  { name: 'ECDHE-RSA-AES256-GCM-SHA384', weak: false },
-  { name: 'ECDHE-ECDSA-CHACHA20-POLY1305', weak: false },
-  { name: 'ECDHE-RSA-CHACHA20-POLY1305', weak: false },
-  { name: 'AES128-GCM-SHA256', weak: false },
-  { name: 'AES256-GCM-SHA384', weak: false },
-  { name: 'ECDHE-RSA-AES128-SHA', weak: true },
-  { name: 'ECDHE-RSA-AES256-SHA', weak: true },
-  { name: 'DES-CBC3-SHA', weak: true },
-  { name: 'RC4-SHA', weak: true }
-];
+  'ECDHE-ECDSA-AES128-GCM-SHA256',
+  'ECDHE-RSA-AES128-GCM-SHA256',
+  'ECDHE-ECDSA-AES256-GCM-SHA384',
+  'ECDHE-RSA-AES256-GCM-SHA384',
+  'ECDHE-ECDSA-CHACHA20-POLY1305',
+  'ECDHE-RSA-CHACHA20-POLY1305',
+  'AES128-GCM-SHA256',
+  'AES256-GCM-SHA384',
+  'ECDHE-RSA-AES128-SHA',
+  'ECDHE-RSA-AES256-SHA',
+  'DES-CBC3-SHA',
+  'RC4-SHA'
+].map(name => {
+  const strength = classifyCipher(name).strength;
+  return { name, strength, weak: strength === 'weak' };
+});
 
 function parseSubjectAltName(value) {
   if (!value) return [];
@@ -1710,11 +1754,10 @@ function normalizeCaaRecord(raw) {
   return { flag, tag: '', value: raw.value != null ? String(raw.value) : '' };
 }
 
-// RFC 8659: the authority is found on the exact name or the nearest ancestor.
+// RFC 8659: the authority is found on the exact name or the nearest ancestor,
+// but never above the registrable domain (e.g. not on co.uk).
 async function caaLookup(host) {
-  const labels = String(host).split('.').filter(Boolean);
-  for (let i = 0; i + 2 <= labels.length; i++) {
-    const name = labels.slice(i).join('.');
+  for (const name of domainSuffixes(host)) {
     try {
       const records = await withTimeout(dns.resolveCaa(name), DNS_TIMEOUT, 'CAA timeout');
       return { found: true, domain: name, records: records.map(normalizeCaaRecord) };
@@ -1772,14 +1815,25 @@ function probeResult(r) {
 
 async function tlsDeepProbe(ip, host, port) {
   const versions = await Promise.all(TLS_VERSION_PROBES.map(async (version) => {
-    const r = await outbound(() => tlsHandshake(
-      ip, host, port, { minVersion: version, maxVersion: version }, TLS_PROBE_TIMEOUT));
+    const extra = { minVersion: version, maxVersion: version };
+    // Older protocols are disabled at OpenSSL's default security level. Lower
+    // it only for this probe so the server's real stance can be observed.
+    if (version === 'TLSv1' || version === 'TLSv1.1') extra.ciphers = 'DEFAULT:@SECLEVEL=0';
+    const r = await outbound(() => tlsHandshake(ip, host, port, extra, TLS_PROBE_TIMEOUT));
     return { version, supported: probeResult(r), cipher: r.ok ? r.cipher : '', error: r.ok ? '' : (r.error || '') };
   }));
   const ciphers = await Promise.all(TLS_CIPHER_PROBES.map(async (probe) => {
     const r = await outbound(() => tlsHandshake(
-      ip, host, port, { minVersion: 'TLSv1.2', maxVersion: 'TLSv1.2', ciphers: probe.name }, TLS_PROBE_TIMEOUT));
-    return { name: probe.name, supported: probeResult(r), weak: !!probe.weak, error: r.ok ? '' : (r.error || '') };
+      ip, host, port,
+      { minVersion: 'TLSv1.2', maxVersion: 'TLSv1.2', ciphers: probe.name + ':@SECLEVEL=0' },
+      TLS_PROBE_TIMEOUT));
+    return {
+      name: probe.name,
+      supported: probeResult(r),
+      weak: probe.weak,
+      strength: probe.strength,
+      error: r.ok ? '' : (r.error || '')
+    };
   }));
   return { versions, ciphers };
 }
@@ -1870,10 +1924,16 @@ async function tlsInfo(host, port, options) {
   base.caa = await caaLookup(host).catch(() => ({ found: false, domain: '', records: [] }));
   base.deep = deep;
   if (deep) {
-    const probe = await tlsDeepProbe(ip, host, connectPort);
-    base.protocols = probe.versions;
-    base.versionSummary = summarizeTlsVersions(probe.versions);
-    base.ciphers = probe.ciphers;
+    try {
+      const probe = await tlsDeepGate(() => tlsDeepProbe(ip, host, connectPort));
+      base.protocols = probe.versions;
+      base.versionSummary = summarizeTlsVersions(probe.versions);
+      base.ciphers = probe.ciphers;
+    } catch (e) {
+      base.deepError = e.busy ? 'Deep scan capacity is busy, try again later' : (e.message || 'Deep scan failed');
+      base.protocols = [];
+      base.ciphers = [];
+    }
   }
   return base;
 }
@@ -2164,7 +2224,11 @@ const SPAM_DOMAIN_LISTS = [
 const SPAM_MAX_IPS = 4;
 const SPAM_RATE_MAX = 10;
 const SPAM_CACHE_TTL = 10 * 60 * 1000;
+// A refusal ("blocked") is an operator/capacity signal and can change quickly,
+// so it must not be cached as long as an actual listing or a clean answer.
+const SPAM_BLOCKED_CACHE_TTL = 45 * 1000;
 const SPAM_CACHE_MAX = 4000;
+const SPAM_RESOLVER_TEST = '2.0.0.127.zen.spamhaus.org';
 const spamHits = new Map();
 const spamCache = new Map();
 
@@ -2175,23 +2239,125 @@ const DNSBL_BLOCKED_REASONS = {
   '127.255.255.255': 'Query refused: malformed query or anonymous use'
 };
 
+// Not every 127/8 answer means spam. Spamhaus ZEN mixes PBL (dynamic address
+// space), SBL and XBL; Mailspike and SURBL encode reputation/bitmask codes.
+const SPAM_CODE_TABLE = {
+  'zen.spamhaus.org': {
+    '127.0.0.2': { label: 'SBL: spam source', spam: true },
+    '127.0.0.3': { label: 'SBL: snowshoe spam source', spam: true },
+    '127.0.0.4': { label: 'XBL: exploited machine', spam: true },
+    '127.0.0.5': { label: 'XBL: exploited machine', spam: true },
+    '127.0.0.6': { label: 'XBL: exploited machine', spam: true },
+    '127.0.0.7': { label: 'XBL: exploited machine', spam: true },
+    '127.0.0.9': { label: 'SBL: DROP list', spam: true },
+    '127.0.0.10': { label: 'PBL: dynamic IP range', spam: false, category: 'pbl' },
+    '127.0.0.11': { label: 'PBL: dynamic IP range', spam: false, category: 'pbl' },
+    '127.0.0.12': { label: 'PBL: dynamic IP range', spam: false, category: 'pbl' },
+    '127.0.0.13': { label: 'PBL: dynamic IP range', spam: false, category: 'pbl' },
+    '127.0.0.14': { label: 'PBL: dynamic IP range', spam: false, category: 'pbl' }
+  },
+  'bl.mailspike.net': {
+    '127.0.0.2': { label: 'Mailspike: spam source', spam: true },
+    '127.9.0.1': { label: 'Mailspike reputation: poor', spam: false, category: 'reputation' },
+    '127.9.0.2': { label: 'Mailspike reputation: bad', spam: false, category: 'reputation' },
+    '127.9.0.3': { label: 'Mailspike reputation: very bad', spam: false, category: 'reputation' }
+  },
+  'multi.surbl.org': {
+    '127.0.0.2': { label: 'SURBL: spam domain', spam: true },
+    '127.0.0.4': { label: 'SURBL: phishing domain', spam: true },
+    '127.0.0.8': { label: 'SURBL: malware domain', spam: true },
+    '127.0.0.16': { label: 'SURBL: abused/legitimate domain', spam: false, category: 'informational' }
+  }
+};
+
+function spamCodeInfo(list, code) {
+  const table = (list && SPAM_CODE_TABLE[list.zone]) || {};
+  const info = table[code];
+  if (info) return Object.assign({ category: 'listing', spam: true, label: 'Listed', reason: '' }, info);
+  if (list && list.zone === 'bl.mailspike.net' && /^127\.9\./.test(code)) {
+    return {
+      category: 'reputation',
+      spam: false,
+      label: 'Mailspike reputation code ' + code,
+      reason: 'Mailspike reputation signal; this is not necessarily a spam listing.'
+    };
+  }
+  return { category: 'listing', spam: true, label: 'Listed', reason: '' };
+}
+
 // Blocklist operators reject queries that come from public resolvers, so the
 // deployment can point DNSBL lookups at its own or provider resolver instead.
 // Comma-separated IPs, optionally with a port (e.g. "127.0.0.1:53,10.0.0.1").
-function createSpamResolver() {
+function parseResolverEntry(value) {
+  const text = String(value || '').trim();
+  if (text.startsWith('[')) {
+    const end = text.indexOf(']');
+    if (end === -1) return null;
+    const host = text.slice(1, end);
+    const rest = text.slice(end + 1);
+    const port = /^:\d+$/.test(rest) ? rest.slice(1) : '53';
+    return { host: host, port: port };
+  }
+  const colons = (text.match(/:/g) || []).length;
+  if (colons === 1) {
+    const idx = text.lastIndexOf(':');
+    const port = text.slice(idx + 1);
+    if (/^\d+$/.test(port)) return { host: text.slice(0, idx), port: port };
+  }
+  return { host: text, port: '53' };
+}
+
+function resolverServer(host, port) {
+  return net.isIPv6(host) ? '[' + host + ']:' + port : host + ':' + port;
+}
+
+// Hostnames are accepted too: Compose points this at the bundled Unbound
+// service (orbitnet-unbound:53), and Node's Resolver only takes IP literals.
+async function createSpamResolver() {
   const servers = String(process.env.DNSBL_RESOLVER || '')
     .split(',').map(part => part.trim()).filter(Boolean);
   if (!servers.length) return null;
+  const resolved = [];
+  for (const entry of servers) {
+    const parsed = parseResolverEntry(entry);
+    if (!parsed || !parsed.host) continue;
+    let addresses = [];
+    if (net.isIP(parsed.host)) {
+      addresses = [parsed.host];
+    } else {
+      try {
+        const found = await dns.lookup(parsed.host, { all: true });
+        addresses = found.map(item => normalizeIp(item.address)).filter(ip => net.isIP(ip));
+      } catch (e) {
+        console.warn('spam: cannot resolve DNSBL_RESOLVER host ' + parsed.host + ' (' + e.message + ')');
+        continue;
+      }
+    }
+    for (const address of addresses) resolved.push(resolverServer(address, parsed.port));
+  }
+  if (!resolved.length) {
+    console.warn('spam: DNSBL_RESOLVER did not contain a usable resolver; using the system resolver');
+    return null;
+  }
   try {
     const resolver = new dnsNative.Resolver({ timeout: DNS_TIMEOUT, tries: 2 });
-    resolver.setServers(servers);
+    resolver.setServers(resolved);
     return resolver;
   } catch (e) {
     console.warn('spam: ignoring invalid DNSBL_RESOLVER (' + e.message + ')');
     return null;
   }
 }
-let spamResolver = createSpamResolver();
+let spamResolverPromise = null;
+function getSpamResolver() {
+  if (!spamResolverPromise) {
+    spamResolverPromise = createSpamResolver().catch(e => {
+      console.warn('spam: resolver setup failed (' + e.message + ')');
+      return null;
+    });
+  }
+  return spamResolverPromise;
+}
 
 function spamCacheGet(key) {
   const record = spamCache.get(key);
@@ -2203,21 +2369,34 @@ function spamCacheGet(key) {
   return record.value;
 }
 
-function spamCacheSet(key, value) {
+function spamCacheSet(key, value, ttl = SPAM_CACHE_TTL) {
   if (spamCache.size >= SPAM_CACHE_MAX) {
     const oldest = spamCache.keys().next().value;
     if (oldest !== undefined) spamCache.delete(oldest);
   }
-  spamCache.set(key, { value, expires: Date.now() + SPAM_CACHE_TTL });
+  spamCache.set(key, { value, expires: Date.now() + ttl });
 }
 
 // Single DNS entry point so tests can inject a fake resolver via options.resolve.
 async function spamDns(name, type, options) {
   if (options && typeof options.resolve === 'function') return options.resolve(name, type);
-  const resolver = spamResolver;
+  const resolver = await getSpamResolver();
   if (type === 'TXT') return resolver ? resolver.resolveTxt(name) : dns.resolveTxt(name);
   if (type === 'MX') return resolver ? resolver.resolveMx(name) : dns.resolveMx(name);
   return resolver ? resolver.resolve4(name) : dns.resolve4(name);
+}
+
+function spamQueryTimeout(options, fallback = DNS_TIMEOUT) {
+  if (!options || !options.deadline) return fallback;
+  return Math.max(0, Math.min(fallback, options.deadline - Date.now()));
+}
+
+async function spamDnsTimed(name, type, options) {
+  const timeout = spamQueryTimeout(options);
+  if (timeout <= 0) {
+    throw Object.assign(new Error('Request budget exhausted'), { code: 'EBUDGET' });
+  }
+  return withTimeout(dnsbl(() => spamDns(name, type, options)), timeout, 'DNSBL timeout');
 }
 
 function reverseIpName(ip) {
@@ -2228,7 +2407,7 @@ function reverseIpName(ip) {
 
 // Turns the A answers of a DNSBL query into a structured verdict. Any 127/8
 // address that is not one of the operator status codes is a real listing.
-function parseDnsblRecords(records) {
+function parseDnsblRecords(records, list) {
   for (const address of Array.isArray(records) ? records : []) {
     const norm = normalizeIp(address);
     if (!net.isIPv4(norm) || norm.split('.')[0] !== '127') continue;
@@ -2240,7 +2419,15 @@ function parseDnsblRecords(records) {
         reason: DNSBL_BLOCKED_REASONS[norm] || 'Query refused by the list operator'
       };
     }
-    return { listed: true, blocked: false, code: norm, reason: '' };
+    const base = { listed: true, blocked: false, code: norm, reason: '' };
+    if (!list) return base;
+    const info = spamCodeInfo(list, norm);
+    return Object.assign(base, {
+      category: info.category,
+      spam: info.spam,
+      label: info.label,
+      reason: info.reason || ''
+    });
   }
   return { listed: false, blocked: false, code: '', reason: '' };
 }
@@ -2253,12 +2440,12 @@ async function spamListCheck(lookupName, list, type, options) {
   const name = lookupName + '.' + list.zone;
   let result;
   try {
-    const records = await outbound(() =>
-      withTimeout(spamDns(name, 'A', options), DNS_TIMEOUT, 'DNSBL timeout'));
-    result = Object.assign({ name: list.name, zone: list.zone }, parseDnsblRecords(records));
+    const records = await spamDnsTimed(name, 'A', options);
+    result = Object.assign({ name: list.name, zone: list.zone, lookup: lookupName },
+      parseDnsblRecords(records, list));
     if (result.listed) {
       try {
-        const txt = await withTimeout(spamDns(name, 'TXT', options), DNS_TIMEOUT, 'DNSBL timeout');
+        const txt = await spamDnsTimed(name, 'TXT', options);
         const reason = Array.isArray(txt) && txt[0] ? [].concat(txt[0]).join('') : '';
         if (reason) result.reason = reason.slice(0, 300);
       } catch (e) { /* the A answer already proves the listing */ }
@@ -2266,11 +2453,12 @@ async function spamListCheck(lookupName, list, type, options) {
   } catch (e) {
     if (e.busy) throw e;
     if (e.code === 'ENOTFOUND' || e.code === 'ENODATA') {
-      result = { name: list.name, zone: list.zone, listed: false, blocked: false, code: '', reason: '' };
+      result = { name: list.name, zone: list.zone, lookup: lookupName, listed: false, blocked: false, code: '', reason: '' };
     } else {
       return {
         name: list.name,
         zone: list.zone,
+        lookup: lookupName,
         listed: null,
         blocked: false,
         code: '',
@@ -2278,7 +2466,7 @@ async function spamListCheck(lookupName, list, type, options) {
       };
     }
   }
-  spamCacheSet(key, result);
+  spamCacheSet(key, result, result.blocked ? SPAM_BLOCKED_CACHE_TTL : SPAM_CACHE_TTL);
   return result;
 }
 
@@ -2300,14 +2488,20 @@ async function spamIpCheck(ip, options) {
 }
 
 async function spamDomainCheck(host, options) {
-  const lists = await Promise.all(
-    SPAM_DOMAIN_LISTS.map(list => spamListCheck(host, list, 'domain', options)));
-  return { name: host, lists };
+  // Query the host and its registrable parent (mail.example.com and
+  // example.com) but never a public suffix such as co.uk.
+  const names = domainSuffixes(host);
+  const perName = await Promise.all(names.map(async (name) => {
+    const lists = await Promise.all(
+      SPAM_DOMAIN_LISTS.map(list => spamListCheck(name, list, 'domain', options)));
+    return lists;
+  }));
+  return { name: host, lists: perName.flat() };
 }
 
 async function spamResolveIps(host, options) {
   try {
-    const records = await withTimeout(spamDns(host, 'A', options), DNS_TIMEOUT, 'DNS timeout');
+    const records = await spamDnsTimed(host, 'A', options);
     return [...new Set((Array.isArray(records) ? records : [])
       .map(normalizeIp).filter(ip => net.isIPv4(ip) && isPublicIp(ip)))];
   } catch (e) {
@@ -2317,7 +2511,7 @@ async function spamResolveIps(host, options) {
 
 async function spamResolveMxIps(host, options) {
   try {
-    const mx = await withTimeout(spamDns(host, 'MX', options), DNS_TIMEOUT, 'DNS timeout');
+    const mx = await spamDnsTimed(host, 'MX', options);
     const hosts = (Array.isArray(mx) ? mx : [])
       .sort((a, b) => a.priority - b.priority)
       .map(record => record.exchange).slice(0, SPAM_MAX_IPS);
@@ -2325,6 +2519,31 @@ async function spamResolveMxIps(host, options) {
     return [...new Set(resolved.flat())];
   } catch (e) {
     return [];
+  }
+}
+
+// Spamhaus publishes 2.0.0.127.zen.spamhaus.org as a canary. NXDOMAIN is the
+// healthy answer; any 127/8 answer means the resolver itself is blocked.
+async function spamResolverProbe(options) {
+  try {
+    const records = await spamDnsTimed(SPAM_RESOLVER_TEST, 'A', options);
+    const parsed = parseDnsblRecords(records);
+    if (parsed.listed || parsed.blocked) {
+      return {
+        checked: true,
+        blocked: true,
+        code: parsed.code,
+        reason: 'The DNS resolver is blocked by Spamhaus. Point DNSBL_RESOLVER at the bundled Unbound service or another private recursive resolver.'
+      };
+    }
+    return { checked: true, blocked: false, code: '', reason: '' };
+  } catch (e) {
+    if (e.busy) throw e;
+    // NXDOMAIN/NODATA is the healthy answer for the canary.
+    if (e.code === 'ENOTFOUND' || e.code === 'ENODATA') {
+      return { checked: true, blocked: false, code: '', reason: '' };
+    }
+    return { checked: false, blocked: null, error: e.code || e.message || 'error' };
   }
 }
 
@@ -2362,19 +2581,34 @@ async function spamCheck(target, options) {
       throw Object.assign(httpError(400, 'Only public IP addresses can be checked'), { blocked: true });
     }
     result.ip = parsed.ip;
-    result.ips.push(await spamIpCheck(parsed.ip, options));
+    const [entry, resolver] = await Promise.all([
+      spamIpCheck(parsed.ip, options),
+      spamResolverProbe(options)
+    ]);
+    result.ips.push(entry);
+    result.resolver = resolver;
     return result;
   }
 
   result.host = parsed.host;
-  let ips = parsed.kind === 'email'
-    ? await spamResolveMxIps(parsed.host, options)
-    : await spamResolveIps(parsed.host, options);
-  if (!ips.length) ips = await spamResolveIps(parsed.host, options);
-  ips = ips.slice(0, SPAM_MAX_IPS);
+  // Domain lists and IP lists are independent, so run them together under the
+  // same request deadline instead of spending a full DNS_TIMEOUT on each stage.
+  const [domainEntry, ipEntries, resolver] = await Promise.all([
+    spamDomainCheck(parsed.host, options),
+    (async () => {
+      let ips = parsed.kind === 'email'
+        ? await spamResolveMxIps(parsed.host, options)
+        : await spamResolveIps(parsed.host, options);
+      if (!ips.length) ips = await spamResolveIps(parsed.host, options);
+      ips = ips.slice(0, SPAM_MAX_IPS);
+      return Promise.all(ips.map(ip => spamIpCheck(ip, options)));
+    })(),
+    spamResolverProbe(options)
+  ]);
 
-  result.domains.push(await spamDomainCheck(parsed.host, options));
-  result.ips = await Promise.all(ips.map(ip => spamIpCheck(ip, options)));
+  result.domains.push(domainEntry);
+  result.ips = ipEntries;
+  result.resolver = resolver;
   return result;
 }
 
@@ -2452,20 +2686,45 @@ const MIXED_CONTENT_IGNORE = /^http:\/\/(www\.w3\.org|schema\.org|purl\.org|ns\.
 
 function findMixedContent(html, protocol) {
   if (protocol !== 'https') return { checked: false, count: 0, items: [] };
+  const text = String(html || '');
   const items = [];
   const seen = new Set();
   const push = (url) => {
     if (items.length >= 50 || !url) return;
+    if (!/^http:\/\//i.test(url)) return;
     if (MIXED_CONTENT_IGNORE.test(url) || seen.has(url)) return;
     seen.add(url);
     items.push(url.slice(0, 300));
   };
+  const attrValue = (tag, name) => {
+    const match = new RegExp('\\b' + name + '\\s*=\\s*(?:"([^"]*)"|\'([^\']*)\'|([^\\s>]+))', 'i').exec(tag);
+    return match ? (match[1] != null ? match[1] : (match[2] != null ? match[2] : match[3])) : '';
+  };
 
-  const attrRe = /(?:src|href|action|poster|data)\s*=\s*["']?(http:\/\/[^"'\s>]+)/gi;
+  // Resource-loading attributes only. A plain <a href="http://..."> is a
+  // navigation link, not mixed content, so href is handled below for <link>.
+  const attrRe = /\b(?:src|poster|data|action)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi;
+  const srcsetRe = /\bsrcset\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi;
+  const linkRe = /<link\b[^>]*>/gi;
   const cssRe = /url\(\s*["']?(http:\/\/[^"')\s>]+)/gi;
   let match;
-  while ((match = attrRe.exec(html))) push(match[1]);
-  while ((match = cssRe.exec(html))) push(match[1]);
+
+  while ((match = attrRe.exec(text))) {
+    push(match[1] != null ? match[1] : (match[2] != null ? match[2] : match[3]));
+  }
+  while ((match = srcsetRe.exec(text))) {
+    const value = match[1] != null ? match[1] : (match[2] != null ? match[2] : match[3]);
+    value.split(',').forEach(candidate => {
+      const url = candidate.trim().split(/\s+/)[0];
+      push(url);
+    });
+  }
+  while ((match = linkRe.exec(text))) {
+    const tag = match[0];
+    const rel = attrValue(tag, 'rel').toLowerCase().split(/\s+/).filter(Boolean);
+    if (rel.includes('stylesheet') || rel.includes('preload')) push(attrValue(tag, 'href'));
+  }
+  while ((match = cssRe.exec(text))) push(match[1]);
   return { checked: true, count: items.length, items };
 }
 
@@ -2510,45 +2769,51 @@ function buildSecurityReport(data) {
     'Serve the site over HTTPS and redirect HTTP to HTTPS.'));
 
   const hsts = headerValue(headers, 'strict-transport-security');
-  if (!hsts) {
+  const hstsInfo = securityHeaderRules.evaluateHsts(hsts);
+  if (!hstsInfo.present) {
     checks.push(securityCheck('hsts', 'HTTP Strict Transport Security', 'fail', 0, 12,
       'No Strict-Transport-Security header.',
       'Add "Strict-Transport-Security: max-age=31536000; includeSubDomains".'));
+  } else if (hstsInfo.maxAge == null || hstsInfo.maxAge === 0) {
+    checks.push(securityCheck('hsts', 'HTTP Strict Transport Security', 'fail', 0, 12,
+      hstsInfo.maxAge === 0 ? 'max-age=0 disables HSTS.' : 'The HSTS header has no valid max-age.',
+      'Use "Strict-Transport-Security: max-age=31536000; includeSubDomains".'));
   } else {
-    const maxAge = parseMaxAge(hsts);
-    const includeSub = /includesubdomains/i.test(hsts);
-    let score = 0.3;
-    if (maxAge != null && maxAge >= 31536000) score = 1;
-    else if (maxAge != null && maxAge >= 15768000) score = 0.8;
-    else if (maxAge != null && maxAge > 0) score = 0.6;
-    if (!includeSub) score = Math.min(score, 0.7);
     checks.push(securityCheck('hsts', 'HTTP Strict Transport Security',
-      score >= 0.8 && includeSub ? 'pass' : 'warn', score, 12, hsts,
+      hstsInfo.status, hstsInfo.score, 12, hsts,
       'Use a max-age of at least one year and add includeSubDomains.'));
   }
 
-  const preloadReady = Boolean(hsts) && /preload/i.test(hsts) &&
-    /includesubdomains/i.test(hsts) && (parseMaxAge(hsts) || 0) >= 31536000;
+  const preloadReady = hstsInfo.preloadReady;
   checks.push(securityCheck('hsts-preload', 'HSTS preload readiness',
-    !hsts ? 'fail' : (preloadReady ? 'pass' : 'warn'),
-    !hsts ? 0 : (preloadReady ? 1 : 0.4), 6,
+    !hstsInfo.present ? 'fail' : (preloadReady ? 'pass' : 'warn'),
+    !hstsInfo.present ? 0 : (preloadReady ? 1 : 0.4), 6,
     preloadReady
       ? 'The HSTS header satisfies the preload requirements (submit it at hstspreload.org to be included).'
       : 'The HSTS header is missing preload, includeSubDomains or a one-year max-age.',
     'Emit "max-age=31536000; includeSubDomains; preload", then submit the domain to the preload list.'));
 
   const csp = headerValue(headers, 'content-security-policy');
+  const cspInfo = securityHeaderRules.evaluateCsp(csp);
   if (!csp) {
     checks.push(securityCheck('csp', 'Content-Security-Policy', 'fail', 0, 12,
       'No Content-Security-Policy header.',
       "Define a policy, for example \"default-src 'self'\"."));
+  } else if (!cspInfo.hasScriptPolicy) {
+    checks.push(securityCheck('csp', 'Content-Security-Policy', 'fail', 0, 12,
+      'CSP has no default-src or script-src directive.',
+      'Add default-src or script-src to restrict what the page may load.'));
   } else {
-    const weak = /unsafe-inline|unsafe-eval|(^|[\s;])\*([\s;]|$)/i.test(csp);
+    const weak = cspInfo.unsafeInline || cspInfo.unsafeEval || cspInfo.wildcard;
     let score = weak ? 0.4 : 0.8;
-    if (/default-src/i.test(csp)) score += 0.2;
+    if (cspInfo.hasDefaultSrc) score += 0.2;
+    const problems = [];
+    if (cspInfo.unsafeInline) problems.push("unsafe-inline without a nonce/strict-dynamic");
+    if (cspInfo.unsafeEval) problems.push('unsafe-eval');
+    if (cspInfo.wildcard) problems.push('wildcard sources');
     checks.push(securityCheck('csp', 'Content-Security-Policy', weak ? 'warn' : 'pass', score, 12,
       csp.slice(0, 300),
-      weak ? 'Remove unsafe-inline, unsafe-eval and wildcard sources.' : ''));
+      weak ? 'Remove ' + problems.join(', ') + '.' : ''));
   }
 
   const xcto = headerValue(headers, 'x-content-type-options');
@@ -2559,13 +2824,14 @@ function buildSecurityReport(data) {
     'Add "X-Content-Type-Options: nosniff".'));
 
   const xfo = headerValue(headers, 'x-frame-options');
-  const cspFrame = /frame-ancestors/i.test(csp);
-  const frameOk = /deny|sameorigin/i.test(xfo) || cspFrame;
+  const frameInfo = securityHeaderRules.evaluateFrameProtection(xfo, cspInfo);
   checks.push(securityCheck('frame', 'Clickjacking protection',
-    frameOk ? 'pass' : 'fail', frameOk ? 1 : 0, 6,
-    frameOk
-      ? (cspFrame ? 'CSP frame-ancestors is set.' : xfo)
-      : 'Neither X-Frame-Options nor CSP frame-ancestors is set.',
+    frameInfo.protected ? 'pass' : 'fail', frameInfo.protected ? 1 : 0, 6,
+    frameInfo.protected
+      ? (frameInfo.cspRestrictive ? 'CSP frame-ancestors is set.' : xfo)
+      : (frameInfo.wildcard
+        ? 'CSP frame-ancestors * does not restrict framing.'
+        : 'Neither X-Frame-Options nor a restrictive CSP frame-ancestors is set.'),
     "Add \"X-Frame-Options: DENY\" or CSP \"frame-ancestors 'none'\"."));
 
   const referrer = headerValue(headers, 'referrer-policy');
@@ -2665,23 +2931,53 @@ function buildSecurityReport(data) {
   };
 }
 
-async function fetchSecurityTxt(ip, host) {
-  for (const path of ['/.well-known/security.txt', '/security.txt']) {
-    const result = await outbound(() => fetchOnce(ip, host, path, true));
-    if (!result.error && result.status >= 200 && result.status < 300 && result.body) {
-      return Object.assign({ url: 'https://' + host + path }, parseSecurityTxt(result.body));
-    }
+async function fetchWithinBudget(ip, host, path, secure, deadline) {
+  const remaining = deadline ? deadline - Date.now() : OUTBOUND_TIMEOUT;
+  if (remaining < 250) return { error: 'timeout' };
+  const limit = Math.min(OUTBOUND_TIMEOUT, remaining);
+  try {
+    return await withTimeout(
+      outbound(() => fetchOnce(ip, host, path, secure, limit)),
+      limit + 100,
+      'timeout'
+    );
+  } catch (e) {
+    if (e.busy) throw e;
+    return { error: e.message || 'timeout' };
+  }
+}
+
+async function fetchSecurityTxt(ip, host, deadline) {
+  const paths = ['/.well-known/security.txt', '/security.txt'];
+  // Both locations are fetched together instead of one timeout after another.
+  const results = await Promise.all(paths.map(path =>
+    fetchWithinBudget(ip, host, path, true, deadline)
+      .catch(e => ({ error: e.message || 'error' }))
+  ));
+  for (let i = 0; i < paths.length; i++) {
+    const result = results[i];
+    if (result.error || !(result.status >= 200 && result.status < 300) || !result.body) continue;
+    // A SPA often answers every path with index.html. RFC 9116 files are plain
+    // text, and a file without Contact is not a usable security.txt.
+    const contentType = headerValue(result.headers, 'content-type');
+    if (!/^text\/plain\b/i.test(contentType)) continue;
+    const parsed = parseSecurityTxt(result.body);
+    if (!parsed.contacts.length) continue;
+    return Object.assign({ url: 'https://' + host + paths[i] }, parsed);
   }
   return null;
 }
 
-async function securityAuditLocal(host) {
+async function securityAuditLocal(host, context) {
+  const deadline = context && context.deadline;
   const ips = await resolvePublic(host);
   const ip = pickAddress(ips);
-  let result = await outbound(() => fetchOnce(ip, host, '/', true));
+  // Start security.txt immediately and let the main page fetch run alongside.
+  const securityTxtPromise = fetchSecurityTxt(ip, host, deadline);
+  let result = await fetchWithinBudget(ip, host, '/', true, deadline);
   let protocol = 'https';
   if (result.error) {
-    const httpResult = await outbound(() => fetchOnce(ip, host, '/', false));
+    const httpResult = await fetchWithinBudget(ip, host, '/', false, deadline);
     if (!httpResult.error) { result = httpResult; protocol = 'http'; }
   }
   if (result.error) {
@@ -2695,7 +2991,7 @@ async function securityAuditLocal(host) {
   const errors = {};
   let securityTxt = null;
   try {
-    const found = await fetchSecurityTxt(ip, host);
+    const found = await securityTxtPromise;
     securityTxt = found || { found: false };
   } catch (e) {
     errors.securityTxt = e.message || 'error';
@@ -2724,7 +3020,7 @@ async function securityAuditLocal(host) {
 // audit is graded from the checks that can still be evaluated.
 async function securityAudit(host, context) {
   try {
-    return await securityAuditLocal(host);
+    return await securityAuditLocal(host, context);
   } catch (e) {
     if (e.status || e.blocked || e.busy) throw e;
 
@@ -3052,6 +3348,9 @@ const server = http.createServer(async (req, res) => {
     if (path === '/api/security') {
       const host = query.get('host') || '';
       if (!isValidHost(host)) return bad(res, 'Invalid hostname');
+      if (isRateLimited(ip, securityHits, SECURITY_RATE_MAX)) {
+        return send(res, 429, { error: 'Too many security audits, wait a minute' });
+      }
       return send(res, 200, await securityAudit(host, externalContext));
     }
 
@@ -3061,7 +3360,7 @@ const server = http.createServer(async (req, res) => {
       if (isRateLimited(ip, spamHits, SPAM_RATE_MAX)) {
         return send(res, 429, { error: 'Too many spam checks, wait a minute' });
       }
-      const result = await spamCheck(target);
+      const result = await spamCheck(target, { deadline: externalContext.deadline });
       if (!result) return bad(res, 'Provide a valid public IP address, domain or email');
       return send(res, 200, result);
     }
@@ -3104,10 +3403,12 @@ module.exports = {
   normalizeIp, isPublicIp, clientIp, server, siteInfo, tlsInfo, headersInfo, emailInfo,
   decodeHtml, propagation, redirectChain, anonymityInfo, anonymityPorts, torStatus,
   hostingSignals, hostnameSignals, proxyHeaderSignals, externalImproves, looksLikeBlockPage,
-  spamCheck, parseSpamTarget, parseDnsblRecords, reverseIpName,
-  SPAM_IP_LISTS, SPAM_DOMAIN_LISTS,
+  spamCheck, parseSpamTarget, parseDnsblRecords, reverseIpName, spamCodeInfo,
+  SPAM_IP_LISTS, SPAM_DOMAIN_LISTS, SPAM_CACHE_TTL, SPAM_BLOCKED_CACHE_TTL,
+  registrableDomain, domainSuffixes,
   securityAudit, buildSecurityReport, gradeFromChecks, parseSecurityTxt,
-  parseCookies, parseMaxAge, findMixedContent,
+  parseCookies, parseMaxAge, findMixedContent, fetchSecurityTxt,
+  securityHeaderRules,
   parseSubjectAltName, classifyCipher, summarizeTlsVersions, normalizeCaaRecord,
   caaLookup, TLS_VERSION_PROBES, TLS_CIPHER_PROBES
 };

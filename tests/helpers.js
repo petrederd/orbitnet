@@ -10,10 +10,19 @@ const SITE = path.join(ROOT, 'site');
 
 function scriptsFrom(file) {
   const html = fs.readFileSync(file, 'utf8');
-  return [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)]
-    .filter(match => !/type\s*=\s*["']?application\/ld\+json/i.test(match[1]))
-    .map(match => match[2])
-    .join('\n');
+  const parts = [];
+  for (const match of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
+    if (/type\s*=\s*["']?application\/ld\+json/i.test(match[1])) continue;
+    const src = /\bsrc\s*=\s*["']([^"']+)["']/i.exec(match[1]);
+    if (!src) {
+      parts.push(match[2]);
+      continue;
+    }
+    if (/^(?:https?:)?\/\//i.test(src[1])) continue;
+    const target = path.resolve(path.dirname(file), src[1].split('?')[0]);
+    if (fs.existsSync(target)) parts.push(fs.readFileSync(target, 'utf8'));
+  }
+  return parts.join('\n');
 }
 
 function createElement(tag) {

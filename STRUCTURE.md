@@ -340,7 +340,8 @@ IP клиента берётся из `X-Real-IP`, который выставл
 `docker-compose.yml`:
 
 - `orbitnet-site` — nginx, статика из `./site`, порт `127.0.0.1:8081`.
-- `orbitnet-api` — Node.js, внутренний порт `3000`; получает `CHECKER_URL`, `CHECKER_SECRET`, `CHECKER_TIMEOUT`, `EXTERNAL_RATE_MAX`, `EXTERNAL_GLOBAL_MAX`, `EXTERNAL_NXDOMAIN_RATE_MAX`, `EXTERNAL_NXDOMAIN_GLOBAL_MAX`, `REQUEST_BUDGET_MS` и `DNSBL_RESOLVER` из серверного `.env`.
+- `orbitnet-api` — Node.js, внутренний порт `3000`; получает `CHECKER_URL`, `CHECKER_SECRET`, `CHECKER_TIMEOUT`, `EXTERNAL_RATE_MAX`, `EXTERNAL_GLOBAL_MAX`, `EXTERNAL_NXDOMAIN_RATE_MAX`, `EXTERNAL_NXDOMAIN_GLOBAL_MAX`, `REQUEST_BUDGET_MS`, `DNSBL_RESOLVER`, `DNSBL_MAX_CONCURRENT`, `DNSBL_MAX_QUEUE` и `TLS_DEEP_GLOBAL_MAX` из серверного `.env`.
+- `orbitnet-unbound` — приватный рекурсивный DNS-резолвер для DNSBL по умолчанию (Spamhaus/SURBL не принимают публичные резолверы).
 - `geoip-updater` — профиль `geoip`, обновляет базы раз в 24 часа.
 
 `nginx.conf`:

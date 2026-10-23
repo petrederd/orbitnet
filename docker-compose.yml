@@ -14,9 +14,13 @@ services:
       - "127.0.0.1:8081:80"
 
   orbitnet-api:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: orbitnet-api
     restart: unless-stopped
+    depends_on:
+      - orbitnet-unbound
     environment:
       - PORT=3000
       - GEOIP_DIR=/data/geoip
@@ -30,12 +34,25 @@ services:
       - EXTERNAL_NXDOMAIN_RATE_MAX=${EXTERNAL_NXDOMAIN_RATE_MAX:-3}
       - EXTERNAL_NXDOMAIN_GLOBAL_MAX=${EXTERNAL_NXDOMAIN_GLOBAL_MAX:-15}
       - REQUEST_BUDGET_MS=${REQUEST_BUDGET_MS:-22000}
-      # Optional resolver for DNSBL/RBL queries (see .env.example).
-      - DNSBL_RESOLVER=${DNSBL_RESOLVER:-}
+      # DNSBL lookups use the bundled Unbound by default. Override with a
+      # private resolver address in .env if you already run one.
+      - DNSBL_RESOLVER=${DNSBL_RESOLVER:-orbitnet-unbound:53}
+      - DNSBL_MAX_CONCURRENT=${DNSBL_MAX_CONCURRENT:-48}
+      - DNSBL_MAX_QUEUE=${DNSBL_MAX_QUEUE:-200}
+      - TLS_DEEP_GLOBAL_MAX=${TLS_DEEP_GLOBAL_MAX:-2}
     volumes:
       - ./data/geoip:/data/geoip:ro
     expose:
       - "3000"
+
+  # Private recursive resolver for DNSBL queries. Public resolvers are refused
+  # by Spamhaus/SURBL, so the API talks to Unbound over the Compose network.
+  orbitnet-unbound:
+    image: mvance/unbound:latest
+    container_name: orbitnet-unbound
+    restart: unless-stopped
+    expose:
+      - "53"
 
   # Keeps the GeoLite2 databases current. MaxMind requires updating the
   # GeoLite2 databases at least every 30 days; this service refreshes them

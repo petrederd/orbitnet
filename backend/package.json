@@ -9,6 +9,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "maxmind": "^5.0.7"
+    "maxmind": "^5.0.7",
+    "tldts": "^7.4.19"
   }
 }

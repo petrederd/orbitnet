@@ -77,6 +77,56 @@ test('findMixedContent ignores namespaces and only runs over HTTPS', () => {
   assert.deepEqual(findMixedContent(html, 'http'), { checked: false, count: 0, items: [] });
 });
 
+test('findMixedContent only counts resource-loading elements, not navigation links', () => {
+  const html = '<a href="http://example.com/page">plain link</a>' +
+    '<link rel="stylesheet" href="http://cdn.example.com/site.css">' +
+    '<link rel="preload" href="http://cdn.example.com/font.woff2" as="font">' +
+    '<link rel="alternate" href="http://example.com/feed.xml">' +
+    '<img srcset="http://img.example.com/a.png 1x, https://img.example.com/b.png 2x">' +
+    '<object data="http://cdn.example.com/movie.swf"></object>' +
+    '<form action="http://forms.example.com/submit"></form>' +
+    '<script src="https://cdn.example.com/app.js"></script>';
+  const result = findMixedContent(html, 'https');
+  assert.equal(result.count, 5);
+  assert.ok(result.items.includes('http://cdn.example.com/site.css'));
+  assert.ok(result.items.includes('http://cdn.example.com/font.woff2'));
+  assert.ok(result.items.includes('http://img.example.com/a.png'));
+  assert.ok(result.items.includes('http://cdn.example.com/movie.swf'));
+  assert.ok(result.items.includes('http://forms.example.com/submit'));
+  assert.ok(!result.items.includes('http://example.com/page'));
+  assert.ok(!result.items.includes('http://example.com/feed.xml'));
+});
+
+test('HSTS max-age=0 is a failure, matching the headers checker', () => {
+  const report = goodReport({
+    headers: Object.assign({}, GOOD_HEADERS, { 'strict-transport-security': 'max-age=0' })
+  });
+  const hsts = report.checks.find(item => item.id === 'hsts');
+  assert.equal(hsts.status, 'fail');
+  assert.equal(hsts.score, 0);
+});
+
+test('unsafe-inline with a nonce or strict-dynamic is not penalised', () => {
+  const report = goodReport({
+    headers: Object.assign({}, GOOD_HEADERS, {
+      'content-security-policy': "default-src 'self'; script-src 'nonce-abc123' 'unsafe-inline' 'strict-dynamic'"
+    })
+  });
+  const csp = report.checks.find(item => item.id === 'csp');
+  assert.equal(csp.status, 'pass');
+});
+
+test('frame-ancestors * is not clickjacking protection', () => {
+  const report = goodReport({
+    headers: Object.assign({}, GOOD_HEADERS, {
+      'content-security-policy': "default-src 'self'; frame-ancestors *"
+    })
+  });
+  const frame = report.checks.find(item => item.id === 'frame');
+  assert.equal(frame.status, 'fail');
+  assert.match(frame.detail, /does not restrict/);
+});
+
 test('gradeFromChecks maps scores to A-F and skips unknown rows', () => {
   assert.equal(gradeFromChecks([{ status: 'pass', weight: 10, score: 1 }]).grade, 'A');
   assert.equal(gradeFromChecks([{ status: 'warn', weight: 10, score: 0.8 }]).grade, 'B');

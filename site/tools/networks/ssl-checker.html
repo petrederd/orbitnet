@@ -96,7 +96,7 @@
     </div>
     <div class="input-group">
       <label style="display:flex;align-items:center;gap:.5rem;font-weight:500;">
-        <input type="checkbox" id="deep" checked style="width:auto;">
+        <input type="checkbox" id="deep" style="width:auto;">
         Deep scan
       </label>
       <small>Probes supported TLS versions and cipher suites, OCSP stapling and CAA records.</small>
@@ -209,6 +209,7 @@ function render(host, port, d) {
   else if (ok) { statusCls = 'success'; statusText = 'Certificate is valid and trusted'; }
 
   let html = '<div class="status-box ' + statusCls + '">' + esc(statusText) + '</div>';
+  if (d.deepError) html += '<div class="status-box warning">' + esc(d.deepError) + '</div>';
 
   html += '<div class="grid-2" style="margin-top:14px;">';
   html += box('Trust', d.authorized ? 'Trusted chain' : 'Not trusted' + (d.authorizationError ? ' (' + d.authorizationError + ')' : ''), d.authorized ? 'var(--accent)' : 'var(--danger)');
@@ -247,15 +248,21 @@ function render(host, port, d) {
   if (Array.isArray(d.ciphers) && d.ciphers.length) {
     const supported = d.ciphers.filter(c => c.supported === true);
     const weakSupported = supported.filter(c => c.weak);
+    const legacySupported = supported.filter(c => c.strength === 'legacy');
     let ch = '<div class="result-box"><div class="result-label">Cipher suites (' + supported.length + ' of ' + d.ciphers.length + ' probed)</div>' +
       '<div class="result-value" style="font-size:.9rem;line-height:1.9;">';
     d.ciphers.forEach(c => {
-      const color = c.weak && c.supported === true ? 'var(--danger)' : (c.supported === true ? 'var(--accent)' : 'var(--muted)');
-      const note = c.weak && c.supported === true ? ' — weak' : '';
+      const color = c.supported !== true ? 'var(--muted)'
+        : (c.strength === 'weak' ? 'var(--danger)' : (c.strength === 'legacy' ? 'var(--warning)' : 'var(--accent)'));
+      const note = c.supported === true && c.strength === 'weak' ? ' — weak'
+        : (c.supported === true && c.strength === 'legacy' ? ' — legacy' : '');
       ch += '<div style="color:' + color + ';">' + esc(c.name) + ': ' + mark(c.supported) + esc(note) + '</div>';
     });
     if (weakSupported.length) {
       ch += '<div style="margin-top:6px;color:var(--danger);">Weak suites enabled: ' + weakSupported.map(c => esc(c.name)).join(', ') + '</div>';
+    }
+    if (legacySupported.length) {
+      ch += '<div style="margin-top:6px;color:var(--warning);">Legacy suites enabled: ' + legacySupported.map(c => esc(c.name)).join(', ') + '</div>';
     }
     ch += '<div class="result-sub" style="margin-top:6px;">Legacy versions and ciphers that our own OpenSSL refuses to offer are shown as “not verifiable”.</div>';
     ch += '</div></div>';

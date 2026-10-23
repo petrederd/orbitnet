@@ -8,7 +8,7 @@ const api = require(path.join('..', 'backend', 'server.js'));
 
 const {
   parseSubjectAltName, classifyCipher, summarizeTlsVersions, normalizeCaaRecord,
-  TLS_VERSION_PROBES, TLS_CIPHER_PROBES
+  TLS_VERSION_PROBES, TLS_CIPHER_PROBES, domainSuffixes
 } = api;
 
 test('parseSubjectAltName splits OpenSSL name lists by type', () => {
@@ -79,4 +79,16 @@ test('probe tables cover the expected versions and a weak cipher slate', () => {
   assert.ok(TLS_VERSION_PROBES.includes('TLSv1'));
   assert.ok(TLS_CIPHER_PROBES.some(c => c.weak && /RC4/.test(c.name)));
   assert.ok(TLS_CIPHER_PROBES.some(c => !c.weak && /GCM/.test(c.name)));
+});
+
+test('probe classification matches classifyCipher for CBC suites', () => {
+  const cbc = TLS_CIPHER_PROBES.find(c => c.name === 'ECDHE-RSA-AES128-SHA');
+  assert.equal(classifyCipher(cbc.name).strength, 'legacy');
+  assert.equal(cbc.strength, 'legacy');
+  assert.equal(cbc.weak, false);
+});
+
+test('CAA lookup stops at the registrable domain', () => {
+  assert.deepEqual(domainSuffixes('example.co.uk'), ['example.co.uk']);
+  assert.deepEqual(domainSuffixes('www.example.co.uk'), ['www.example.co.uk', 'example.co.uk']);
 });

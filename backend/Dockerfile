@@ -2,10 +2,13 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+COPY backend/package.json backend/package-lock.json ./
 RUN npm ci --omit=dev
 
-COPY server.js external-check.js ./
+COPY backend/server.js backend/external-check.js ./
+# Shared with site/tools/developer/security-headers.html so both tools use the
+# same HSTS/CSP/frame-ancestors rules.
+COPY site/assets/js/security-header-rules.js ./site/assets/js/security-header-rules.js
 
 ENV PORT=3000
 
