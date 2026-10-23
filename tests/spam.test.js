@@ -125,6 +125,29 @@ test('spamCheck flags a blocked resolver with the Spamhaus canary', async () => 
   assert.equal(result.resolver.code, '127.255.255.254');
 });
 
+test('healthy Spamhaus canary answers mean the resolver is healthy', async () => {
+  for (const code of ['127.0.0.2', '127.0.0.4', '127.0.0.10']) {
+    const resolve = (name, type) => {
+      if (type === 'A' && name === '2.0.0.127.zen.spamhaus.org') {
+        return Promise.resolve([code]);
+      }
+      return nxdomain();
+    };
+
+    const result = await spamCheck('8.8.8.8', { resolve });
+    assert.equal(result.resolver.checked, true, code);
+    assert.equal(result.resolver.blocked, false, code);
+    assert.equal(result.resolver.code, code);
+  }
+});
+
+test('an NXDOMAIN canary answer leaves the resolver status unknown', async () => {
+  const result = await spamCheck('8.8.8.8', { resolve: nxdomain });
+  assert.equal(result.resolver.checked, false);
+  assert.equal(result.resolver.blocked, null);
+  assert.match(result.resolver.error, /NXDOMAIN/);
+});
+
 test('spamCheck keeps query errors separate from clean answers', async () => {
   const resolve = (name, type) => {
     if (type === 'A' && name === '1.1.1.1.zen.spamhaus.org') {

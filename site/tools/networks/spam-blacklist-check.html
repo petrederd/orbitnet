@@ -248,6 +248,7 @@ function render(d) {
 
   const kindLabel = { ip: 'IP address', domain: 'Domain', email: 'Email' }[d.kind] || 'Target';
   const resolverBlocked = Boolean(d.resolver && d.resolver.blocked);
+  const resolverUnknown = Boolean(d.resolver && d.resolver.checked === false && !resolverBlocked);
   const incomplete = blocked > 0 || errors > 0 || resolverBlocked;
   const summaryClass = listed ? 'error' : ((incomplete || !totalLists) ? 'warning' : 'success');
   const summaryText = listed
@@ -265,6 +266,7 @@ function render(d) {
   if (unsupported) notes.push(unsupported + ' not supported');
   if (errors) notes.push(errors + ' query error' + (errors === 1 ? '' : 's'));
   if (resolverBlocked) notes.push('DNSBL resolver blocked');
+  if (resolverUnknown) notes.push('DNSBL resolver status unknown');
 
   document.getElementById('summary').innerHTML =
     '<div class="status-box ' + summaryClass + '"><strong>' + esc(summaryText) + '</strong>' +
@@ -276,7 +278,10 @@ function render(d) {
   const resolverWarning = resolverBlocked
     ? '<div class="status-box warning"><strong>DNSBL resolver is blocked.</strong> ' +
       esc(d.resolver.reason || 'Spamhaus refused the test query; results may be incomplete.') + '</div>'
-    : '';
+    : (resolverUnknown
+      ? '<div class="status-box warning"><strong>DNSBL resolver status is unknown.</strong> ' +
+        esc(d.resolver.error || 'The Spamhaus test query did not return an expected answer; results may be incomplete.') + '</div>'
+      : '');
   document.getElementById('details').innerHTML = resolverWarning + allGroups.join('');
 }
 </script>

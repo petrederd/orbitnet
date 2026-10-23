@@ -158,7 +158,8 @@ orbitnet/
 ├── nginx.conf                     # Статика + proxy_pass /api/
 ├── cloudflare-ips.conf            # Диапазоны Cloudflare (автообновление)
 ├── deploy/
-│   └── Caddyfile.example          # Пример trusted_proxies для Caddy
+│   ├── Caddyfile.example          # Пример trusted_proxies для Caddy
+│   └── unbound.conf               # Рекурсивный резолвер для DNSBL (без forward-zone)
 ├── scripts/
 │   └── update-cloudflare-ips.sh   # Обновление cloudflare-ips.conf
 ├── docker-compose.yml             # site + api + geoip-updater (profile)
@@ -194,7 +195,7 @@ npm run hooks:install
 - `tests/prime.test.js` проверяет 0, 1, 2, 97, 561, большое простое и большое составное число, факторизацию и отображение соседних простых.
 - `tests/uuid.test.js` проверяет, что fallback UUID использует `crypto.getRandomValues()`, а не `Math.random()`.
 - `tests/anonymity.test.js` проверяет расчёт часовых поясов, классификацию приватных IP, вклад сигналов в score, безопасное поведение без WebRTC, а также backend-эвристики для hosting/PTR/proxy-заголовков.
-- `tests/spam.test.js` проверяет reverse-метку IPv4, разбор ответов DNSBL (листинг, `127.255.255.x` как blocked, NXDOMAIN как «не в списке»), разбор цели IP/домен/email и `spamCheck` с внедрённым резолвером для IP, домена и MX.
+- `tests/spam.test.js` проверяет reverse-метку IPv4, разбор ответов DNSBL (листинг, `127.255.255.x` как blocked, NXDOMAIN как «не в списке»), контрольный запрос Spamhaus (здоровые `127.0.0.2/4/10`, blocked `127.255.255.x`, NXDOMAIN как unknown), разбор цели IP/домен/email и `spamCheck` с внедрённым резолвером для IP, домена и MX.
 - `tests/security.test.js` проверяет парсеры HSTS `max-age`, `Set-Cookie`, `security.txt`, mixed content (игнор namespace-URL), отображение score в A–F и сборку отчёта для «хорошего», «плохого» и header-only (Worker) случая.
 - `tests/tls.test.js` проверяет разбор списка SAN (тип/значение, двоеточия внутри значения), классификацию шифров (AEAD/legacy/weak), сводку версий TLS с разделением supported/unknown/weak и нормализацию CAA-записей для обоих форматов Node.
 - `tests/seo.test.js` проверяет canonical и OG на каждой странице, уникальность URL, соответствие sitemap, JSON-LD `SoftwareApplication`/`WebSite`/`FAQPage` и размеры `og-image.png`.

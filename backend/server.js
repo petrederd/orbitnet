@@ -2229,8 +2229,15 @@ const SPAM_CACHE_TTL = 10 * 60 * 1000;
 const SPAM_BLOCKED_CACHE_TTL = 45 * 1000;
 const SPAM_CACHE_MAX = 4000;
 const SPAM_RESOLVER_TEST = '2.0.0.127.zen.spamhaus.org';
+// Re-resolve DNSBL_RESOLVER hostnames regularly: a recreated Unbound container
+// can get a new IP, and a resolver that was not ready at startup must not stay
+// cached as null forever.
+const SPAM_RESOLVER_REFRESH_MS = 60 * 1000;
+// The canary is a separate Spamhaus query, so cache its verdict briefly.
+const SPAM_RESOLVER_STATUS_TTL = 90 * 1000;
 const spamHits = new Map();
 const spamCache = new Map();
+const spamResolverStatusCache = { value: null, expires: 0 };
 
 const DNSBL_BLOCKED_REASONS = {
   '127.255.255.252': 'Query refused: the list blocks queries from public/open resolvers',
@@ -2348,15 +2355,17 @@ async function createSpamResolver() {
     return null;
   }
 }
-let spamResolverPromise = null;
+let spamResolverState = { promise: null, expires: 0 };
 function getSpamResolver() {
-  if (!spamResolverPromise) {
-    spamResolverPromise = createSpamResolver().catch(e => {
+  const now = Date.now();
+  if (!spamResolverState.promise || now >= spamResolverState.expires) {
+    const promise = createSpamResolver().catch(e => {
       console.warn('spam: resolver setup failed (' + e.message + ')');
       return null;
     });
+    spamResolverState = { promise, expires: now + SPAM_RESOLVER_REFRESH_MS };
   }
-  return spamResolverPromise;
+  return spamResolverState.promise;
 }
 
 function spamCacheGet(key) {
@@ -2522,29 +2531,51 @@ async function spamResolveMxIps(host, options) {
   }
 }
 
-// Spamhaus publishes 2.0.0.127.zen.spamhaus.org as a canary. NXDOMAIN is the
-// healthy answer; any 127/8 answer means the resolver itself is blocked.
-async function spamResolverProbe(options) {
+// Spamhaus publishes 2.0.0.127.zen.spamhaus.org as a test record that is
+// always listed. A healthy resolver gets 127.0.0.2/4/10; a blocked one gets
+// 127.255.255.254 (or another 127.255.255.x refusal). NXDOMAIN is unexpected.
+async function spamResolverProbeUncached(options) {
   try {
     const records = await spamDnsTimed(SPAM_RESOLVER_TEST, 'A', options);
-    const parsed = parseDnsblRecords(records);
-    if (parsed.listed || parsed.blocked) {
+    const addresses = (Array.isArray(records) ? records : [])
+      .map(normalizeIp)
+      .filter(address => net.isIPv4(address) && address.split('.')[0] === '127');
+    const refusal = addresses.find(address => address.startsWith('127.255.255.'));
+    if (refusal) {
       return {
         checked: true,
         blocked: true,
-        code: parsed.code,
+        code: refusal,
         reason: 'The DNS resolver is blocked by Spamhaus. Point DNSBL_RESOLVER at the bundled Unbound service or another private recursive resolver.'
       };
     }
-    return { checked: true, blocked: false, code: '', reason: '' };
+    if (addresses.length) {
+      // 127.0.0.2/4/10 is the expected listing answer from a healthy resolver.
+      return { checked: true, blocked: false, code: addresses[0], reason: '' };
+    }
+    return { checked: false, blocked: null, error: 'Unexpected canary answer' };
   } catch (e) {
     if (e.busy) throw e;
-    // NXDOMAIN/NODATA is the healthy answer for the canary.
     if (e.code === 'ENOTFOUND' || e.code === 'ENODATA') {
-      return { checked: true, blocked: false, code: '', reason: '' };
+      return { checked: false, blocked: null, error: 'Canary returned NXDOMAIN' };
     }
     return { checked: false, blocked: null, error: e.code || e.message || 'error' };
   }
+}
+
+async function spamResolverProbe(options) {
+  // Injected resolvers are used by tests and must not share production cache.
+  if (options && typeof options.resolve === 'function') {
+    return spamResolverProbeUncached(options);
+  }
+  const now = Date.now();
+  if (spamResolverStatusCache.value && now < spamResolverStatusCache.expires) {
+    return spamResolverStatusCache.value;
+  }
+  const result = await spamResolverProbeUncached(options);
+  spamResolverStatusCache.value = result;
+  spamResolverStatusCache.expires = now + SPAM_RESOLVER_STATUS_TTL;
+  return result;
 }
 
 // Accepts an IPv4/IPv6 literal, a domain or an email address. Email is reduced
