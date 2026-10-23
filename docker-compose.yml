@@ -30,6 +30,8 @@ services:
       - EXTERNAL_NXDOMAIN_RATE_MAX=${EXTERNAL_NXDOMAIN_RATE_MAX:-3}
       - EXTERNAL_NXDOMAIN_GLOBAL_MAX=${EXTERNAL_NXDOMAIN_GLOBAL_MAX:-15}
       - REQUEST_BUDGET_MS=${REQUEST_BUDGET_MS:-22000}
+      # Optional resolver for DNSBL/RBL queries (see .env.example).
+      - DNSBL_RESOLVER=${DNSBL_RESOLVER:-}
     volumes:
       - ./data/geoip:/data/geoip:ro
     expose:

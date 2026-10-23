@@ -3,6 +3,7 @@ const https = require('https');
 const tls = require('tls');
 const crypto = require('crypto');
 const dns = require('dns').promises;
+const dnsNative = require('dns');
 const net = require('net');
 const fs = require('fs');
 const path = require('path');
@@ -1967,6 +1968,245 @@ async function redirectChain(startHost, context) {
   };
 }
 
+// ---------- /api/spam (DNSBL / RBL reputation) ----------
+// Public DNS blocklists are queried by a reversed IP label
+// (4.3.2.1.zen.spamhaus.org) or by domain for URI/domain lists. An answer in
+// 127.0.0.0/8 means the target is listed; NXDOMAIN means it is not. Operators
+// such as Spamhaus and SURBL answer 127.255.255.252-255 when the query arrives
+// from a public/open resolver, so those codes are reported as "blocked", never
+// as a listing.
+const SPAM_IP_LISTS = [
+  { name: 'Spamhaus ZEN', zone: 'zen.spamhaus.org' },
+  { name: 'SpamCop', zone: 'bl.spamcop.net' },
+  { name: 'Barracuda', zone: 'b.barracudacentral.org' },
+  { name: 'PSBL', zone: 'psbl.surriel.com' },
+  { name: 'Spam Eating Monkey', zone: 'bl.spameatingmonkey.net' },
+  { name: 'Mailspike', zone: 'bl.mailspike.net' }
+];
+const SPAM_DOMAIN_LISTS = [
+  { name: 'Spamhaus DBL', zone: 'dbl.spamhaus.org' },
+  { name: 'SURBL', zone: 'multi.surbl.org' },
+  { name: 'Spam Eating Monkey URIBL', zone: 'uribl.spameatingmonkey.net' }
+];
+// Bounded fan-out: each IP costs one query per list, so a domain with many
+// A/MX records must not multiply into hundreds of DNS lookups.
+const SPAM_MAX_IPS = 4;
+const SPAM_RATE_MAX = 10;
+const SPAM_CACHE_TTL = 10 * 60 * 1000;
+const SPAM_CACHE_MAX = 4000;
+const spamHits = new Map();
+const spamCache = new Map();
+
+const DNSBL_BLOCKED_REASONS = {
+  '127.255.255.252': 'Query refused: the list blocks queries from public/open resolvers',
+  '127.255.255.253': 'Query refused: too many queries from this resolver',
+  '127.255.255.254': 'Query refused: open resolver or incorrect setup',
+  '127.255.255.255': 'Query refused: malformed query or anonymous use'
+};
+
+// Blocklist operators reject queries that come from public resolvers, so the
+// deployment can point DNSBL lookups at its own or provider resolver instead.
+// Comma-separated IPs, optionally with a port (e.g. "127.0.0.1:53,10.0.0.1").
+function createSpamResolver() {
+  const servers = String(process.env.DNSBL_RESOLVER || '')
+    .split(',').map(part => part.trim()).filter(Boolean);
+  if (!servers.length) return null;
+  try {
+    const resolver = new dnsNative.Resolver({ timeout: DNS_TIMEOUT, tries: 2 });
+    resolver.setServers(servers);
+    return resolver;
+  } catch (e) {
+    console.warn('spam: ignoring invalid DNSBL_RESOLVER (' + e.message + ')');
+    return null;
+  }
+}
+let spamResolver = createSpamResolver();
+
+function spamCacheGet(key) {
+  const record = spamCache.get(key);
+  if (!record) return null;
+  if (Date.now() > record.expires) {
+    spamCache.delete(key);
+    return null;
+  }
+  return record.value;
+}
+
+function spamCacheSet(key, value) {
+  if (spamCache.size >= SPAM_CACHE_MAX) {
+    const oldest = spamCache.keys().next().value;
+    if (oldest !== undefined) spamCache.delete(oldest);
+  }
+  spamCache.set(key, { value, expires: Date.now() + SPAM_CACHE_TTL });
+}
+
+// Single DNS entry point so tests can inject a fake resolver via options.resolve.
+async function spamDns(name, type, options) {
+  if (options && typeof options.resolve === 'function') return options.resolve(name, type);
+  const resolver = spamResolver;
+  if (type === 'TXT') return resolver ? resolver.resolveTxt(name) : dns.resolveTxt(name);
+  if (type === 'MX') return resolver ? resolver.resolveMx(name) : dns.resolveMx(name);
+  return resolver ? resolver.resolve4(name) : dns.resolve4(name);
+}
+
+function reverseIpName(ip) {
+  const norm = normalizeIp(ip);
+  if (net.isIPv4(norm)) return norm.split('.').reverse().join('.');
+  return '';
+}
+
+// Turns the A answers of a DNSBL query into a structured verdict. Any 127/8
+// address that is not one of the operator status codes is a real listing.
+function parseDnsblRecords(records) {
+  for (const address of Array.isArray(records) ? records : []) {
+    const norm = normalizeIp(address);
+    if (!net.isIPv4(norm) || norm.split('.')[0] !== '127') continue;
+    if (norm.startsWith('127.255.255.')) {
+      return {
+        listed: false,
+        blocked: true,
+        code: norm,
+        reason: DNSBL_BLOCKED_REASONS[norm] || 'Query refused by the list operator'
+      };
+    }
+    return { listed: true, blocked: false, code: norm, reason: '' };
+  }
+  return { listed: false, blocked: false, code: '', reason: '' };
+}
+
+async function spamListCheck(lookupName, list, type, options) {
+  const key = type + ':' + list.zone + ':' + lookupName;
+  const cached = spamCacheGet(key);
+  if (cached) return cached;
+
+  const name = lookupName + '.' + list.zone;
+  let result;
+  try {
+    const records = await outbound(() =>
+      withTimeout(spamDns(name, 'A', options), DNS_TIMEOUT, 'DNSBL timeout'));
+    result = Object.assign({ name: list.name, zone: list.zone }, parseDnsblRecords(records));
+    if (result.listed) {
+      try {
+        const txt = await withTimeout(spamDns(name, 'TXT', options), DNS_TIMEOUT, 'DNSBL timeout');
+        const reason = Array.isArray(txt) && txt[0] ? [].concat(txt[0]).join('') : '';
+        if (reason) result.reason = reason.slice(0, 300);
+      } catch (e) { /* the A answer already proves the listing */ }
+    }
+  } catch (e) {
+    if (e.busy) throw e;
+    if (e.code === 'ENOTFOUND' || e.code === 'ENODATA') {
+      result = { name: list.name, zone: list.zone, listed: false, blocked: false, code: '', reason: '' };
+    } else {
+      return {
+        name: list.name,
+        zone: list.zone,
+        listed: null,
+        blocked: false,
+        code: '',
+        error: e.code || e.message || 'error'
+      };
+    }
+  }
+  spamCacheSet(key, result);
+  return result;
+}
+
+async function spamIpCheck(ip, options) {
+  const norm = normalizeIp(ip);
+  if (!net.isIPv4(norm)) {
+    return {
+      ip: norm,
+      version: net.isIPv6(norm) ? 6 : 4,
+      supported: false,
+      lists: [],
+      note: 'Most reverse DNS blocklists have no IPv6 zone, so this address was not queried'
+    };
+  }
+  const lookupName = reverseIpName(norm);
+  const lists = await Promise.all(
+    SPAM_IP_LISTS.map(list => spamListCheck(lookupName, list, 'ip', options)));
+  return { ip: norm, version: 4, supported: true, lists };
+}
+
+async function spamDomainCheck(host, options) {
+  const lists = await Promise.all(
+    SPAM_DOMAIN_LISTS.map(list => spamListCheck(host, list, 'domain', options)));
+  return { name: host, lists };
+}
+
+async function spamResolveIps(host, options) {
+  try {
+    const records = await withTimeout(spamDns(host, 'A', options), DNS_TIMEOUT, 'DNS timeout');
+    return [...new Set((Array.isArray(records) ? records : [])
+      .map(normalizeIp).filter(ip => net.isIPv4(ip) && isPublicIp(ip)))];
+  } catch (e) {
+    return [];
+  }
+}
+
+async function spamResolveMxIps(host, options) {
+  try {
+    const mx = await withTimeout(spamDns(host, 'MX', options), DNS_TIMEOUT, 'DNS timeout');
+    const hosts = (Array.isArray(mx) ? mx : [])
+      .sort((a, b) => a.priority - b.priority)
+      .map(record => record.exchange).slice(0, SPAM_MAX_IPS);
+    const resolved = await Promise.all(hosts.map(name => spamResolveIps(name, options)));
+    return [...new Set(resolved.flat())];
+  } catch (e) {
+    return [];
+  }
+}
+
+// Accepts an IPv4/IPv6 literal, a domain or an email address. Email is reduced
+// to its domain; the mailbox itself is never checked or stored.
+function parseSpamTarget(raw) {
+  const value = String(raw || '').trim().toLowerCase();
+  if (!value) return null;
+  const literal = normalizeIp(value);
+  if (net.isIP(literal)) return { kind: 'ip', ip: literal };
+
+  const match = value.match(/^[^@\s]+@([^@\s]+)$/);
+  const host = match ? match[1] : value;
+  if (!host.includes('.') || host.length > 253) return null;
+  if (!isValidHost(host)) return null;
+  if (/\.(localhost|local|internal|home\.arpa|invalid|test)$/.test(host)) return null;
+  return { kind: match ? 'email' : 'domain', host };
+}
+
+async function spamCheck(target, options) {
+  const parsed = parseSpamTarget(target);
+  if (!parsed) return null;
+
+  const result = {
+    target: String(target || '').trim(),
+    kind: parsed.kind,
+    checkedAt: new Date().toISOString(),
+    source: 'local',
+    ips: [],
+    domains: []
+  };
+
+  if (parsed.kind === 'ip') {
+    if (!isPublicIp(parsed.ip)) {
+      throw Object.assign(httpError(400, 'Only public IP addresses can be checked'), { blocked: true });
+    }
+    result.ip = parsed.ip;
+    result.ips.push(await spamIpCheck(parsed.ip, options));
+    return result;
+  }
+
+  result.host = parsed.host;
+  let ips = parsed.kind === 'email'
+    ? await spamResolveMxIps(parsed.host, options)
+    : await spamResolveIps(parsed.host, options);
+  if (!ips.length) ips = await spamResolveIps(parsed.host, options);
+  ips = ips.slice(0, SPAM_MAX_IPS);
+
+  result.domains.push(await spamDomainCheck(parsed.host, options));
+  result.ips = await Promise.all(ips.map(ip => spamIpCheck(ip, options)));
+  return result;
+}
+
 // ---------- router ----------
 const server = http.createServer(async (req, res) => {
   res._orbitStarted = Date.now();
@@ -1994,6 +2234,7 @@ const server = http.createServer(async (req, res) => {
     path === '/api/port' || path === '/api/captcha' || path === '/api/whois' || path === '/api/site' ||
     path === '/api/tls' || path === '/api/headers' || path === '/api/email' ||
     path === '/api/propagation' || path === '/api/redirect' ||
+    path === '/api/spam' ||
     path === '/api/anonymity' || path === '/api/anonymity/ports' ||
     path === '/api/anonymity/ping';
 
@@ -2247,6 +2488,17 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, await redirectChain(host, externalContext));
     }
 
+    if (path === '/api/spam') {
+      const target = (query.get('target') || '').trim();
+      if (!target) return bad(res, 'Provide an IP address, domain or email');
+      if (isRateLimited(ip, spamHits, SPAM_RATE_MAX)) {
+        return send(res, 429, { error: 'Too many spam checks, wait a minute' });
+      }
+      const result = await spamCheck(target);
+      if (!result) return bad(res, 'Provide a valid public IP address, domain or email');
+      return send(res, 200, result);
+    }
+
     if (path === '/api/anonymity') {
       return send(res, 200, await anonymityInfo(req));
     }
@@ -2284,5 +2536,7 @@ if (require.main === module) {
 module.exports = {
   normalizeIp, isPublicIp, clientIp, server, siteInfo, tlsInfo, headersInfo, emailInfo,
   decodeHtml, propagation, redirectChain, anonymityInfo, anonymityPorts, torStatus,
-  hostingSignals, hostnameSignals, proxyHeaderSignals, externalImproves, looksLikeBlockPage
+  hostingSignals, hostnameSignals, proxyHeaderSignals, externalImproves, looksLikeBlockPage,
+  spamCheck, parseSpamTarget, parseDnsblRecords, reverseIpName,
+  SPAM_IP_LISTS, SPAM_DOMAIN_LISTS
 };

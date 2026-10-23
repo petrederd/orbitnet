@@ -44,17 +44,18 @@ orbitnet/
 │   ├── prime.test.js              # 0, 1, 2, 97, 561, большие числа
 │   ├── uuid.test.js               # crypto fallback для UUID
 │   ├── anonymity.test.js          # timezone, private IP, score, WebRTC
+│   ├── spam.test.js               # DNSBL: reverse-метка, коды ответов, IP/домен/email
 │   ├── external-check.test.js     # Worker-клиент: HTTP/DNS/propagation/email
 │   ├── worker.test.js             # сам Cloudflare Worker с mock fetch
 │   ├── seo.test.js                # canonical, OG, JSON-LD, sitemap, og-image.png
 │   └── live-check.js              # проверка опубликованного сайта
 │
 ├── site/                          # Публичная директория nginx
-│   ├── index.html                 # Каталог 53 инструментов + IP-виджет
+│   ├── index.html                 # Каталог 54 инструментов + IP-виджет
 │   ├── about.html                 # О проекте
 │   ├── 404.html                   # Кастомная страница «не найдено»
 │   ├── robots.txt                 # Индексация и ссылка на sitemap
-│   ├── sitemap.xml                # 55 URL: главная, about, 53 инструмента
+│   ├── sitemap.xml                # 56 URL: главная, about, 54 инструмента
 │   │
 │   ├── icons/
 │   │   └── favicon.svg
@@ -69,7 +70,7 @@ orbitnet/
 │   └── tools/
 │       ├── _template.html         # Шаблон новой страницы
 │       │
-│       ├── networks/              # 21 инструмент
+│       ├── networks/              # 22 инструмента
 │       │   ├── subnet-calculator.html
 │       │   ├── ipv6-subnet-calculator.html
 │       │   ├── ipv6-converter.html
@@ -90,7 +91,8 @@ orbitnet/
 │       │   ├── redirect-checker.html
 │       │   ├── website-health.html
 │       │   ├── network-diagnostics.html
-│       │   └── anonymity-check.html
+│       │   ├── anonymity-check.html
+│       │   └── spam-blacklist-check.html
 │       │
 │       ├── developer/             # 18 инструментов
 │       │   ├── json-formatter.html
@@ -189,6 +191,7 @@ npm run hooks:install
 - `tests/prime.test.js` проверяет 0, 1, 2, 97, 561, большое простое и большое составное число, факторизацию и отображение соседних простых.
 - `tests/uuid.test.js` проверяет, что fallback UUID использует `crypto.getRandomValues()`, а не `Math.random()`.
 - `tests/anonymity.test.js` проверяет расчёт часовых поясов, классификацию приватных IP, вклад сигналов в score, безопасное поведение без WebRTC, а также backend-эвристики для hosting/PTR/proxy-заголовков.
+- `tests/spam.test.js` проверяет reverse-метку IPv4, разбор ответов DNSBL (листинг, `127.255.255.x` как blocked, NXDOMAIN как «не в списке»), разбор цели IP/домен/email и `spamCheck` с внедрённым резолвером для IP, домена и MX.
 - `tests/seo.test.js` проверяет canonical и OG на каждой странице, уникальность URL, соответствие sitemap, JSON-LD `SoftwareApplication`/`WebSite`/`FAQPage` и размеры `og-image.png`.
 - `tests/live-check.js` проверяет доступность всех canonical URL и `og-image.png` на опубликованном сайте.
 
@@ -303,6 +306,7 @@ npm run hooks:install
 | `GET /api/email` | dns, external-check | MX, SPF, DMARC, DKIM, PTR; fallback в Worker при сбое MX |
 | `GET /api/propagation` | dns, external-check | Несколько публичных резолверов; fallback в Worker при отказе всех |
 | `GET /api/redirect` | http/https, external-check | Цепочка редиректов; fallback в Worker при сетевой ошибке |
+| `GET /api/spam` | dns | IP/домен/email по DNSBL/URIBL; reverse-метка, MX-адреса для домена, кэш и лимит запросов |
 
 ### Защита
 
@@ -330,7 +334,7 @@ IP клиента берётся из `X-Real-IP`, который выставл
 `docker-compose.yml`:
 
 - `orbitnet-site` — nginx, статика из `./site`, порт `127.0.0.1:8081`.
-- `orbitnet-api` — Node.js, внутренний порт `3000`; получает `CHECKER_URL`, `CHECKER_SECRET`, `CHECKER_TIMEOUT`, `EXTERNAL_RATE_MAX`, `EXTERNAL_GLOBAL_MAX`, `EXTERNAL_NXDOMAIN_RATE_MAX`, `EXTERNAL_NXDOMAIN_GLOBAL_MAX` и `REQUEST_BUDGET_MS` из серверного `.env`.
+- `orbitnet-api` — Node.js, внутренний порт `3000`; получает `CHECKER_URL`, `CHECKER_SECRET`, `CHECKER_TIMEOUT`, `EXTERNAL_RATE_MAX`, `EXTERNAL_GLOBAL_MAX`, `EXTERNAL_NXDOMAIN_RATE_MAX`, `EXTERNAL_NXDOMAIN_GLOBAL_MAX`, `REQUEST_BUDGET_MS` и `DNSBL_RESOLVER` из серверного `.env`.
 - `geoip-updater` — профиль `geoip`, обновляет базы раз в 24 часа.
 
 `nginx.conf`:
@@ -359,7 +363,7 @@ IP клиента берётся из `X-Real-IP`, который выставл
 
 ## SEO и индексация
 
-- `site/sitemap.xml` содержит главную, `about.html` и все 53 инструмента.
+- `site/sitemap.xml` содержит главную, `about.html` и все 54 инструмента.
 - `site/robots.txt` разрешает индексацию и указывает на sitemap.
 - У всех страниц есть canonical и Open Graph.
 - У инструментов есть JSON-LD `SoftwareApplication`; на главной — `WebSite`, `SearchAction` (`/?q=`) и `FAQPage`.

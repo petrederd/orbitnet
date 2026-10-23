@@ -10,7 +10,7 @@
 
 | Параметр | Значение |
 |---|---|
-| Инструментов | 53 |
+| Инструментов | 54 |
 | Категорий | 5 (сети, разработка, математика, текст, электроника) |
 | Frontend | статические HTML/CSS/JS без сборщика |
 | Backend | Node.js API (DNS, TCP, TLS, HTTP, whois, GeoIP) |
@@ -21,7 +21,7 @@
 
 - [x] Главная страница с поиском, фильтрами и сортировкой.
 - [x] Тёмная тема и общие UI-компоненты.
-- [x] 21 сетевой инструмент.
+- [x] 22 сетевых инструмента.
 - [x] 18 инструментов разработчика.
 - [x] 7 математических инструментов.
 - [x] 5 инструментов для текста.
@@ -36,7 +36,7 @@
 - [x] Anonymity Check: proxy-заголовки, Tor/хостинг/PTR-сигналы, timezone mismatch, WebRTC и опциональная проверка портов только своего IP.
 - [x] Базовые тесты, локальный pre-push hook и live-проверка canonical/og-image.
 - [x] Юнит-тесты для timestamp, color, scientific notation, statistics, unit converter, Base64 и regex worker.
-- [x] Playwright smoke-тест всех 53 страниц: консольные ошибки, CSP, реальный Web Worker и избранное.
+- [x] Playwright smoke-тест всех 54 страниц: консольные ошибки, CSP, реальный Web Worker и избранное.
 - [x] Axe-проверка ключевых страниц (контраст, ссылки, доступность) без serious/critical нарушений.
 - [x] Внутренний `/health` с in-process метриками API (запросы, ошибки, rate limit, источники, внешние вызовы) и минимальный публичный `/api/health`.
 - [x] JSON-LD `SoftwareApplication` на всех инструментах, `WebSite` + `SearchAction` + `FAQPage` на главной.
@@ -48,10 +48,11 @@
 - [x] Redirect Generator, robots.txt Generator и Security Headers Sanitizer.
 - [x] IPv6 Subnet Calculator и IPv6 Converter.
 - [x] Unicode Inspector с code points, UTF-8, нормализацией и поиском невидимых символов.
+- [x] Spam Blacklist Check: IP, домен и email по публичным DNSBL/URIBL, MX-адреса домена, отличие «blocked» от листинга, кэш и лимиты.
 
 ## Фаза 1 — Стабилизация
 
-**Цель:** сделать существующие 53 инструмента предсказуемыми и проверяемыми.
+**Цель:** сделать существующие 54 инструмента предсказуемыми и проверяемыми.
 
 - [x] Автоматический smoke-тест всех страниц после изменений.
 - [ ] Единые правила валидации ввода и сообщений об ошибках.
@@ -89,6 +90,7 @@
 
 - [x] IPv6 Subnet Calculator.
 - [x] IPv6 Converter (compress/expand, hex, decimal, binary, reverse DNS).
+- [x] Spam / DNSBL blacklist checker.
 - [ ] Whois для IP-блоков.
 - [ ] HTTP/2 и HTTP/3 индикаторы.
 - [ ] Проверка CAA и DNSSEC.
@@ -151,7 +153,7 @@
 
 ## Метрики
 
-- [x] 53 работающих инструмента.
+- [x] 54 работающих инструмента.
 - [x] Все публичные страницы имеют canonical, OG и запись в sitemap.
 - [ ] Lighthouse Performance / Accessibility / SEO ≥ 95 на ключевых страницах.
 - [x] Нет известных ошибок в консоли на всех страницах и основных сценариях.

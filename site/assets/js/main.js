@@ -120,6 +120,7 @@
     'tools/networks/email-deliverability.html': 'email deliverability mx spf dmarc dkim mail spam доставляемость почта',
     'tools/developer/jwt-decoder.html': 'jwt json web token decode decoder header payload claims токен декодер',
     'tools/networks/anonymity-check.html': 'anonymity anonymous proxy tor vpn webrtc leak privacy ip timezone анонимность прокси утечка',
+    'tools/networks/spam-blacklist-check.html': 'spam blacklist dnsbl rbl rbls uribl surbl blocklist reputation spamhaus spamcop barracuda mail blacklist спам черный список репутация рассылка',
   };
 
   function normalize(value) {

@@ -22,9 +22,9 @@ OrbitNet — открытый набор небольших инструмент
 
 ## Что уже работает
 
-Сейчас в коллекции **53 инструмента** в пяти категориях.
+Сейчас в коллекции **54 инструмента** в пяти категориях.
 
-### Сети — 21
+### Сети — 22
 
 | Инструмент | Что делает |
 |---|---|
@@ -49,6 +49,7 @@ OrbitNet — открытый набор небольших инструмент
 | Anonymity Check | Proxy-заголовки, Tor/хостинг/PTR-сигналы, timezone mismatch, WebRTC и опциональная проверка портов своего IP |
 | IPv6 Subnet Calculator | Сеть, диапазон, префикс и количество адресов для IPv6 |
 | IPv6 Converter | Сжатие, развёртывание и представления IPv6 (hex/decimal/binary/PTR) |
+| Spam Blacklist Check | IP, домен или email по публичным DNSBL/URIBL-базам, с MX-адресами для домена |
 
 ### Разработка — 18
 
@@ -100,7 +101,7 @@ orbitnet/
 │   │   └── og-image.png           # Open Graph превью
 │   └── tools/
 │       ├── _template.html         # Шаблон нового инструмента
-│       ├── networks/              # 21 инструмент
+│       ├── networks/              # 22 инструмента
 │       ├── developer/             # 18 инструментов
 │       ├── math/                  # 7 инструментов
 │       ├── text/                  # 5 инструментов
@@ -262,6 +263,7 @@ DNS-over-HTTPS резолверам Cloudflare, Google и AdGuard; для HTTP �
 | `GET /api/email?host=&selector=` | MX, SPF, DMARC, DKIM, PTR; при транспортной ошибке DNS — fallback в Worker (`source`) |
 | `GET /api/propagation?host=&type=` | Ответы нескольких DNS-резолверов; при транспортном отказе всех локальных — fallback в Worker (`source`) |
 | `GET /api/redirect?host=` | Цепочка перенаправлений; при сетевой ошибке или 403/451 первого шага — fallback в Worker (`source`) |
+| `GET /api/spam?target=` | IP, домен или email по публичным DNSBL/URIBL; для домена/email также A/MX-адреса; код `127.255.255.x` отдаётся как `blocked`, не как листинг (не более 10 проверок в минуту с одного IP) |
 | `GET /api/anonymity` | Пассивные сигналы анонимности для IP клиента |
 | `GET /api/anonymity/ports?ip=` | TCP-порты прокси/VPN только для собственного публичного IP |
 | `GET /api/anonymity/ping?nonce=` | Двусторонний ping для оценки задержки и jitter |
@@ -269,6 +271,8 @@ DNS-over-HTTPS резолверам Cloudflare, Google и AdGuard; для HTTP �
 Ответы — JSON. Для исходящих проверок действуют таймауты, ограничение очереди и лимит частоты запросов. В `/api/dns` поля `nxdomain` и `nodata` различают несуществующий домен и отсутствие записи конкретного типа; для Worker-ответов также сохраняется `source: "worker"`.
 
 Anonymity Check сравнивает IP с публичным Tor bulk exit list, который скачивается с `check.torproject.org` и кэшируется на сервере на один час. После неудачной попытки загрузки повторные попытки не предпринимаются в течение двух минут (negative cache), поэтому недоступный внешний сервис не тормозит каждый запрос `/api/anonymity`. Если список недоступен, проверка Tor возвращает `unknown`, а не «не Tor». Необязательный STUN-тест WebRTC обращается к публичному STUN-серверу Google только после явного согласия; по умолчанию собираются только локальные ICE-кандидаты. Активная проверка портов принимает только IP самого посетителя.
+
+Spam Blacklist Check (`/api/spam`) опрашивает публичные DNSBL/URIBL из бэкенда: IP превращается в reverse-метку (`4.3.2.1.zen.spamhaus.org`), домен — в `<domain>.dbl.spamhaus.org`. Ответ из `127.0.0.0/8` означает листинг, `NXDOMAIN` — что адреса в базе нет. Многие операторы (Spamhaus, SURBL) отказывают резолверам с публичных/open адресов, отвечая `127.255.255.252-255`; такие ответы отдаются как `blocked`, а не как листинг. Через `DNSBL_RESOLVER` (см. `.env.example`) можно указать свой рекурсивный резолвер. Ответы кэшируются на 10 минут, действует отдельный лимит (10 проверок в минуту с одного IP).
 
 ## Безопасность сетевых проверок
 
@@ -341,7 +345,7 @@ npm run test:live # проверка опубликованного сайта �
 npm run hooks:install
 ```
 
-`npm run hooks:install` включает локальный Git-хук `.githooks/pre-push`, который автоматически запускает `npm test` перед каждым `git push`. Unit-тесты покрывают калькуляторы, IPv6, cron, URL/YAML/JSON-утилиты, JWT, Unicode и парсеры, canonical/Open Graph/JSON-LD, sitemap и API health. Playwright-тесты открывают все 53 страницы, проверяют консольные ошибки, production CSP, реальный запуск regex Web Worker, поиск `?q=` и избранное. Axe-core проверяет key-страницы на serious/critical нарушения доступности.
+`npm run hooks:install` включает локальный Git-хук `.githooks/pre-push`, который автоматически запускает `npm test` перед каждым `git push`. Unit-тесты покрывают калькуляторы, IPv6, cron, URL/YAML/JSON-утилиты, JWT, Unicode и парсеры, canonical/Open Graph/JSON-LD, sitemap и API health. Playwright-тесты открывают все 54 страницы, проверяют консольные ошибки, production CSP, реальный запуск regex Web Worker, поиск `?q=` и избранное. Axe-core проверяет key-страницы на serious/critical нарушения доступности.
 
 `npm run test:live` обращается к `https://orbitnet.ru`, проверяет доступность всех canonical URL и `og-image.png`. Он запускается в CI после деплоя и требует сети.
 
