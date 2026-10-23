@@ -49,7 +49,8 @@
 - [x] IPv6 Subnet Calculator и IPv6 Converter.
 - [x] Unicode Inspector с code points, UTF-8, нормализацией и поиском невидимых символов.
 - [x] Spam Blacklist Check: IP, домен и email по публичным DNSBL/URIBL, MX-адреса домена, отличие «blocked» от листинга, кэш и лимиты.
-- [x] Website Security Audit: HTTPS, security-заголовки, HSTS preload, security.txt, cookie-флаги, mixed content и оценка A–F с header-only fallback в Worker.
+ - [x] Website Security Audit: HTTPS, security-заголовки, HSTS preload, security.txt, cookie-флаги, mixed content и оценка A–F с header-only fallback в Worker.
+- [x] SSL/TLS deep scan: поддерживаемые версии TLS, набор шифров с пометкой слабых, OCSP stapling и CAA-записи в дополнение к сертификату и цепочке.
 
 ## Фаза 1 — Стабилизация
 
@@ -93,9 +94,10 @@
 - [x] IPv6 Converter (compress/expand, hex, decimal, binary, reverse DNS).
 - [x] Spam / DNSBL blacklist checker.
 - [x] Website Security Audit (заголовки, HSTS preload, security.txt, cookies, mixed content, A–F).
+- [x] TLS deep scan (версии, шифры, OCSP stapling) и проверка CAA.
 - [ ] Whois для IP-блоков.
 - [ ] HTTP/2 и HTTP/3 индикаторы.
-- [ ] Проверка CAA и DNSSEC.
+- [ ] Проверка DNSSEC.
 - [ ] Калькулятор VLAN и wildcard-масок.
 
 ### Математика и текст

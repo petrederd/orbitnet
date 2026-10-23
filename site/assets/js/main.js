@@ -110,7 +110,7 @@
     'tools/developer/timestamp-converter.html': 'timestamp unix epoch time date iso 8601 convert конвертер время дата',
     'tools/developer/regex-tester.html': 'regex regexp regular expression test tester pattern match groups регулярные выражения',
     'tools/developer/color-converter.html': 'color colour hex rgb hsl converter picker цвет конвертер',
-    'tools/networks/ssl-checker.html': 'ssl tls certificate cert https validity issuer chain сертификат проверка',
+    'tools/networks/ssl-checker.html': 'ssl tls certificate cert https validity issuer chain ciphers versions ocsp stapling caa сертификат проверка шифры версии',
     'tools/networks/http-headers.html': 'http headers response hsts csp security server заголовки',
     'tools/networks/email-dns-checker.html': 'email dns mx spf dmarc dkim ptr mail почта домен проверка',
     'tools/networks/dns-propagation.html': 'dns propagation propagate resolver public resolvers распространение днс',

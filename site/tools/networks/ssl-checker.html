@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="SSL/TLS Checker — certificate validity, issuer, SANs, chain and hostname match">
+<meta name="description" content="SSL/TLS Checker — certificate, chain, TLS versions, cipher suites, OCSP stapling and CAA">
 <meta name="theme-color" content="#16161a">
 <title>SSL/TLS Checker — OrbitNet</title>
 <link rel="canonical" href="https://orbitnet.ru/tools/networks/ssl-checker.html">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="OrbitNet">
 <meta property="og:title" content="SSL/TLS Checker — OrbitNet">
-<meta property="og:description" content="SSL/TLS Checker — certificate validity, issuer, SANs, chain and hostname match">
+<meta property="og:description" content="SSL/TLS Checker — certificate, chain, TLS versions, cipher suites, OCSP stapling and CAA">
 <meta property="og:url" content="https://orbitnet.ru/tools/networks/ssl-checker.html">
 <meta property="og:locale" content="en_US">
 <meta property="og:image" content="https://orbitnet.ru/assets/og-image.png">
@@ -20,7 +20,7 @@
 <meta property="og:image:alt" content="OrbitNet — open tools, no noise">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="SSL/TLS Checker — OrbitNet">
-<meta name="twitter:description" content="SSL/TLS Checker — certificate validity, issuer, SANs, chain and hostname match">
+<meta name="twitter:description" content="SSL/TLS Checker — certificate, chain, TLS versions, cipher suites, OCSP stapling and CAA">
 <meta name="twitter:image" content="https://orbitnet.ru/assets/og-image.png">
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=3">
@@ -38,7 +38,7 @@
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "SSL/TLS Checker",
-  "description": "SSL/TLS Checker — certificate validity, issuer, SANs, chain and hostname match",
+  "description": "SSL/TLS Checker — certificate, chain, TLS versions, cipher suites, OCSP stapling and CAA",
   "url": "https://orbitnet.ru/tools/networks/ssl-checker.html",
   "applicationCategory": "NetworkApplication",
   "applicationSubCategory": "networks",
@@ -79,7 +79,7 @@
       <span>SSL/TLS Checker</span>
     </div>
     <h1>SSL/TLS Checker</h1>
-    <p>Inspect a server's TLS certificate: validity period, issuer, subject alternative names, certificate chain and hostname match.</p>
+    <p>Inspect a server's TLS setup: certificate validity, issuer, SANs and chain, plus supported protocol versions, cipher suites, OCSP stapling and CAA records.</p>
   </div>
 
   <div class="tool-panel">
@@ -93,6 +93,13 @@
       <label for="port">Port</label>
       <input type="text" id="port" inputmode="numeric" placeholder="e.g. 443">
       <small>Default 443. Allowed ports: 443, 465, 993, 995, 8443.</small>
+    </div>
+    <div class="input-group">
+      <label style="display:flex;align-items:center;gap:.5rem;font-weight:500;">
+        <input type="checkbox" id="deep" checked style="width:auto;">
+        Deep scan
+      </label>
+      <small>Probes supported TLS versions and cipher suites, OCSP stapling and CAA records.</small>
     </div>
     <button class="btn" onclick="check()">Check certificate</button>
   </div>
@@ -111,8 +118,11 @@
       <li><strong>Trust:</strong> whether the certificate chains to a trusted root.</li>
       <li><strong>Hostname match:</strong> the certificate must cover the requested host (CN or SAN).</li>
       <li><strong>Chain:</strong> the certificates sent by the server, up to the root.</li>
+      <li><strong>Protocols &amp; ciphers (deep scan):</strong> which TLS versions and cipher suites the server accepts, with weak ones flagged.</li>
+      <li><strong>OCSP stapling:</strong> whether the server attaches a signed OCSP response to the handshake.</li>
+      <li><strong>CAA records:</strong> which certificate authorities are allowed to issue for the domain (RFC 8659).</li>
     </ul>
-    <p>The TLS handshake is performed by our server so the connection only ever goes to the resolved public IP of the host you entered.</p>
+    <p>The TLS handshake is performed by our server so the connection only ever goes to the resolved public IP of the host you entered. Legacy protocols and ciphers that our own OpenSSL refuses to offer are reported as “not verifiable” rather than “rejected”.</p>
   </div>
 </main>
 
@@ -166,16 +176,26 @@ function check() {
     return;
   }
 
+  const deep = document.getElementById('deep').checked;
   const res = document.getElementById('results');
   res.innerHTML = '<div class="loading">Connecting to ' + esc(host) + ':' + esc(port) + '...</div>';
 
-  fetch('/api/tls?host=' + encodeURIComponent(host) + '&port=' + port)
+  fetch('/api/tls?host=' + encodeURIComponent(host) + '&port=' + port + '&deep=' + (deep ? '1' : '0'))
     .then(r => r.json())
     .then(data => {
       if (data.error) { showError(data.error); res.innerHTML = ''; return; }
       render(host, port, data);
     })
     .catch(e => { showError(e.message); res.innerHTML = ''; });
+}
+
+function versionLabel(v) {
+  return ({ 'TLSv1': 'TLS 1.0', 'TLSv1.1': 'TLS 1.1', 'TLSv1.2': 'TLS 1.2', 'TLSv1.3': 'TLS 1.3' })[v] || v;
+}
+function mark(supported) {
+  if (supported === true) return '<span style="color:var(--accent);">supported</span>';
+  if (supported === null) return '<span style="color:var(--muted);">not verifiable</span>';
+  return '<span style="color:var(--danger);">rejected</span>';
 }
 
 function render(host, port, d) {
@@ -194,8 +214,53 @@ function render(host, port, d) {
   html += box('Trust', d.authorized ? 'Trusted chain' : 'Not trusted' + (d.authorizationError ? ' (' + d.authorizationError + ')' : ''), d.authorized ? 'var(--accent)' : 'var(--danger)');
   html += box('Hostname match', d.hostnameMatch ? 'Yes' : 'No — ' + (d.hostnameError || 'mismatch'), d.hostnameMatch ? 'var(--accent)' : 'var(--danger)');
   html += box('Days remaining', d.daysRemaining == null ? '—' : String(d.daysRemaining), expired ? 'var(--danger)' : (expiringSoon ? 'var(--warning)' : 'var(--accent)'));
-  html += box('Protocol / cipher', (d.protocol || '—') + ' / ' + (d.cipher || '—'));
+  const grade = d.cipherGrade || {};
+  const gradeColor = grade.strength === 'strong' ? 'var(--accent)' : (grade.strength === 'weak' ? 'var(--danger)' : 'var(--warning)');
+  html += box('Protocol / cipher', (d.protocol || '—') + ' / ' + (d.cipher || '—') +
+    (grade.strength ? ' (' + grade.strength + ')' : ''), gradeColor);
+  if (d.ocsp) {
+    html += box('OCSP stapling', d.ocsp.stapled ? 'Stapled' : (d.ocsp.requested ? 'Not stapled' : '—'),
+      d.ocsp.stapled ? 'var(--accent)' : 'var(--warning)');
+  }
+  if (d.caa) {
+    const caaText = d.caa.found
+      ? (d.caa.domain + ': ' + d.caa.records.map(r => r.tag + ' ' + r.value).join(', '))
+      : (d.caa.error ? 'Lookup failed (' + d.caa.error + ')' : 'No CAA records');
+    html += box('CAA (certificate authority)', caaText, d.caa.found ? 'var(--accent)' : 'var(--warning)');
+  }
   html += '</div>';
+
+  if (Array.isArray(d.protocols) && d.protocols.length) {
+    const vs = d.versionSummary || {};
+    let vh = '<div class="result-box"><div class="result-label">Supported protocol versions</div>' +
+      '<div class="result-value" style="font-size:.9rem;line-height:1.9;">';
+    d.protocols.forEach(p => {
+      vh += '<div>' + esc(versionLabel(p.version)) + ': ' + mark(p.supported) + '</div>';
+    });
+    if (vs.issues && vs.issues.length) {
+      vh += '<div style="margin-top:6px;color:var(--warning);">' + vs.issues.map(esc).join('<br>') + '</div>';
+    }
+    vh += '</div></div>';
+    html += vh;
+  }
+
+  if (Array.isArray(d.ciphers) && d.ciphers.length) {
+    const supported = d.ciphers.filter(c => c.supported === true);
+    const weakSupported = supported.filter(c => c.weak);
+    let ch = '<div class="result-box"><div class="result-label">Cipher suites (' + supported.length + ' of ' + d.ciphers.length + ' probed)</div>' +
+      '<div class="result-value" style="font-size:.9rem;line-height:1.9;">';
+    d.ciphers.forEach(c => {
+      const color = c.weak && c.supported === true ? 'var(--danger)' : (c.supported === true ? 'var(--accent)' : 'var(--muted)');
+      const note = c.weak && c.supported === true ? ' — weak' : '';
+      ch += '<div style="color:' + color + ';">' + esc(c.name) + ': ' + mark(c.supported) + esc(note) + '</div>';
+    });
+    if (weakSupported.length) {
+      ch += '<div style="margin-top:6px;color:var(--danger);">Weak suites enabled: ' + weakSupported.map(c => esc(c.name)).join(', ') + '</div>';
+    }
+    ch += '<div class="result-sub" style="margin-top:6px;">Legacy versions and ciphers that our own OpenSSL refuses to offer are shown as “not verifiable”.</div>';
+    ch += '</div></div>';
+    html += ch;
+  }
 
   html += '<div class="grid-2">';
   html += box('Issued to', name(d.subject));

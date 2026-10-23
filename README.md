@@ -38,7 +38,7 @@ OrbitNet — открытый набор небольших инструмент
 | CIDR / Netmask Converter | CIDR ↔ маска ↔ wildcard |
 | IP / Binary Converter | IPv4 ↔ binary/decimal/hex |
 | MAC Address Converter | Форматы MAC, тип адреса и OUI |
-| SSL/TLS Checker | Срок сертификата, издатель, SAN, цепочка и имя |
+| SSL/TLS Checker | Срок сертификата, издатель, SAN, цепочка и имя; deep scan — версии TLS, шифры, OCSP stapling, CAA |
 | HTTP Headers Inspector | Заголовки ответа и security-подсказки |
 | Email DNS Checker | MX, SPF, DMARC, DKIM и PTR |
 | Email Deliverability Check | Разбор почтовых DNS-настроек и ошибок |
@@ -260,7 +260,7 @@ DNS-over-HTTPS резолверам Cloudflare, Google и AdGuard; для HTTP �
 | `GET /api/whois?host=` | whois для домена или IP |
 | `GET /api/site?host=` | HTTP-статус, сервер, заголовок, время ответа; при сетевой ошибке или 403/451 — fallback в Worker (`source`) |
 | `GET /api/headers?host=` | Заголовки HTTP-ответа; при сетевой ошибке или 403/451 — fallback в Worker (`source`) |
-| `GET /api/tls?host=&port=` | Данные TLS-сертификата; порт ограничен списком 443, 465, 993, 995, 8443 |
+| `GET /api/tls?host=&port=&deep=` | Данные TLS-сертификата; порт ограничен списком 443, 465, 993, 995, 8443. `deep=1` дополнительно опрашивает версии TLS, шифры, OCSP stapling и CAA (не более 8 глубоких сканов в минуту с одного IP) |
 | `GET /api/email?host=&selector=` | MX, SPF, DMARC, DKIM, PTR; при транспортной ошибке DNS — fallback в Worker (`source`) |
 | `GET /api/propagation?host=&type=` | Ответы нескольких DNS-резолверов; при транспортном отказе всех локальных — fallback в Worker (`source`) |
 | `GET /api/redirect?host=` | Цепочка перенаправлений; при сетевой ошибке или 403/451 первого шага — fallback в Worker (`source`) |
@@ -289,6 +289,7 @@ Spam Blacklist Check (`/api/spam`) опрашивает публичные DNSBL
 - небезопасные схемы отбрасываются;
 - TLS проверяется штатно, кроме `/api/tls`, который намеренно показывает просроченные и самоподписанные сертификаты;
 - `/api/tls` принимает только порты из списка 443, 465, 993, 995, 8443, поэтому через него нельзя сканировать произвольные TCP-порты;
+- deep-режим `/api/tls` делает отдельный handshake на каждую версию и шифр, поэтому дополнительно ограничен 8 запросами в минуту с одного IP; устаревшие версии и шифры, которые не умеет предлагать собственный OpenSSL бэкенда, помечаются как `unknown`, а не как отклонённые;
 - `/api/dns` и `/api/propagation` возвращают HTTP 400 на неподдерживаемый тип записи вместо молчаливой подмены на A;
 - `/api/anonymity/ports` дополнительно разрешает проверку только того IP, с которого пришёл запрос; сканировать произвольные адреса через него нельзя;
 - действуют таймауты и rate limiting; у исходящих HTTP-запросов есть общий дедлайн и лимит размера тела, после которого сокет закрывается, — слоу-сервер не может удерживать слот лимитера;

@@ -774,12 +774,14 @@ const outbound = createLimiter(MAX_CONCURRENT, MAX_QUEUE);
 
 const rateHits = new Map();
 const portHits = new Map();
+const tlsDeepHits = new Map();
 const PORT_RATE_MAX = 3;
+const TLS_DEEP_RATE_MAX = 8;
 let lastRatePrune = Date.now();
 function isRateLimited(ip, store = rateHits, max = RATE_MAX) {
   const now = Date.now();
   if (now - lastRatePrune > RATE_WINDOW_MS) {
-    for (const map of [rateHits, portHits]) {
+    for (const map of [rateHits, portHits, tlsDeepHits]) {
       for (const [key, rec] of map) {
         if (now - rec.start > RATE_WINDOW_MS) map.delete(key);
       }
@@ -1641,15 +1643,162 @@ async function headersInfo(host, context) {
 // ---------- /api/tls ----------
 // Deliberately connects with rejectUnauthorized:false so invalid/expired
 // certificates can still be inspected; validity is then reported explicitly.
-async function tlsInfo(host, port) {
+const TLS_PROBE_TIMEOUT = 5000;
+// Protocol versions and a curated cipher slate probed one handshake each.
+// "TLSv1" is how Node names TLS 1.0.
+const TLS_VERSION_PROBES = ['TLSv1.3', 'TLSv1.2', 'TLSv1.1', 'TLSv1'];
+const TLS_CIPHER_PROBES = [
+  { name: 'ECDHE-ECDSA-AES128-GCM-SHA256', weak: false },
+  { name: 'ECDHE-RSA-AES128-GCM-SHA256', weak: false },
+  { name: 'ECDHE-ECDSA-AES256-GCM-SHA384', weak: false },
+  { name: 'ECDHE-RSA-AES256-GCM-SHA384', weak: false },
+  { name: 'ECDHE-ECDSA-CHACHA20-POLY1305', weak: false },
+  { name: 'ECDHE-RSA-CHACHA20-POLY1305', weak: false },
+  { name: 'AES128-GCM-SHA256', weak: false },
+  { name: 'AES256-GCM-SHA384', weak: false },
+  { name: 'ECDHE-RSA-AES128-SHA', weak: true },
+  { name: 'ECDHE-RSA-AES256-SHA', weak: true },
+  { name: 'DES-CBC3-SHA', weak: true },
+  { name: 'RC4-SHA', weak: true }
+];
+
+function parseSubjectAltName(value) {
+  if (!value) return [];
+  return String(value).split(',').map(part => part.trim()).filter(Boolean).map(entry => {
+    const idx = entry.indexOf(':');
+    if (idx === -1) return { type: 'DNS', value: entry };
+    return { type: entry.slice(0, idx).toUpperCase(), value: entry.slice(idx + 1) };
+  }).filter(e => e.value);
+}
+
+function classifyCipher(name) {
+  const cipher = String(name || '').toUpperCase();
+  const unsafe = /RC4|3DES|DES-CBC3|(^|[^A-Z])DES[^A-Z]|NULL|EXPORT|ANON/.test(cipher);
+  const notes = [];
+  if (/RC4/.test(cipher)) notes.push('RC4 is cryptographically broken');
+  if (/3DES|DES-CBC3/.test(cipher)) notes.push('3DES is deprecated');
+  else if (/(^|[^A-Z])DES[^A-Z]/.test(cipher)) notes.push('single DES is unsafe');
+  if (/NULL|EXPORT|ANON/.test(cipher)) notes.push('no or anonymous encryption');
+  if (/\bMD5\b/.test(cipher)) notes.push('MD5 integrity check');
+  if (unsafe) return { strength: 'weak', notes };
+  if (/CBC/.test(cipher)) return { strength: 'legacy', notes: ['CBC mode is legacy; prefer an AEAD suite'] };
+  if (/GCM|CHACHA20|POLY1305/.test(cipher)) return { strength: 'strong', notes: [] };
+  return { strength: 'legacy', notes: [] };
+}
+
+function summarizeTlsVersions(versions) {
+  const list = versions || [];
+  const supported = list.filter(v => v.supported === true).map(v => v.version);
+  const unknown = list.filter(v => v.supported === null).map(v => v.version);
+  const weak = supported.filter(v => v === 'TLSv1' || v === 'TLSv1.1');
+  const issues = [];
+  if (!supported.includes('TLSv1.3')) issues.push('TLS 1.3 is not enabled');
+  if (weak.length) issues.push('Deprecated ' + weak.join(', ') + ' still accepted');
+  return { supported, unknown, weak, issues };
+}
+
+function normalizeCaaRecord(raw) {
+  if (!raw || typeof raw !== 'object') return { flag: 0, tag: '', value: '' };
+  const critical = raw.critical != null ? raw.critical : raw.flag;
+  const flag = Number(critical) || 0;
+  if (typeof raw.tag === 'string' && typeof raw.value === 'string') {
+    return { flag, tag: raw.tag, value: raw.value };
+  }
+  for (const tag of ['issue', 'issuewild', 'iodef']) {
+    if (raw[tag] != null) return { flag, tag, value: String(raw[tag]) };
+  }
+  return { flag, tag: '', value: raw.value != null ? String(raw.value) : '' };
+}
+
+// RFC 8659: the authority is found on the exact name or the nearest ancestor.
+async function caaLookup(host) {
+  const labels = String(host).split('.').filter(Boolean);
+  for (let i = 0; i + 2 <= labels.length; i++) {
+    const name = labels.slice(i).join('.');
+    try {
+      const records = await withTimeout(dns.resolveCaa(name), DNS_TIMEOUT, 'CAA timeout');
+      return { found: true, domain: name, records: records.map(normalizeCaaRecord) };
+    } catch (e) {
+      const code = e && e.code;
+      if (code === 'ENODATA' || code === 'ENOTFOUND' || code === 'ENOTIMP') continue;
+      return { found: false, domain: name, records: [], error: code || e.message };
+    }
+  }
+  return { found: false, domain: '', records: [] };
+}
+
+function tlsHandshake(ip, host, port, extra, timeout) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (value) => { if (!settled) { settled = true; resolve(value); } };
+    let socket;
+    try {
+      socket = tls.connect(Object.assign({
+        host: ip,
+        servername: host,
+        port: port || 443,
+        rejectUnauthorized: false,
+        timeout: timeout || TLS_PROBE_TIMEOUT
+      }, extra || {}), () => {
+        const out = {
+          ok: true,
+          protocol: socket.getProtocol(),
+          cipher: (socket.getCipher() || {}).name || ''
+        };
+        socket.end();
+        done(out);
+      });
+    } catch (e) {
+      return done({ ok: false, error: e.code || e.message });
+    }
+    socket.on('timeout', () => { socket.destroy(); done({ ok: false, error: 'timeout' }); });
+    socket.on('error', (e) => done({ ok: false, error: e.code || e.message }));
+  });
+}
+
+// Node's own OpenSSL build removes TLS 1.0/1.1 and legacy ciphers (RC4, 3DES)
+// from the default security level. When a probe fails for that reason the
+// server's stance is simply unknowable from here, so report null, not false.
+function isClientPolicyError(code) {
+  return code === 'ERR_SSL_NO_PROTOCOLS_AVAILABLE' ||
+    code === 'ERR_SSL_NO_CIPHER_MATCH' ||
+    code === 'ERR_SSL_NO_CIPHERS_AVAILABLE';
+}
+
+function probeResult(r) {
+  if (r.ok) return true;
+  return isClientPolicyError(r.error) ? null : false;
+}
+
+async function tlsDeepProbe(ip, host, port) {
+  const versions = await Promise.all(TLS_VERSION_PROBES.map(async (version) => {
+    const r = await outbound(() => tlsHandshake(
+      ip, host, port, { minVersion: version, maxVersion: version }, TLS_PROBE_TIMEOUT));
+    return { version, supported: probeResult(r), cipher: r.ok ? r.cipher : '', error: r.ok ? '' : (r.error || '') };
+  }));
+  const ciphers = await Promise.all(TLS_CIPHER_PROBES.map(async (probe) => {
+    const r = await outbound(() => tlsHandshake(
+      ip, host, port, { minVersion: 'TLSv1.2', maxVersion: 'TLSv1.2', ciphers: probe.name }, TLS_PROBE_TIMEOUT));
+    return { name: probe.name, supported: probeResult(r), weak: !!probe.weak, error: r.ok ? '' : (r.error || '') };
+  }));
+  return { versions, ciphers };
+}
+
+async function tlsInfo(host, port, options) {
+  const deep = !!(options && options.deep);
   const ips = await resolvePublic(host);
   const ip = pickAddress(ips);
-  return outbound(() => new Promise((resolve) => {
+  const connectPort = port || 443;
+  const base = await outbound(() => new Promise((resolve) => {
+    let ocspResponse = null;
+    let settled = false;
+    const finish = (value) => { if (!settled) { settled = true; resolve(value); } };
     const socket = tls.connect({
       host: ip,
       servername: host,
-      port: port || 443,
+      port: connectPort,
       rejectUnauthorized: false,
+      requestOCSP: true,
       timeout: OUTBOUND_TIMEOUT
     }, () => {
       const cert = socket.getPeerCertificate(true);
@@ -1679,13 +1828,15 @@ async function tlsInfo(host, port) {
       const validTo = new Date(cert.valid_to);
       const daysRemaining = isNaN(validTo.getTime()) ? null :
         Math.floor((validTo.getTime() - Date.now()) / 86400000);
+      const cipher = (socket.getCipher() || {}).name || '';
 
       const out = {
         host,
         ip,
-        port: port || 443,
+        port: connectPort,
         protocol: socket.getProtocol(),
-        cipher: (socket.getCipher() || {}).name || '',
+        cipher,
+        cipherGrade: classifyCipher(cipher),
         authorized: socket.authorized,
         authorizationError: socket.authorizationError ? String(socket.authorizationError) : '',
         subject: cert.subject || {},
@@ -1696,16 +1847,35 @@ async function tlsInfo(host, port) {
         serialNumber: cert.serialNumber || '',
         fingerprint256: cert.fingerprint256 || '',
         subjectaltname: cert.subjectaltname || '',
+        subjectAltNames: parseSubjectAltName(cert.subjectaltname),
         hostnameMatch,
         hostnameError,
+        ocsp: {
+          requested: true,
+          stapled: !!(ocspResponse && ocspResponse.length),
+          responseBytes: ocspResponse ? ocspResponse.length : 0
+        },
         chain
       };
       socket.end();
-      resolve(out);
+      finish(out);
     });
-    socket.on('timeout', () => { socket.destroy(); resolve({ host, ip, error: 'timeout' }); });
-    socket.on('error', (e) => resolve({ host, ip, error: e.code || e.message }));
+    socket.on('OCSPResponse', (buf) => { ocspResponse = buf || null; });
+    socket.on('timeout', () => { socket.destroy(); finish({ host, ip, port: connectPort, error: 'timeout' }); });
+    socket.on('error', (e) => finish({ host, ip, port: connectPort, error: e.code || e.message }));
   }));
+
+  if (base.error) return base;
+
+  base.caa = await caaLookup(host).catch(() => ({ found: false, domain: '', records: [] }));
+  base.deep = deep;
+  if (deep) {
+    const probe = await tlsDeepProbe(ip, host, connectPort);
+    base.protocols = probe.versions;
+    base.versionSummary = summarizeTlsVersions(probe.versions);
+    base.ciphers = probe.ciphers;
+  }
+  return base;
 }
 
 // ---------- /api/email ----------
@@ -2824,7 +2994,11 @@ const server = http.createServer(async (req, res) => {
       if (!TLS_PORTS.has(port)) {
         return bad(res, 'TLS checks are limited to ports ' + [...TLS_PORTS].join(', '));
       }
-      return send(res, 200, await tlsInfo(host, port));
+      const deep = query.get('deep') === '1' || query.get('deep') === 'true';
+      if (deep && isRateLimited(ip, tlsDeepHits, TLS_DEEP_RATE_MAX)) {
+        return send(res, 429, { error: 'Deep TLS scans are limited to ' + TLS_DEEP_RATE_MAX + ' per minute' });
+      }
+      return send(res, 200, await tlsInfo(host, port, { deep }));
     }
 
     if (path === '/api/email') {
@@ -2933,5 +3107,7 @@ module.exports = {
   spamCheck, parseSpamTarget, parseDnsblRecords, reverseIpName,
   SPAM_IP_LISTS, SPAM_DOMAIN_LISTS,
   securityAudit, buildSecurityReport, gradeFromChecks, parseSecurityTxt,
-  parseCookies, parseMaxAge, findMixedContent
+  parseCookies, parseMaxAge, findMixedContent,
+  parseSubjectAltName, classifyCipher, summarizeTlsVersions, normalizeCaaRecord,
+  caaLookup, TLS_VERSION_PROBES, TLS_CIPHER_PROBES
 };
