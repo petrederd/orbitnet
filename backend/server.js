@@ -2233,8 +2233,10 @@ const SPAM_RESOLVER_TEST = '2.0.0.127.zen.spamhaus.org';
 // can get a new IP, and a resolver that was not ready at startup must not stay
 // cached as null forever.
 const SPAM_RESOLVER_REFRESH_MS = 60 * 1000;
-// The canary is a separate Spamhaus query, so cache its verdict briefly.
+// The canary is a separate Spamhaus query, so cache its verdict briefly. An
+// error or unknown status is retried quickly so a restarted resolver recovers.
 const SPAM_RESOLVER_STATUS_TTL = 90 * 1000;
+const SPAM_RESOLVER_ERROR_TTL = 20 * 1000;
 const spamHits = new Map();
 const spamCache = new Map();
 const spamResolverStatusCache = { value: null, expires: 0 };
@@ -2573,8 +2575,9 @@ async function spamResolverProbe(options) {
     return spamResolverStatusCache.value;
   }
   const result = await spamResolverProbeUncached(options);
+  const ttl = result.checked === false ? SPAM_RESOLVER_ERROR_TTL : SPAM_RESOLVER_STATUS_TTL;
   spamResolverStatusCache.value = result;
-  spamResolverStatusCache.expires = now + SPAM_RESOLVER_STATUS_TTL;
+  spamResolverStatusCache.expires = now + ttl;
   return result;
 }
 

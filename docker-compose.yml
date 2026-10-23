@@ -21,7 +21,7 @@ services:
     restart: unless-stopped
     depends_on:
       orbitnet-unbound:
-        condition: service_healthy
+        condition: service_started
     environment:
       - PORT=3000
       - GEOIP_DIR=/data/geoip
