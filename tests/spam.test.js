@@ -160,7 +160,7 @@ test('spamCheck keeps query errors separate from clean answers', async () => {
   const zen = result.ips[0].lists.find(item => item.name === 'Spamhaus ZEN');
   assert.equal(zen.listed, null);
   assert.equal(zen.error, 'ESERVFAIL');
-  const clean = result.ips[0].lists.find(item => item.name === 'SpamCop');
+  const clean = result.ips[0].lists.find(item => item.name === 'DroneBL');
   assert.equal(clean.listed, false);
 });
 

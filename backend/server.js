@@ -3059,7 +3059,7 @@ async function redirectChain(startHost, context) {
 // as a listing.
 const SPAM_IP_LISTS = [
   { name: 'Spamhaus ZEN', zone: 'zen.spamhaus.org' },
-  { name: 'SpamCop', zone: 'bl.spamcop.net' },
+  { name: 'DroneBL', zone: 'dnsbl.dronebl.org' },
   { name: 'Barracuda', zone: 'b.barracudacentral.org' },
   { name: 'PSBL', zone: 'psbl.surriel.com' },
   { name: 'Spam Eating Monkey', zone: 'bl.spameatingmonkey.net' },
@@ -3115,6 +3115,25 @@ const SPAM_CODE_TABLE = {
     '127.0.0.12': { label: 'PBL: dynamic IP range', spam: false, category: 'pbl' },
     '127.0.0.13': { label: 'PBL: dynamic IP range', spam: false, category: 'pbl' },
     '127.0.0.14': { label: 'PBL: dynamic IP range', spam: false, category: 'pbl' }
+  },
+  'dnsbl.dronebl.org': {
+    '127.0.0.2': { label: 'DroneBL: sample', spam: false, category: 'informational' },
+    '127.0.0.3': { label: 'DroneBL: IRC drone', spam: true },
+    '127.0.0.5': { label: 'DroneBL: bottler', spam: true },
+    '127.0.0.6': { label: 'DroneBL: unknown spambot or drone', spam: true },
+    '127.0.0.7': { label: 'DroneBL: DDoS drone', spam: true },
+    '127.0.0.8': { label: 'DroneBL: SOCKS proxy', spam: true },
+    '127.0.0.9': { label: 'DroneBL: HTTP proxy', spam: true },
+    '127.0.0.10': { label: 'DroneBL: proxy chain', spam: true },
+    '127.0.0.11': { label: 'DroneBL: web page proxy', spam: true },
+    '127.0.0.12': { label: 'DroneBL: open DNS resolver', spam: false, category: 'informational' },
+    '127.0.0.13': { label: 'DroneBL: brute-force attacker', spam: true },
+    '127.0.0.14': { label: 'DroneBL: open Wingate proxy', spam: true },
+    '127.0.0.15': { label: 'DroneBL: compromised router or gateway', spam: true },
+    '127.0.0.16': { label: 'DroneBL: autorooting worm', spam: true },
+    '127.0.0.17': { label: 'DroneBL: botnet IP', spam: true },
+    '127.0.0.18': { label: 'DroneBL: DNS/MX hostname on IRC', spam: false, category: 'informational' },
+    '127.0.0.255': { label: 'DroneBL: unknown', spam: true }
   },
   'bl.mailspike.net': {
     '127.0.0.2': { label: 'Mailspike: spam source', spam: true },
