@@ -4,7 +4,6 @@ const http2 = require('http2');
 const tls = require('tls');
 const crypto = require('crypto');
 const dns = require('dns').promises;
-const dnsNative = require('dns');
 const net = require('net');
 const fs = require('fs');
 const path = require('path');
@@ -3201,7 +3200,7 @@ async function createSpamResolver() {
     return null;
   }
   try {
-    const resolver = new dnsNative.Resolver({ timeout: DNS_TIMEOUT, tries: 2 });
+    const resolver = new dns.Resolver({ timeout: DNS_TIMEOUT, tries: 2 });
     resolver.setServers(resolved);
     return resolver;
   } catch (e) {
