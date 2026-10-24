@@ -633,3 +633,101 @@ test('TLS name resolution falls back to the Worker when local DNS is filtered', 
   assert.deepEqual(resolved.ips, ['93.184.216.34']);
   assert.ok(seen.some(item => item.type === 'dns' && item.recordType === 'A'));
 });
+
+test('TLS tries every resolved address until one connects', async () => {
+  const server = tls.createServer({ key: VALID_KEY, cert: VALID_CHAIN }, socket => socket.end());
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.2', () => {
+      server.removeListener('error', reject);
+      resolve();
+    });
+  });
+  const port = server.address().port;
+  try {
+    const result = await api.firstTlsBase(['127.0.0.1', '127.0.0.2'], 'valid.example', port);
+    assert.equal(result.error, undefined);
+    assert.equal(result.ip, '127.0.0.2');
+    assert.equal(result.hostnameMatch, true);
+  } finally {
+    await close(server);
+  }
+});
+
+test('TLS collects addresses from every DoH resolver when local DNS fails', async (t) => {
+  const http = require('node:http');
+
+  const secret = 'tls-propagation-secret';
+  const seen = [];
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.setEncoding('utf8');
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      if (req.method !== 'POST' || req.headers.authorization !== 'Bearer ' + secret) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Unauthorized' }));
+        return;
+      }
+      const payload = JSON.parse(body);
+      seen.push(payload);
+      const v6Host = String(payload.host).startsWith('v6.');
+      const records = payload.recordType === 'AAAA'
+        ? (v6Host ? ['2a00:1450:4001:c21::5b', '2a00:1450:4001:c21::5d'] : [])
+        : (v6Host
+          ? ['142.251.127.136']
+          : ['142.251.127.136', '142.251.127.190']);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        ok: true,
+        type: 'propagation',
+        host: payload.host,
+        recordType: payload.recordType,
+        resolvers: [
+          { server: 'Cloudflare 1.1.1.1', records },
+          { server: 'Google 8.8.8.8', records: records.map(ip => ip.startsWith('142.251.127.') ? ip.replace('142.251.127.', '142.251.14.') : ip) }
+        ],
+        source: 'Cloudflare Worker'
+      }));
+    });
+  });
+  const port = await listen(server);
+
+  const savedUrl = process.env.CHECKER_URL;
+  const savedSecret = process.env.CHECKER_SECRET;
+  const savedTimeout = process.env.CHECKER_TIMEOUT;
+  process.env.CHECKER_URL = 'http://127.0.0.1:' + port + '/';
+  process.env.CHECKER_SECRET = secret;
+  process.env.CHECKER_TIMEOUT = '2000';
+
+  t.after(async () => {
+    await close(server);
+    if (savedUrl === undefined) delete process.env.CHECKER_URL;
+    else process.env.CHECKER_URL = savedUrl;
+    if (savedSecret === undefined) delete process.env.CHECKER_SECRET;
+    else process.env.CHECKER_SECRET = savedSecret;
+    if (savedTimeout === undefined) delete process.env.CHECKER_TIMEOUT;
+    else process.env.CHECKER_TIMEOUT = savedTimeout;
+  });
+
+  const context = { clientIp: '198.51.100.78', deadline: Date.now() + 5000 };
+  const v4 = await api.resolvePublicWithWorker(
+    'no-such-subdomain.orbitnet-tls-all.example.com', context, { all: true }
+  );
+  assert.equal(v4.source, 'worker');
+  assert.deepEqual(v4.ips, [
+    '142.251.127.136', '142.251.14.136',
+    '142.251.127.190', '142.251.14.190'
+  ]);
+  assert.equal(seen.some(item => item.recordType === 'AAAA'), false);
+
+  const dual = await api.resolvePublicWithWorker(
+    'v6.no-such-subdomain.orbitnet-tls-all.example.com', context, { all: true }
+  );
+  assert.equal(dual.source, 'worker');
+  assert.deepEqual(dual.ips, [
+    '142.251.127.136', '142.251.14.136',
+    '2a00:1450:4001:c21::5b', '2a00:1450:4001:c21::5d'
+  ]);
+  assert.ok(seen.some(item => item.recordType === 'AAAA'));
+});

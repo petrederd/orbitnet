@@ -435,15 +435,63 @@ function pickAddress(ips) {
   return ips.find(net.isIPv4) || ips[0];
 }
 
+// Round-robin over resolver answer lists so one resolver cannot fill the whole
+// candidate list with addresses that are blocked from this network.
+function interleaveAnswers(lists) {
+  const out = [];
+  const max = lists.reduce((value, list) => Math.max(value, list.length), 0);
+  for (let i = 0; i < max; i++) {
+    for (const list of lists) {
+      if (list[i]) out.push(list[i]);
+    }
+  }
+  return out;
+}
+
+async function workerPropagationIps(host, type, context) {
+  const cacheKey = externalCacheKey('propagation', host, type);
+  let external = getExternalCache(cacheKey);
+  if (!external) {
+    external = await callExternal(
+      opts => externalCheck.checkPropagation(host, type, opts),
+      context
+    );
+    if (!external.error) setExternalCache(cacheKey, external);
+  }
+  if (external.error) {
+    logExternalFailure(external.error);
+    return [];
+  }
+  const lists = (Array.isArray(external.resolvers) ? external.resolvers : [])
+    .map(item => Array.isArray(item.records) ? item.records : []);
+  return interleaveAnswers(lists).filter(ip => net.isIP(ip) && isPublicIp(ip));
+}
+
+async function workerResolvedIps(host, context) {
+  const v4 = await workerPropagationIps(host, 'A', context);
+  // Most dual-stack hosts return several IPv4 addresses, which is enough for
+  // the parallel attempt below. Ask for AAAA only when the IPv4 set is too
+  // small, to keep the Worker fallback budget for real failures.
+  const v6 = v4.length < 4
+    ? await workerPropagationIps(host, 'AAAA', context)
+    : [];
+  return [...new Set([...v4, ...v6])];
+}
+
 // Checks that need a public address for a domain (geo, TLS) can ask the Worker
 // for A/AAAA when the local resolver cannot see the name (DNS filtering, RKN).
 // The Worker answer is still filtered through the local public-IP guard, and
 // targets the local resolver already marked as private are never forwarded.
-async function resolvePublicWithWorker(host, context) {
+// TLS asks all DoH resolvers for every address so it can try more than one.
+async function resolvePublicWithWorker(host, context, options) {
   try {
     return { ips: await resolvePublic(host), source: 'local' };
   } catch (e) {
     if (e.blocked || !e.unresolved) throw e;
+    if (options && options.all) {
+      const ips = await workerResolvedIps(host, context);
+      if (ips.length) return { ips, source: 'worker' };
+    }
     for (const type of ['A', 'AAAA']) {
       const cacheKey = externalCacheKey('dns', host, type);
       let external = getExternalCache(cacheKey);
@@ -1687,6 +1735,10 @@ async function headersInfo(host, context) {
 // Deliberately connects with rejectUnauthorized:false so invalid/expired
 // certificates can still be inspected; validity is then reported explicitly.
 const TLS_PROBE_TIMEOUT = 5000;
+// A blocked address often blackholes TCP, so several resolved addresses are
+// attempted in parallel. The first successful handshake wins.
+const TLS_ATTEMPT_TIMEOUT = 6000;
+const TLS_ATTEMPT_LIMIT = 6;
 // Protocol versions and a curated cipher slate probed one handshake each.
 // "TLSv1" is how Node names TLS 1.0.
 const TLS_VERSION_PROBES = ['TLSv1.3', 'TLSv1.2', 'TLSv1.1', 'TLSv1'];
@@ -2557,19 +2609,8 @@ async function tlsDeepProbe(ip, host, port) {
   return { versions, ciphers };
 }
 
-async function tlsInfo(host, port, options) {
-  const deep = !!(options && options.deep);
-  const context = options && options.context;
-  // Local handshake first. The Worker is only used to resolve the name when
-  // local DNS is filtered; the certificate itself is always read locally.
-  // Worker-supplied addresses are rechecked by the local public-IP guard.
-  const resolved = context
-    ? await resolvePublicWithWorker(host, context)
-    : { ips: await resolvePublic(host), source: 'local' };
-  const ips = resolved.ips;
-  const ip = pickAddress(ips);
-  const connectPort = port || 443;
-  const base = await outbound(() => new Promise((resolve) => {
+function tlsConnectInfo(ip, host, connectPort, timeout) {
+  return new Promise((resolve) => {
     let ocspResponse = null;
     let settled = false;
     let readingAltSvc = false;
@@ -2581,7 +2622,7 @@ async function tlsInfo(host, port, options) {
       rejectUnauthorized: false,
       requestOCSP: true,
       ALPNProtocols: ['h2', 'http/1.1'],
-      timeout: OUTBOUND_TIMEOUT
+      timeout: timeout || OUTBOUND_TIMEOUT
     }, async () => {
       let out;
       try {
@@ -2647,10 +2688,83 @@ async function tlsInfo(host, port, options) {
       if (readingAltSvc) return;
       finish({ host, ip, port: connectPort, error: e.code || e.message });
     });
-  }));
+  });
+}
+
+// Blocked services often resolve to several anycast addresses; some routes may
+// blackhole while another works. Try a small set in parallel and keep the first
+// successful handshake.
+async function firstTlsBase(ips, host, connectPort, limit) {
+  const max = Number.isInteger(limit) && limit > 0 ? limit : TLS_ATTEMPT_LIMIT;
+  const candidates = ips
+    .filter(ip => net.isIPv4(ip))
+    .concat(ips.filter(ip => net.isIPv6(ip)))
+    .slice(0, max);
+  if (!candidates.length) {
+    return { host, port: connectPort, error: 'Cannot resolve ' + host };
+  }
+
+  return await new Promise((resolve, reject) => {
+    let pending = candidates.length;
+    let firstError = null;
+    let firstRejection = null;
+    const settle = () => {
+      if (pending > 0) return;
+      if (firstError) resolve(firstError);
+      else reject(firstRejection);
+    };
+    for (const ip of candidates) {
+      outbound(() => tlsConnectInfo(ip, host, connectPort, TLS_ATTEMPT_TIMEOUT))
+        .then(base => {
+          if (base && !base.error) {
+            resolve(base);
+            return;
+          }
+          if (!firstError) firstError = base;
+          pending--;
+          settle();
+        }, error => {
+          if (!firstRejection) firstRejection = error;
+          pending--;
+          settle();
+        });
+    }
+  });
+}
+
+async function tlsInfo(host, port, options) {
+  const deep = !!(options && options.deep);
+  const context = options && options.context;
+  // Local handshake first. If local DNS is filtered, the Worker supplies the
+  // addresses; if DNS works but the route is blocked, the Worker is asked for
+  // the full address set only after the local attempt fails. The certificate
+  // itself is always read locally, and Worker addresses are rechecked by the
+  // local public-IP guard.
+  let resolved = context
+    ? await resolvePublicWithWorker(host, context, { all: true })
+    : { ips: await resolvePublic(host), source: 'local' };
+  const connectPort = port || 443;
+  let base = await firstTlsBase(
+    resolved.ips, host, connectPort,
+    resolved.source === 'worker' ? TLS_ATTEMPT_LIMIT : 1
+  );
+
+  // Local DNS may work while the route to the address is blocked. If the first
+  // local attempt fails, ask the Worker for the full address set and retry.
+  if (base.error && context && resolved.source === 'local') {
+    const ips = await workerResolvedIps(host, context);
+    if (ips.length) {
+      const retry = await firstTlsBase(ips, host, connectPort, TLS_ATTEMPT_LIMIT);
+      if (!retry.error) {
+        base = retry;
+        resolved = { ips, source: 'worker' };
+      }
+    }
+  }
 
   base.source = resolved.source;
   if (base.error) return base;
+  const ip = base.ip;
 
   base.caa = await caaLookup(host).catch(() => ({ found: false, domain: '', records: [] }));
   base.deep = deep;
@@ -4188,5 +4302,6 @@ module.exports = {
   evaluatePublicKey, hasEmbeddedSct, parseInfoAccess, parseAltSvc,
   analyzeCertificateChain, incompleteChainReason, checkCertificateHostname,
   inspectCertificate, describeCertificateChain, buildTlsReport, gradeTls: buildTlsReport,
+  firstTlsBase,
   TLS_GRADE_RULES, readAltSvcOnSocket, SCT_OID_DER
 };
