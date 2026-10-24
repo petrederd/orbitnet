@@ -65,7 +65,7 @@
 
     <h3>Коротко</h3>
     <ul>
-      <li>Никаких аккаунтов, рекламы, аналитики и сторонних скриптов — все скрипты сайта лежат на моём сервере и загружаются с моего же домена.</li>
+      <li>Никаких аккаунтов, рекламы, сторонних скриптов и трекеров. Все скрипты сайта лежат на моём сервере. Статистику посещений я считаю по обезличенным access-логам — без IP, cookies и профилей.</li>
       <li>Я не хочу знать, кто вы. В логах на моём сервере нет IP-адресов: Caddy фильтрует access- и error-логи, а nginx не ведёт журналов.</li>
       <li>Большинство инструментов работает целиком в вашем браузере и никуда ничего не отправляет.</li>
       <li>Если вы вводите данные в сетевой инструмент, они идут на сервер, чтобы выполнить проверку. Ни одна база данных на сайте не хранит ваши запросы. Навсегда ничего не остаётся: кэши живут до часа в оперативной памяти и исчезают при перезапуске.</li>
@@ -79,6 +79,7 @@
     <p>Технически, чтобы сайт вообще работал, запрос должен пройти через сервер. Вот что при этом остаётся:</p>
     <ul>
       <li><strong>Access-лог Caddy — до 7 дней.</strong> В нём время запроса, метод, адрес страницы без query string, HTTP-статус, размер ответа и время обработки. IP-адресов, заголовков и query string в этом логе физически нет — формат журнала удаляет их до записи на диск. Error-логи Caddy проходят тот же фильтр: остаются текст ошибки, статус и время, без IP, заголовков и URI.</li>
+      <li><strong>Агрегированная статистика.</strong> По обезличенным access-логам я считаю просмотры страниц, коды ответов и обращения сканеров. IP и query string в этих записях нет, связать статистику с человеком нельзя.</li>
       <li><strong>nginx — без журналов.</strong> nginx спрятан за Caddy и доступен только локально; и access-, и error-лог отключены, чтобы в них не попадали IP и адреса запросов.</li>
       <li><strong>Код сайта — без журналов запросов.</strong> Остаются только сообщения запуска и тексты ошибок.</li>
       <li><strong>Логи контейнеров — до 30 МБ</strong> (файлы по 10 МБ, ротация). Нужны только чтобы отлаживать сбои. IP-адресов в них нет: nginx не пишет журналов, а Caddy фильтрует свои.</li>
@@ -118,7 +119,7 @@
 
     <h3>In short</h3>
     <ul>
-      <li>No accounts, no ads, no analytics, no third-party scripts — all the site's scripts live on my own server.</li>
+      <li>No accounts, no ads, no third-party scripts or trackers. All the site's scripts live on my own server. I compute visit statistics from anonymised access logs — no IP, no cookies, no profiles.</li>
       <li>I don't want to know who you are. The logs on my server contain no IP addresses: Caddy filters both access and error logs, and nginx keeps no logs at all.</li>
       <li>Most tools run entirely in your browser and send nothing anywhere.</li>
       <li>If you enter data into a network tool, it goes to the server to perform the check. No database on this site stores your queries. Nothing stays forever: caches live up to an hour in RAM and vanish on restart.</li>
@@ -132,6 +133,7 @@
     <p>Technically, for the site to exist, requests must pass through a server. Here is what remains:</p>
     <ul>
       <li><strong>Caddy access log — up to 7 days.</strong> It keeps the request time, method, page path without the query string, HTTP status, response size and duration. There are physically no IP addresses, headers or query strings in it — the log format deletes them before anything is written to disk. Caddy error logs go through the same filter: error text, status and time remain, without IP, headers or URI.</li>
+      <li><strong>Aggregate statistics.</strong> From the anonymised access logs I count page views, response codes and scanner hits. Those records contain no IP or query string, so the statistics cannot be tied to a person.</li>
       <li><strong>nginx — no logs at all.</strong> nginx sits behind Caddy and is reachable only locally; both access and error logs are disabled so no IPs or request addresses are written.</li>
       <li><strong>The backend code — no request journal.</strong> Only startup messages and error texts remain.</li>
       <li><strong>Container logs — up to 30 MB</strong> (10 MB files, rotated). Only for debugging failures. They contain no IP addresses: nginx writes no logs, and Caddy filters its own.</li>
