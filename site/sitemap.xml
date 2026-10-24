@@ -13,6 +13,12 @@
     <priority>0.5</priority>
   </url>
   <url>
+    <loc>https://orbitnet.ru/privacy.html</loc>
+    <lastmod>2026-10-24</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.4</priority>
+  </url>
+  <url>
     <loc>https://orbitnet.ru/tools/networks/subnet-calculator.html</loc>
     <lastmod>2026-10-22</lastmod>
     <changefreq>monthly</changefreq>

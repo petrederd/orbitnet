@@ -14,11 +14,11 @@ OrbitNet — открытый набор небольших инструмент
 - **Без рекламы** - никаких баннеров и спонсорских блоков.
 - **Без трекинга** - нет пользовательских профилей и сторонней аналитики.
 - **Без регистрации** - инструменты доступны сразу.
-- **Приватность** - вычисления выполняются локально в браузере; сетевые проверки идут через собственный бэкенд, а при блокировке — через Cloudflare Worker и публичные DNS-over-HTTPS резолверы (только для затронутой проверки).
+- **Приватность** - вычисления выполняются локально в браузере; сетевые проверки идут через собственный бэкенд, а при блокировке — через Cloudflare Worker и публичные DNS-over-HTTPS резолверы (только для затронутой проверки). Подробности — в [политике конфиденциальности](https://orbitnet.ru/privacy.html).
 - **Open source** - код открыт для изучения, форка и улучшений.
 - **Избранное и поиск** - инструменты можно отметить звёздочкой (хранится локально), а поиск поддерживает прямые ссылки вида `/?q=subnet`.
 
-> Технические логи веб-сервера, reverse-proxy и хостинга могут содержать IP-адрес, время и путь запроса. Это стандартные логи инфраструктуры, а не профилирование пользователей.
+> Caddy хранит санитизированный access-лог до 7 дней: путь без query string, статус и время, без IP-адресов и заголовков. nginx access-логи отключены, backend не пишет per-request логи. Cloudflare видит трафик как CDN. Это инфраструктурные логи, а не профилирование пользователей.
 
 ## Что уже работает
 
@@ -93,6 +93,7 @@ orbitnet/
 ├── site/                          # Публичная статика
 │   ├── index.html                 # Каталог инструментов
 │   ├── about.html
+│   ├── privacy.html               # Политика конфиденциальности (RU + EN)
 │   ├── robots.txt
 │   ├── sitemap.xml
 │   ├── icons/favicon.svg
@@ -303,6 +304,54 @@ IP посетителя определяется по `X-Real-IP`, которы�
 
 > **Важно: origin должен быть закрыт от прямых подключений.** Если к Caddy можно обратиться напрямую, в обход Cloudflare, клиент может сам задать `CF-Connecting-IP`. nginx доверяет этому заголовку (Caddy для него — локальный прокси), поэтому такой клиент подменяет свой IP и обходит rate limit, а также ограничение «только свой IP» в `/api/anonymity/ports`. Полностью это лечится на уровне инфраструктуры: закройте origin файрволом для всех, кроме [диапазонов Cloudflare](https://www.cloudflare.com/ips/), или включите Cloudflare Authenticated Origin Pulls. Дополнительно настройте Caddy так, чтобы он читал реальный IP из `CF-Connecting-IP` только для доверенных источников — пример в `deploy/Caddyfile.example`; в этом случае nginx нужно переключить на `real_ip_header X-Forwarded-For` (см. комментарий в примере).
 
+## Логи и приватность
+
+Публичная политика: [orbitnet.ru/privacy.html](https://orbitnet.ru/privacy.html).
+
+- **Caddy** хранит access-лог до 7 дней. В лог попадают время, метод, host, путь без query string, статус, размер ответа и длительность. IP-адреса, заголовки и query string удаляются на уровне формата.
+- **nginx** access-лог не ведёт: он доступен только локально через Caddy, а Caddy уже даёт достаточную диагностику. Это убирает дублирование и хранение IP-адресов.
+- **Backend** не пишет per-request access-лог; остаются только сообщения запуска и ошибок.
+- **Docker** ограничивает json-file логи: `max-size: 10m`, `max-file: 3` (до 30 МБ на контейнер).
+- **Cloudflare** используется как CDN и защита. Logpush и выгрузка edge-логов не настраиваются. Cloudflare может присылать браузеру `NEL`/`Report-To` для отчётов о сетевых ошибках.
+- **Google STUN** в Anonymity Check включается только вручную.
+- **MaxMind GeoLite2** используется локально; IP посетителя в MaxMind не отправляется.
+
+Пример безопасного access-лога Caddy:
+
+```caddyfile
+{
+	log {
+		exclude http.log.access
+	}
+}
+
+orbitnet.ru {
+	log {
+		output file /data/orbitnet-access.json {
+			mode 0600
+			roll_size 10MiB
+			roll_keep 7
+			roll_keep_for 168h
+		}
+		format filter {
+			wrap json
+			fields {
+				request>remote_ip delete
+				request>remote_port delete
+				request>client_ip delete
+				request>headers delete
+				request>uri delete
+				resp_headers delete
+			}
+		}
+	}
+	log_append path {http.request.uri.path}
+	reverse_proxy localhost:8081
+}
+```
+
+В глобальном блоке Caddy добавьте `log { exclude http.log.access }`, чтобы не писать в stdout access-логи для запросов, не попавших в именованный лог (например, сканеров, приходящих на origin по IP). Если вы форкаете проект и разворачиваете копию, вы становитесь оператором данных своей копии и должны обновить контакт в `site/privacy.html`.
+
 ## GeoIP
 
 Геолокация и ASN определяются локально по базам MaxMind GeoLite2 — без сторонних геосервисов.
@@ -380,6 +429,7 @@ MIT - см. [LICENSE](LICENSE).
 ## Контакты
 
 - Сайт: [orbitnet.ru](https://orbitnet.ru)
+- Почта: [petrederd@gmail.com](mailto:petrederd@gmail.com)
 - Issues: [github.com/petrederd/orbitnet/issues](https://github.com/petrederd/orbitnet/issues)
 - Discussions: [github.com/petrederd/orbitnet/discussions](https://github.com/petrederd/orbitnet/discussions)
 

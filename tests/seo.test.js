@@ -79,6 +79,21 @@ test('sitemap contains exactly the canonical page URLs', () => {
   assert.deepEqual([...new Set(locs)].sort(), expected);
 });
 
+test('every page links to the privacy policy', () => {
+  for (const file of pages()) {
+    const rel = path.relative(SITE, file).split(path.sep).join('/');
+    const html = fs.readFileSync(file, 'utf8');
+    const footer = html.match(/<div class="footer-links">([\s\S]*?)<\/div>/);
+    assert.ok(footer, rel + ' has footer links');
+    assert.match(footer[1], /href="[^"]*privacy\.html"/, rel + ' links to privacy policy');
+  }
+
+  const policy = fs.readFileSync(path.join(SITE, 'privacy.html'), 'utf8');
+  assert.match(policy, /<section[^>]+id="ru"[^>]*lang="ru"/i, 'Russian policy section');
+  assert.match(policy, /<section[^>]+id="en"[^>]*lang="en"/i, 'English policy section');
+  assert.match(policy, /mailto:petrederd@gmail\.com/, 'privacy contact email');
+});
+
 test('robots.txt points to the sitemap', () => {
   const robots = fs.readFileSync(path.join(SITE, 'robots.txt'), 'utf8');
   assert.match(robots, /^Sitemap: https:\/\/orbitnet\.ru\/sitemap\.xml$/m);

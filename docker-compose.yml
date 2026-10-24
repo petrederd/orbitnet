@@ -1,5 +1,14 @@
+# Cap Docker json-file logs at 30 MB per container (10 MB x 3).
+# Access logs live in Caddy, not in container stdout.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   orbitnet-site:
+    logging: *default-logging
     image: nginx:alpine
     container_name: orbitnet-site
     restart: unless-stopped
@@ -14,6 +23,7 @@ services:
       - "127.0.0.1:8081:80"
 
   orbitnet-api:
+    logging: *default-logging
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -49,6 +59,7 @@ services:
   # Private recursive resolver for DNSBL queries. Public resolvers are refused
   # by Spamhaus/SURBL, so the API talks to Unbound over the Compose network.
   orbitnet-unbound:
+    logging: *default-logging
     image: mvance/unbound:1.22.0
     container_name: orbitnet-unbound
     restart: unless-stopped
@@ -72,6 +83,7 @@ services:
   #   1. copy .env.example to .env and fill in your MaxMind credentials
   #   2. docker compose --profile geoip up -d
   geoip-updater:
+    logging: *default-logging
     image: ghcr.io/maxmind/geoipupdate
     container_name: orbitnet-geoip
     restart: unless-stopped

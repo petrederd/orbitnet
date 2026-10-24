@@ -233,7 +233,7 @@ test('key pages have no serious or critical axe violations', async t => {
   if (!browser) return t.skip(browserUnavailable);
 
   const axePath = require.resolve('axe-core/axe.min.js');
-  const pages = ['/', '/about.html', '/tools/developer/regex-tester.html'];
+  const pages = ['/', '/about.html', '/privacy.html', '/tools/developer/regex-tester.html'];
   const failures = [];
 
   for (const pagePath of pages) {
