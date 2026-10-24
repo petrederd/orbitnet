@@ -3,6 +3,8 @@
 Every certificate and private key in this directory is **test-only**. The keys
 have no production value, are not used by the deployed service, and are named
 `test-only-*` with a comment header so secret scanners can classify them.
+GitHub secret scanning and gitleaks are configured to ignore this directory
+(`.github/secret_scanning.yml` and `.gitleaks.toml`).
 
 | File | Purpose |
 |---|---|

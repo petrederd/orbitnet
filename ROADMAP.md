@@ -51,7 +51,7 @@
 - [x] Spam Blacklist Check: IP, домен и email по публичным DNSBL/URIBL, MX-адреса домена, отличие «blocked» от листинга, кэш и лимиты.
  - [x] Website Security Audit: HTTPS, security-заголовки, HSTS preload, security.txt, cookie-флаги, mixed content и оценка A–F с header-only fallback в Worker.
 - [x] SSL/TLS deep scan: поддерживаемые версии TLS, набор шифров с пометкой слабых, OCSP stapling и CAA-записи в дополнение к сертификату и цепочке.
-- [x] Расширенная TLS-проверка: таблица цепочки и ключей, неполная цепочка/лишний корень/порядок, hostname и SAN, сроки и график CA/B, сила ключа, SCT, OCSP только при наличии URL, ALPN и Alt-Svc для HTTP/3, собственная оценка A–F.
+- [x] Расширенная TLS-проверка: таблица цепочки и ключей, неполная цепочка/информационный лишний корень/порядок, hostname и SAN, сроки и график CA/B только для доверенных цепочек, сила ключа, SCT без потолка, OCSP только при наличии URL, ALPN и Alt-Svc для HTTP/3, собственная оценка A–F.
 
 ## Фаза 1 — Стабилизация
 

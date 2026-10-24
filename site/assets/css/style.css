@@ -358,6 +358,7 @@ summary:focus-visible {
 .status-box.success { background: rgba(110,207,160,.12); border: 1px solid rgba(110,207,160,.4); color: var(--accent); }
 .status-box.error { background: rgba(242,139,130,.12); border: 1px solid rgba(242,139,130,.4); color: var(--danger); }
 .status-box.warning { background: rgba(245,198,107,.12); border: 1px solid rgba(245,198,107,.4); color: var(--warning); }
+.status-box.info { background: rgba(138,180,248,.10); border: 1px solid rgba(138,180,248,.35); color: var(--muted); }
 .error-detail { font-family: monospace; margin-top: 8px; font-size: .8rem; opacity: .9; }
 
 .uuid-display { background: var(--paper); border: 1px solid var(--accent); border-radius: 8px; padding: 18px; margin-bottom: 18px; text-align: center; }

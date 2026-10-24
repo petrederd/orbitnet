@@ -239,6 +239,12 @@ test('certificateValidityInfo applies the CA/B Forum schedule', () => {
   assert.equal(long.validityTooLong, true);
   assert.equal(long.exceeds398Days, true);
   assert.equal(long.maxValidityDays, 200);
+
+  const longUntrusted = certificateValidityInfo(new crypto.X509Certificate(certFile('long-validity')), null, {
+    trusted: false
+  });
+  assert.equal(longUntrusted.validityTooLong, false);
+  assert.doesNotMatch(longUntrusted.message, /exceeds/);
 });
 
 test('analyzeCertificateChain flags incomplete, unordered and extra-root chains', () => {
@@ -326,6 +332,71 @@ test('buildTlsReport grades a good scan A and caps weak ciphers at C', () => {
     altSvc: { checked: false, raw: '', http3: false }
   }));
   assert.equal(mail.grade, 'A');
+});
+
+test('buildTlsReport keeps hygiene warnings out of the B ceiling', () => {
+  const good = {
+    host: 'example.com',
+    authorized: true,
+    hostnameMatch: true,
+    validity: {
+      expiryStatus: 'ok', status: 'ok', validityDays: 90,
+      maxValidityDays: 200, validityTooLong: false, message: ''
+    },
+    publicKey: { type: 'rsa', bits: 2048, weak: false },
+    sct: { present: true, count: 2 },
+    ocsp: { applicable: false, stapled: false },
+    alpn: 'h2',
+    altSvc: { checked: true, raw: 'h3=":443"', http3: true },
+    chainAnalysis: { incomplete: false, extraRoot: false, ordered: true, orderIssues: [] },
+    protocols: [{ version: 'TLSv1.3', supported: true }, { version: 'TLSv1.2', supported: true }],
+    ciphers: [{ name: 'TLS_AES_256_GCM_SHA384', supported: true, weak: false, strength: 'strong' }]
+  };
+
+  const hygiene = buildTlsReport(Object.assign({}, good, {
+    sct: { present: false, count: 0 },
+    ocsp: { applicable: true, stapled: false },
+    alpn: 'http/1.1',
+    altSvc: { checked: true, raw: '', services: [], http3: false }
+  }));
+  assert.equal(hygiene.grade, 'A');
+  assert.equal(hygiene.cappedBy, '');
+  assert.equal(hygiene.checks.find(c => c.id === 'sct').status, 'warn');
+  assert.equal(hygiene.checks.find(c => c.id === 'http3').status, 'warn');
+
+  const expiring = buildTlsReport(Object.assign({}, good, {
+    validity: {
+      expiryStatus: 'warning', status: 'warning', validityDays: 90,
+      maxValidityDays: 200, validityTooLong: false, message: 'Certificate expires in 20 day(s)'
+    }
+  }));
+  assert.equal(expiring.grade, 'A');
+  assert.equal(expiring.cappedBy, '');
+
+  const rootSent = buildTlsReport(Object.assign({}, good, {
+    chainAnalysis: { incomplete: false, extraRoot: true, ordered: true, orderIssues: [] }
+  }));
+  assert.equal(rootSent.grade, 'A');
+  assert.equal(rootSent.cappedBy, '');
+  assert.equal(rootSent.checks.find(c => c.id === 'chain').status, 'info');
+
+  const trustedLong = buildTlsReport(Object.assign({}, good, {
+    validity: {
+      expiryStatus: 'ok', status: 'ok', validityDays: 400,
+      maxValidityDays: 200, validityTooLong: true, message: 'too long'
+    }
+  }));
+  assert.equal(trustedLong.grade, 'B');
+  assert.match(trustedLong.cappedBy, /validity/);
+
+  const unordered = buildTlsReport(Object.assign({}, good, {
+    chainAnalysis: {
+      incomplete: false, extraRoot: false, ordered: false,
+      orderIssues: ['Certificate 2 is not issued by certificate 3.']
+    }
+  }));
+  assert.equal(unordered.grade, 'B');
+  assert.match(unordered.cappedBy, /order/);
 });
 
 test('local TLS server: valid chain, ALPN and certificate key details', async () => {
@@ -417,6 +488,7 @@ test('local TLS server: Alt-Svc is read over the same TLS socket', async () => {
     cert: VALID_CHAIN,
     ALPNProtocols: ['http/1.1']
   }, socket => {
+    socket.on('error', () => {});
     socket.once('data', () => {
       socket.write('HTTP/1.1 200 OK\r\nAlt-Svc: h3=":443"; ma=86400\r\nContent-Length: 0\r\nConnection: close\r\n\r\n');
       socket.end();
@@ -430,6 +502,75 @@ test('local TLS server: Alt-Svc is read over the same TLS socket', async () => {
     result.socket.destroy();
     assert.match(header, /h3=/);
     assert.equal(parseAltSvc(header).http3, true);
+  } finally {
+    await close(server);
+  }
+});
+
+test('local HTTP/2 server: Alt-Svc is read from response headers', async () => {
+  const server = http2.createSecureServer({
+    key: VALID_KEY,
+    cert: VALID_CHAIN
+  }, (req, res) => {
+    res.setHeader('alt-svc', 'h3=":443"');
+    res.writeHead(200);
+    res.end();
+  });
+  server.on('error', () => {});
+  const port = await listen(server);
+  try {
+    const result = await probe(port, { servername: 'valid.example' });
+    assert.equal(result.alpn, 'h2');
+    const header = await readAltSvcOnSocket(result.socket, 'valid.example', port, result.alpn, 2000);
+    result.socket.destroy();
+    assert.match(header, /h3=/);
+  } finally {
+    await close(server);
+  }
+});
+
+test('readAltSvcOnSocket stops at the header and ignores a large HEAD body', async () => {
+  const server = tls.createServer({
+    key: VALID_KEY,
+    cert: VALID_CHAIN,
+    ALPNProtocols: ['http/1.1']
+  }, socket => {
+    socket.on('error', () => {});
+    socket.once('data', () => {
+      socket.write('HTTP/1.1 200 OK\r\nAlt-Svc: h3=":443"\r\n\r\n' + 'x'.repeat(20000));
+      socket.end();
+    });
+  });
+  const port = await listen(server);
+  try {
+    const result = await probe(port, { servername: 'valid.example' });
+    const header = await readAltSvcOnSocket(result.socket, 'valid.example', port, result.alpn, 2000);
+    result.socket.destroy();
+    assert.match(header, /h3=/);
+  } finally {
+    await close(server);
+  }
+});
+
+test('readAltSvcOnSocket rejects an oversized HTTP header', async () => {
+  const server = tls.createServer({
+    key: VALID_KEY,
+    cert: VALID_CHAIN,
+    ALPNProtocols: ['http/1.1']
+  }, socket => {
+    socket.on('error', () => {});
+    socket.once('data', () => {
+      socket.write('HTTP/1.1 200 OK\r\nX-Fill: ' + 'a'.repeat(20000) +
+        '\r\nAlt-Svc: h3=":443"\r\n\r\n');
+      socket.end();
+    });
+  });
+  const port = await listen(server);
+  try {
+    const result = await probe(port, { servername: 'valid.example' });
+    const header = await readAltSvcOnSocket(result.socket, 'valid.example', port, result.alpn, 2000);
+    result.socket.destroy();
+    assert.equal(header, null);
   } finally {
     await close(server);
   }

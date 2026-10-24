@@ -1769,7 +1769,7 @@ function validityLimitFor(notBefore) {
   return { maxDays: selected.maxDays, rule: selected.rule };
 }
 
-function certificateValidityInfo(cert, now) {
+function certificateValidityInfo(cert, now, options) {
   const parsedNow = now == null ? null : (now instanceof Date ? now : parseCertificateDate(now));
   const numericNow = Number(now);
   const current = parsedNow ? parsedNow.getTime()
@@ -1780,7 +1780,11 @@ function certificateValidityInfo(cert, now) {
   const validityDays = from && to ? Math.round((to.getTime() - from.getTime()) / DAY_MS) : null;
   const limit = validityLimitFor(from);
   const exceeds398Days = validityDays != null && validityDays > 398;
-  const validityTooLong = validityDays != null && validityDays > limit.maxDays;
+  // CA/B Forum limits only apply to publicly trusted chains. Corporate and
+  // private CAs are not bound by them, so an untrusted chain must not produce
+  // a validity warning.
+  const limitApplies = !options || options.trusted !== false;
+  const validityTooLong = limitApplies && validityDays != null && validityDays > limit.maxDays;
 
   let expiryStatus = 'unknown';
   let message = 'Certificate dates are unavailable';
@@ -2098,7 +2102,7 @@ function describeCertificateChain(leaf) {
   return chain;
 }
 
-function inspectCertificate(host, leaf, authorizationError) {
+function inspectCertificate(host, leaf, authorizationError, authorized) {
   let x509 = null;
   try {
     if (leaf && leaf.raw) x509 = new crypto.X509Certificate(leaf.raw);
@@ -2107,10 +2111,11 @@ function inspectCertificate(host, leaf, authorizationError) {
   }
   const chain = describeCertificateChain(leaf);
   const last = chain[chain.length - 1];
+  const trusted = authorized === true || (authorized === undefined && !authorizationError);
   const rootTrusted = Boolean(last && certificateSelfSigned(last) &&
     (isKnownSystemRoot(last.fingerprint256) || !authorizationError));
   const hostname = checkCertificateHostname(host, leaf);
-  const validity = certificateValidityInfo(leaf);
+  const validity = certificateValidityInfo(leaf, null, { trusted });
   const publicKey = x509 ? evaluatePublicKey(x509.publicKey) : evaluatePublicKey(null);
   const infoAccess = x509 ? parseInfoAccess(x509.infoAccess) : [];
   const ocspUrls = infoAccess.filter(entry => /^ocsp$/i.test(entry.method) && /^https?:\/\//i.test(entry.value))
@@ -2145,8 +2150,8 @@ function inspectCertificate(host, leaf, authorizationError) {
 const TLS_GRADE_RULES = [
   { id: 'trust', title: 'Trusted chain', weight: 25, rule: 'Pass when the certificate chains to a trusted root; an incomplete or untrusted chain is a failure.' },
   { id: 'hostname', title: 'Hostname match', weight: 20, rule: 'Pass when tls.checkServerIdentity() accepts the requested host.' },
-  { id: 'validity', title: 'Validity period', weight: 20, rule: 'Warning below 30 days, failure below 14 days or when expired; a validity longer than the current CA/B Forum limit is a warning.' },
-  { id: 'chain', title: 'Chain structure', weight: 10, rule: 'An incomplete chain fails; an extra root or an incorrect certificate order is a warning.' },
+  { id: 'validity', title: 'Validity period', weight: 20, rule: 'Warning below 30 days, failure below 14 days or when expired; for trusted chains, a validity longer than the current CA/B Forum limit is a warning.' },
+  { id: 'chain', title: 'Chain structure', weight: 10, rule: 'An incomplete chain fails; an extra root is informational; an incorrect certificate order is a warning.' },
   { id: 'key', title: 'Public key strength', weight: 15, rule: 'RSA below 2048 bits or a deprecated elliptic curve is a failure.' },
   { id: 'sct', title: 'Certificate Transparency', weight: 5, rule: 'Embedded SCTs pass; a certificate without SCTs is a warning.' },
   { id: 'ocsp', title: 'OCSP stapling', weight: 5, rule: 'Only evaluated when the certificate contains an OCSP URL. A missing staple is then a warning.' },
@@ -2156,7 +2161,7 @@ const TLS_GRADE_RULES = [
   { id: 'ciphers', title: 'Cipher suites (deep scan)', weight: 10, rule: 'A weak suite is a failure; legacy CBC-only strength is a warning.' },
   { id: 'cap-f', title: 'Ceiling F', weight: 0, rule: 'Expired certificate, hostname mismatch, untrusted/incomplete chain, or weak public key.' },
   { id: 'cap-c', title: 'Ceiling C', weight: 0, rule: 'TLS 1.0/1.1 or a weak cipher suite is accepted.' },
-  { id: 'cap-b', title: 'Ceiling B', weight: 0, rule: 'Expiry below 30 days, excessive validity, chain ordering/root issues, no SCT, OCSP not stapled, HTTP/1.1 only, or no HTTP/3 advertisement.' }
+  { id: 'cap-b', title: 'Ceiling B', weight: 0, rule: 'A trusted certificate with excessive validity or an incorrectly ordered chain.' }
 ];
 
 function tlsGradeCheck(id, title, status, score, weight, detail) {
@@ -2184,10 +2189,11 @@ function buildTlsReport(data) {
   const chainAnalysis = (data && data.chainAnalysis) || analyzeCertificateChain(data && data.chain, authorizationError);
   const hostnameMatch = data && data.hostnameMatch !== false &&
     !(data.hostnameCheck && data.hostnameCheck.match === false);
+  const trusted = data && data.authorized === true;
   const validity = (data && data.validity) || certificateValidityInfo({
     valid_from: data && data.valid_from,
     valid_to: data && data.valid_to
-  });
+  }, null, { trusted });
   const key = (data && (data.publicKey || data.key)) || evaluatePublicKey(null);
   const sct = (data && data.sct) || { present: false, count: 0 };
   const ocsp = Object.assign({}, (data && data.ocsp) || {});
@@ -2196,7 +2202,6 @@ function buildTlsReport(data) {
       : (Array.isArray(data && data.ocspUrls) ? data.ocspUrls : []);
     ocsp.applicable = urls.length > 0;
   }
-  const trusted = data && data.authorized === true;
 
   checks.push(tlsGradeCheck('trust', 'Trusted chain', trusted ? 'pass' : 'fail',
     trusted ? 1 : 0, 25,
@@ -2210,11 +2215,12 @@ function buildTlsReport(data) {
     hostnameMatch ? 'The certificate covers ' + (data.host || 'the requested host') + '.'
       : ((data.hostnameMessage || (data.hostnameCheck && data.hostnameCheck.message)) || 'Certificate name does not match')));
 
+  const validityTooLong = trusted && validity.validityTooLong === true;
   let validityStatus = validity.expiryStatus || validity.status || 'unknown';
   let validityScore = validityStatus === 'ok' ? 1
     : (validityStatus === 'warning' ? 0.6 : (validityStatus === 'unknown' ? 0.5 : 0));
   let validityDetail = validity.message || '';
-  if (validity.validityTooLong && validityStatus !== 'expired' && validityStatus !== 'error') {
+  if (validityTooLong && validityStatus !== 'expired' && validityStatus !== 'error') {
     if (validityStatus === 'ok') validityStatus = 'warning';
     if (validityScore > 0.6) validityScore = 0.6;
   }
@@ -2231,9 +2237,10 @@ function buildTlsReport(data) {
     chainDetails.push('Incomplete chain: ' + chainAnalysis.incompleteReason);
   }
   if (chainAnalysis.extraRoot) {
-    chainStatus = chainStatus === 'fail' ? 'fail' : 'warn';
-    chainScore = Math.min(chainScore, 0.6);
-    chainDetails.push('The server sends the root certificate; roots should normally be omitted.');
+    // Sending the root is common on legacy servers and mail ports. It is a
+    // chain-length hygiene note, not a security defect.
+    if (chainStatus === 'pass') chainStatus = 'info';
+    chainDetails.push('The server sends the root certificate; roots are normally omitted (informational).');
   }
   if (chainAnalysis.orderIssues && chainAnalysis.orderIssues.length) {
     chainStatus = chainStatus === 'fail' ? 'fail' : 'warn';
@@ -2251,7 +2258,7 @@ function buildTlsReport(data) {
   checks.push(tlsGradeCheck('sct', 'Certificate Transparency', sct.present ? 'pass' : 'warn',
     sct.present ? 1 : 0.4, 5,
     sct.present ? 'The certificate embeds ' + sct.count + ' SCT(s).'
-      : 'No embedded SCT (OID 1.3.6.1.4.1.11129.2.4.2) was found.'));
+      : 'No embedded SCT (OID 1.3.6.1.4.1.11129.2.4.2) was found; this is expected for private CAs and only affects the score.'));
 
   if (ocsp.applicable) {
     checks.push(tlsGradeCheck('ocsp', 'OCSP stapling', ocsp.stapled ? 'pass' : 'warn',
@@ -2342,12 +2349,10 @@ function buildTlsReport(data) {
       (data && (data.protocol === 'TLSv1' || data.protocol === 'TLSv1.1'))) {
     ceiling = 'C';
     cappedBy = 'deprecated TLS version or weak cipher';
-  } else if (validityStatus === 'warning' || validity.validityTooLong ||
-      chainAnalysis.extraRoot || (chainAnalysis.orderIssues && chainAnalysis.orderIssues.length) ||
-      !sct.present || (ocsp.applicable && !ocsp.stapled) || (webPort && alpn !== 'h2') ||
-      (altSvc && altSvc.checked && !altSvc.http3)) {
+  } else if (validityTooLong ||
+      (chainAnalysis.orderIssues && chainAnalysis.orderIssues.length)) {
     ceiling = 'B';
-    cappedBy = 'certificate, chain or protocol warning';
+    cappedBy = 'excessive certificate validity or incorrect chain order';
   }
   const grade = ceiling ? capGrade(scoreGrade, ceiling) : scoreGrade;
 
@@ -2359,6 +2364,10 @@ function buildTlsReport(data) {
     rules: TLS_GRADE_RULES
   };
 }
+
+// An Alt-Svc header is tiny. Cap the response read so a hostile or broken
+// server cannot make the probe buffer an arbitrarily large header or body.
+const ALT_SVC_MAX_BYTES = 16 * 1024;
 
 function readAltSvcOnSocket(socket, host, port, alpn, timeoutMs) {
   return new Promise((resolve) => {
@@ -2389,7 +2398,8 @@ function readAltSvcOnSocket(socket, host, port, alpn, timeoutMs) {
       let session;
       try {
         session = http2.connect('https://' + host + ':' + port, {
-          createConnection: () => socket
+          createConnection: () => socket,
+          settings: { maxHeaderListSize: ALT_SVC_MAX_BYTES }
         });
       } catch (e) {
         return finish(null);
@@ -2403,6 +2413,9 @@ function readAltSvcOnSocket(socket, host, port, alpn, timeoutMs) {
       request = session.request({ ':method': 'HEAD', ':path': '/' });
       request.once('response', (headers) => {
         const normalized = normalizeHeaders(headers);
+        const headerBytes = Object.entries(normalized).reduce((total, entry) =>
+          total + Buffer.byteLength(entry[0]) + Buffer.byteLength(entry[1]) + 4, 0);
+        if (headerBytes > ALT_SVC_MAX_BYTES) return finish(null);
         finish(Object.prototype.hasOwnProperty.call(normalized, 'alt-svc') ? normalized['alt-svc'] : '');
       });
       request.once('error', () => finish(null));
@@ -2413,10 +2426,13 @@ function readAltSvcOnSocket(socket, host, port, alpn, timeoutMs) {
     if (alpn && alpn !== 'http/1.1') return finish(null);
     let data = '';
     const onData = (chunk) => {
-      data += chunk.toString('latin1');
+      // Stop appending once the cap is reached. A valid header terminator must
+      // appear within the cap; anything after it is a body, which is ignored.
+      const room = ALT_SVC_MAX_BYTES - data.length;
+      data += (chunk.length > room ? chunk.subarray(0, room) : chunk).toString('latin1');
       const end = data.indexOf('\r\n\r\n');
       if (end === -1) {
-        if (data.length > 32768) finish(null);
+        if (data.length >= ALT_SVC_MAX_BYTES) finish(null);
         return;
       }
       const lines = data.slice(0, end).split('\r\n');
@@ -2563,7 +2579,7 @@ async function tlsInfo(host, port, options) {
       try {
         const cert = socket.getPeerCertificate(true);
         const authorizationError = socket.authorizationError ? String(socket.authorizationError) : '';
-        const inspected = inspectCertificate(host, cert, authorizationError);
+        const inspected = inspectCertificate(host, cert, authorizationError, socket.authorized);
         const ocspUrls = inspected.ocspUrls;
         const cipher = (socket.getCipher() || {}).name || '';
         out = Object.assign({

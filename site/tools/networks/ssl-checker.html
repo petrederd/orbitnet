@@ -132,12 +132,12 @@
     <ul>
       <li><strong>Certificate &amp; chain:</strong> subject, issuer, validity dates, key type/size, self-signed status and the order of every certificate sent by the server.</li>
       <li><strong>Incomplete chain:</strong> detected from <code>authorizationError</code> (for example <code>unable to get local issuer certificate</code>). Missing intermediates are never downloaded via AIA because that would add an SSRF surface.</li>
-      <li><strong>Extra root / order:</strong> a root sent by the server is flagged as unnecessary, and each certificate must be issued by the next one in the chain.</li>
+      <li><strong>Extra root / order:</strong> a root sent by the server is reported as an informational note, not a warning; each certificate must still be issued by the next one in the chain.</li>
       <li><strong>Hostname:</strong> <code>tls.checkServerIdentity()</code> compares the requested host with CN/SAN; a mismatch lists all SAN entries.</li>
-      <li><strong>Expiry:</strong> warning below 30 days, error below 14 days and failure once expired. Validity longer than the current CA/B Forum limit is flagged: 398 days before 2026-03-15, 200 days from 2026-03-15, 100 days from 2027-03-15 and 47 days from 2029-03-15.</li>
+      <li><strong>Expiry:</strong> warning below 30 days, error below 14 days and failure once expired. For trusted chains, validity longer than the current CA/B Forum limit is flagged: 398 days before 2026-03-15, 200 days from 2026-03-15, 100 days from 2027-03-15 and 47 days from 2029-03-15. Private or otherwise untrusted CAs are not bound by this limit, so no warning is shown for them.</li>
       <li><strong>Key strength:</strong> RSA below 2048 bits and deprecated elliptic curves (P-192/P-224 and binary curves) are errors.</li>
       <li><strong>OCSP:</strong> “not stapled” is a warning only when the certificate contains an OCSP URL in <code>infoAccess</code>. Let’s Encrypt removed OCSP URLs in May 2025 and shut the service down in August 2025, so absence of a URL is not treated as a problem.</li>
-      <li><strong>Certificate Transparency:</strong> the raw certificate is searched for the embedded SCT OID <code>1.3.6.1.4.1.11129.2.4.2</code>.</li>
+      <li><strong>Certificate Transparency:</strong> the raw certificate is searched for the embedded SCT OID <code>1.3.6.1.4.1.11129.2.4.2</code>. A missing SCT only reduces the score; it never caps the grade, because private corporate CAs usually do not publish to CT logs.</li>
       <li><strong>ALPN / HTTP/3:</strong> the handshake offers <code>h2</code> and <code>http/1.1</code>; Alt-Svc from the HTTP response (over the same TLS socket) shows whether HTTP/3 is advertised.</li>
       <li><strong>CAA records:</strong> which certificate authorities are allowed to issue for the domain (RFC 8659).</li>
     </ul>
@@ -151,18 +151,18 @@
         <tbody>
           <tr><td>Trusted chain</td><td>25</td><td>Failure when the chain is untrusted or incomplete.</td></tr>
           <tr><td>Hostname match</td><td>20</td><td>Failure when the certificate does not cover the host.</td></tr>
-          <tr><td>Validity period</td><td>20</td><td>Warning below 30 days, failure below 14 days or expired, warning when longer than the CA/B limit.</td></tr>
-          <tr><td>Chain structure</td><td>10</td><td>Incomplete chain fails; extra root or wrong order warns.</td></tr>
+          <tr><td>Validity period</td><td>20</td><td>Warning below 30 days, failure below 14 days or expired; for trusted chains, warning when longer than the CA/B limit.</td></tr>
+          <tr><td>Chain structure</td><td>10</td><td>Incomplete chain fails; extra root is informational; wrong order warns.</td></tr>
           <tr><td>Public key strength</td><td>15</td><td>RSA below 2048 bits or a deprecated curve fails.</td></tr>
-          <tr><td>Certificate Transparency</td><td>5</td><td>No embedded SCT warns.</td></tr>
+          <tr><td>Certificate Transparency</td><td>5</td><td>No embedded SCT warns but does not cap the grade.</td></tr>
           <tr><td>OCSP stapling</td><td>5</td><td>Only evaluated when an OCSP URL exists; a missing staple then warns.</td></tr>
-          <tr><td>ALPN</td><td>5</td><td>h2 passes; HTTP/1.1 or no negotiation warns.</td></tr>
-          <tr><td>HTTP/3 advertisement</td><td>3</td><td>An Alt-Svc h3 entry passes; otherwise warns.</td></tr>
+          <tr><td>ALPN</td><td>5</td><td>h2 passes; HTTP/1.1 or no negotiation warns without capping the grade.</td></tr>
+          <tr><td>HTTP/3 advertisement</td><td>3</td><td>An Alt-Svc h3 entry passes; otherwise warns without capping the grade.</td></tr>
           <tr><td>TLS versions (deep)</td><td>15</td><td>TLS 1.0/1.1 fails; missing TLS 1.3 warns.</td></tr>
           <tr><td>Cipher suites (deep)</td><td>10</td><td>A weak suite fails; legacy suites warn.</td></tr>
           <tr><td><strong>Ceiling F</strong></td><td>—</td><td>Expired, hostname mismatch, untrusted/incomplete chain or weak key.</td></tr>
           <tr><td><strong>Ceiling C</strong></td><td>—</td><td>TLS 1.0/1.1 or a weak cipher suite is accepted.</td></tr>
-          <tr><td><strong>Ceiling B</strong></td><td>—</td><td>Expiry below 30 days, excessive validity, chain/root/order issue, no SCT, OCSP not stapled, HTTP/1.1 only or no HTTP/3 advertisement.</td></tr>
+          <tr><td><strong>Ceiling B</strong></td><td>—</td><td>A trusted certificate with excessive validity or an incorrectly ordered chain.</td></tr>
         </tbody>
       </table>
     </div>
@@ -254,7 +254,10 @@ function gradeColor(g) {
   return ({ A: 'var(--accent)', B: '#8ab4f8', C: '#e7c65b', D: 'var(--warning)', E: '#e0a06b', F: 'var(--danger)' })[g] || 'var(--muted)';
 }
 function statusColor(status) {
-  return status === 'pass' ? 'var(--accent)' : (status === 'fail' ? 'var(--danger)' : 'var(--warning)');
+  if (status === 'pass') return 'var(--accent)';
+  if (status === 'fail') return 'var(--danger)';
+  if (status === 'info') return 'var(--muted)';
+  return 'var(--warning)';
 }
 
 function render(host, port, d) {
@@ -268,7 +271,7 @@ function render(host, port, d) {
 
   let statusCls = certOk ? 'success' : 'error';
   let statusText = certOk ? 'Certificate is valid and trusted' : 'Certificate is not trusted or invalid';
-  if (certOk && (expiringSoon || chainInfo.incomplete || chainInfo.extraRoot ||
+  if (certOk && (expiringSoon || chainInfo.incomplete ||
       (chainInfo.orderIssues && chainInfo.orderIssues.length))) {
     statusCls = 'info';
     statusText = 'Certificate is valid, with warnings';
@@ -294,7 +297,7 @@ function render(host, port, d) {
     html += '<div class="status-box error">Incomplete chain: ' + esc(chainInfo.incompleteReason || 'missing intermediate certificate') + '</div>';
   }
   if (chainInfo.extraRoot) {
-    html += '<div class="status-box warning">The server sends the root certificate in the chain. Roots are normally omitted; this also makes the chain longer than necessary.</div>';
+    html += '<div class="status-box info">The server sends the root certificate in the chain. This is common on legacy servers and mail ports; roots are normally omitted, but it is not a security defect.</div>';
   }
   if (chainInfo.orderIssues && chainInfo.orderIssues.length) {
     html += '<div class="status-box warning">Chain order: ' + chainInfo.orderIssues.map(esc).join('; ') + '</div>';
@@ -418,7 +421,9 @@ function render(host, port, d) {
   html += box('Valid from', fmtDate(d.valid_from));
   html += box('Valid to', fmtDate(d.valid_to));
   html += box('Certificate lifetime', validity.validityDays == null ? '—' :
-    validity.validityDays + ' days (limit ' + validity.maxValidityDays + ')',
+    validity.validityDays + ' days' + (d.authorized
+      ? ' (limit ' + validity.maxValidityDays + ')'
+      : ' (CA/B limit not applied: chain is not trusted)'),
     validity.validityTooLong ? 'var(--warning)' : 'var(--accent)');
   html += box('Serial number', d.serialNumber || '—');
   html += '</div>';
