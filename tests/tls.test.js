@@ -2,14 +2,81 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const path = require('node:path');
+const tls = require('node:tls');
+const crypto = require('node:crypto');
+const http2 = require('node:http2');
 
-const api = require(path.join('..', 'backend', 'server.js'));
+const api = require(path.join(__dirname, '..', 'backend', 'server.js'));
 
 const {
   parseSubjectAltName, classifyCipher, summarizeTlsVersions, normalizeCaaRecord,
-  TLS_VERSION_PROBES, TLS_CIPHER_PROBES, domainSuffixes
+  TLS_VERSION_PROBES, TLS_CIPHER_PROBES, domainSuffixes,
+  validityLimitFor, certificateValidityInfo, evaluatePublicKey, hasEmbeddedSct,
+  parseInfoAccess, parseAltSvc, analyzeCertificateChain, incompleteChainReason,
+  checkCertificateHostname, inspectCertificate, buildTlsReport,
+  readAltSvcOnSocket, SCT_OID_DER, TLS_GRADE_RULES
 } = api;
+
+const FIXTURES = path.join(__dirname, 'fixtures');
+function fixture(name) {
+  return fs.readFileSync(path.join(FIXTURES, name));
+}
+const ROOT_CA = fixture('test-only-root-ca.crt.pem');
+const VALID_KEY = fixture('test-only-valid.key.pem');
+const VALID_CHAIN = fixture('test-only-chain.crt.pem');
+const CHAIN_WITH_ROOT = fixture('test-only-chain-with-root.crt.pem');
+
+function certFile(name) {
+  return fixture('test-only-' + name + '.crt.pem');
+}
+
+function listen(server) {
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      server.removeListener('error', reject);
+      resolve(server.address().port);
+    });
+  });
+}
+
+function close(server) {
+  return new Promise(resolve => server.close(resolve));
+}
+
+function probe(port, options) {
+  return new Promise((resolve, reject) => {
+    const socket = tls.connect(Object.assign({
+      host: '127.0.0.1',
+      port,
+      ca: ROOT_CA,
+      rejectUnauthorized: true,
+      ALPNProtocols: ['h2', 'http/1.1']
+    }, options), () => {
+      const cert = socket.getPeerCertificate(true);
+      resolve({
+        socket,
+        cert,
+        authorized: socket.authorized,
+        authorizationError: socket.authorizationError,
+        alpn: socket.alpnProtocol
+      });
+    });
+    socket.once('error', reject);
+  });
+}
+
+async function withTlsServer(options, fn) {
+  const server = tls.createServer(options, socket => socket.end());
+  const port = await listen(server);
+  try {
+    return await fn(port);
+  } finally {
+    await close(server);
+  }
+}
 
 test('parseSubjectAltName splits OpenSSL name lists by type', () => {
   const names = parseSubjectAltName('DNS:example.com, DNS:*.example.com, IP Address:1.2.3.4');
@@ -91,4 +158,279 @@ test('probe classification matches classifyCipher for CBC suites', () => {
 test('CAA lookup stops at the registrable domain', () => {
   assert.deepEqual(domainSuffixes('example.co.uk'), ['example.co.uk']);
   assert.deepEqual(domainSuffixes('www.example.co.uk'), ['www.example.co.uk', 'example.co.uk']);
+});
+
+
+test('parseInfoAccess extracts OCSP and CA Issuers URLs', () => {
+  const entries = parseInfoAccess('OCSP - URI:http://ocsp.example.test\nCA Issuers - URI:http://ca.example.test/ca.crt');
+  assert.deepEqual(entries, [
+    { method: 'OCSP', type: 'URI', value: 'http://ocsp.example.test' },
+    { method: 'CA Issuers', type: 'URI', value: 'http://ca.example.test/ca.crt' }
+  ]);
+  assert.deepEqual(parseInfoAccess(''), []);
+});
+
+test('parseAltSvc detects HTTP/3 and ignores clear', () => {
+  const alt = parseAltSvc('h3=":443"; ma=86400, h3-29=":443"; ma=86400');
+  assert.equal(alt.checked, true);
+  assert.equal(alt.http3, true);
+  assert.equal(alt.services.length, 2);
+  assert.deepEqual(alt.services[0], { protocol: 'h3', authority: ':443', ma: 86400, persist: false });
+  assert.equal(parseAltSvc('clear').http3, false);
+  assert.equal(parseAltSvc('').http3, false);
+});
+
+test('hasEmbeddedSct finds the DER-encoded SCT OID', () => {
+  const raw = Buffer.concat([Buffer.from('3000', 'hex'), SCT_OID_DER, Buffer.from('0400', 'hex'), SCT_OID_DER]);
+  assert.deepEqual(hasEmbeddedSct(raw), { present: true, count: 2 });
+  assert.deepEqual(hasEmbeddedSct(Buffer.from('3000', 'hex')), { present: false, count: 0 });
+  assert.equal(hasEmbeddedSct(Buffer.from('1.3.6.1.4.1.11129.2.4.2')).present, true);
+  const valid = new crypto.X509Certificate(certFile('valid'));
+  assert.equal(hasEmbeddedSct(valid.raw).present, false);
+});
+
+test('evaluatePublicKey rejects RSA below 2048 and old curves', () => {
+  const weak = new crypto.X509Certificate(certFile('weak-key'));
+  const weakInfo = evaluatePublicKey(weak.publicKey);
+  assert.equal(weakInfo.type, 'rsa');
+  assert.equal(weakInfo.bits, 1024);
+  assert.equal(weakInfo.weak, true);
+
+  const good = evaluatePublicKey(new crypto.X509Certificate(certFile('valid')).publicKey);
+  assert.equal(good.bits, 2048);
+  assert.equal(good.weak, false);
+
+  const oldCurve = evaluatePublicKey({
+    asymmetricKeyType: 'ec',
+    asymmetricKeyDetails: { namedCurve: 'secp192r1' }
+  });
+  assert.equal(oldCurve.weak, true);
+  assert.match(oldCurve.reason, /Deprecated elliptic curve/);
+});
+
+test('certificateValidityInfo applies the CA/B Forum schedule', () => {
+  assert.equal(validityLimitFor('2025-01-01T00:00:00Z').maxDays, 398);
+  assert.equal(validityLimitFor('2026-03-15T00:00:00Z').maxDays, 200);
+  assert.equal(validityLimitFor('2027-03-15T00:00:00Z').maxDays, 100);
+  assert.equal(validityLimitFor('2029-03-15T00:00:00Z').maxDays, 47);
+
+  const now = Date.parse('2026-10-01T00:00:00Z');
+  const warning = certificateValidityInfo({
+    valid_from: '2026-09-01T00:00:00Z',
+    valid_to: '2026-10-20T00:00:00Z'
+  }, now);
+  assert.equal(warning.expiryStatus, 'warning');
+  assert.equal(warning.daysRemaining, 19);
+  assert.equal(certificateValidityInfo({
+    valid_from: '2026-09-01T00:00:00Z',
+    valid_to: '2026-10-20T00:00:00Z'
+  }, '2026-10-01T00:00:00Z').daysRemaining, 19);
+
+  const error = certificateValidityInfo({
+    valid_from: '2026-09-01T00:00:00Z',
+    valid_to: '2026-10-10T00:00:00Z'
+  }, now);
+  assert.equal(error.expiryStatus, 'error');
+
+  const expired = certificateValidityInfo(new crypto.X509Certificate(certFile('expired')), now);
+  assert.equal(expired.expiryStatus, 'expired');
+
+  const long = certificateValidityInfo(new crypto.X509Certificate(certFile('long-validity')));
+  assert.equal(long.validityTooLong, true);
+  assert.equal(long.exceeds398Days, true);
+  assert.equal(long.maxValidityDays, 200);
+});
+
+test('analyzeCertificateChain flags incomplete, unordered and extra-root chains', () => {
+  const incomplete = analyzeCertificateChain([
+    { subject: { CN: 'leaf.example' }, issuer: { CN: 'Intermediate CA' } }
+  ], 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY');
+  assert.equal(incomplete.incomplete, true);
+  assert.match(incomplete.incompleteReason, /intermediate certificate/);
+
+  const unordered = analyzeCertificateChain([
+    { subject: { CN: 'leaf.example' }, issuer: { CN: 'Intermediate CA' } },
+    { subject: { CN: 'Other CA' }, issuer: { CN: 'Root CA' } }
+  ], '');
+  assert.equal(unordered.ordered, false);
+  assert.equal(unordered.orderIssues.length, 1);
+
+  const rootChain = [
+    { subject: { CN: 'leaf.example' }, issuer: { CN: 'Intermediate CA' } },
+    { subject: { CN: 'Intermediate CA' }, issuer: { CN: 'Root CA' } },
+    { subject: { CN: 'Root CA' }, issuer: { CN: 'Root CA' }, selfSigned: true }
+  ];
+  const extraRoot = analyzeCertificateChain(rootChain, '', { rootTrusted: false });
+  assert.equal(extraRoot.rootIncluded, true);
+  assert.equal(extraRoot.extraRoot, true);
+  assert.equal(extraRoot.ordered, true);
+  assert.equal(analyzeCertificateChain(rootChain).extraRoot, true);
+
+  const trustedRoot = analyzeCertificateChain(rootChain, '', { rootTrusted: true });
+  assert.equal(trustedRoot.rootIncluded, true);
+  assert.equal(trustedRoot.extraRoot, false);
+});
+
+test('incompleteChainReason accepts OpenSSL strings and error codes', () => {
+  assert.match(incompleteChainReason('unable to get local issuer certificate'), /intermediate/);
+  assert.match(incompleteChainReason('UNABLE_TO_GET_ISSUER_CERT_LOCALLY'), /intermediate/);
+  assert.match(incompleteChainReason('UNABLE_TO_VERIFY_LEAF_SIGNATURE'), /incomplete/);
+  assert.equal(incompleteChainReason('CERT_HAS_EXPIRED'), '');
+});
+
+test('checkCertificateHostname lists SAN entries on a mismatch', () => {
+  const cert = new crypto.X509Certificate(certFile('wrong-name')).toLegacyObject();
+  const result = checkCertificateHostname('valid.example', cert);
+  assert.equal(result.match, false);
+  assert.deepEqual(result.san, ['wrong.example']);
+  assert.match(result.message, /does not match valid\.example/);
+  assert.match(result.message, /wrong\.example/);
+});
+
+test('buildTlsReport grades a good scan A and caps weak ciphers at C', () => {
+  const base = {
+    host: 'example.com',
+    authorized: true,
+    hostnameMatch: true,
+    validity: {
+      expiryStatus: 'ok', status: 'ok', validityDays: 90,
+      maxValidityDays: 200, validityTooLong: false, message: ''
+    },
+    publicKey: { type: 'rsa', bits: 2048, weak: false },
+    sct: { present: true, count: 2 },
+    ocsp: { applicable: false, stapled: false },
+    alpn: 'h2',
+    altSvc: { checked: true, raw: 'h3=":443"', http3: true },
+    chainAnalysis: { incomplete: false, extraRoot: false, ordered: true, orderIssues: [] },
+    protocols: [{ version: 'TLSv1.3', supported: true }, { version: 'TLSv1.2', supported: true }],
+    ciphers: [{ name: 'TLS_AES_256_GCM_SHA384', supported: true, weak: false, strength: 'strong' }]
+  };
+  const good = buildTlsReport(base);
+  assert.equal(good.grade, 'A');
+  assert.equal(good.score, 100);
+  assert.ok(good.rules.length >= TLS_GRADE_RULES.length - 1);
+
+  const weakCipher = buildTlsReport(Object.assign({}, base, {
+    ciphers: [{ name: 'RC4-SHA', supported: true, weak: true, strength: 'weak' }]
+  }));
+  assert.equal(weakCipher.grade, 'C');
+
+  const expired = buildTlsReport(Object.assign({}, base, {
+    validity: { expiryStatus: 'expired', status: 'expired', validityDays: 90, maxValidityDays: 200, validityTooLong: false, message: '' }
+  }));
+  assert.equal(expired.grade, 'F');
+
+  const mail = buildTlsReport(Object.assign({}, base, {
+    port: 993,
+    alpn: '',
+    altSvc: { checked: false, raw: '', http3: false }
+  }));
+  assert.equal(mail.grade, 'A');
+});
+
+test('local TLS server: valid chain, ALPN and certificate key details', async () => {
+  await withTlsServer({
+    key: VALID_KEY,
+    cert: VALID_CHAIN,
+    ca: ROOT_CA,
+    ALPNProtocols: ['h2', 'http/1.1']
+  }, async port => {
+    const result = await probe(port, { servername: 'valid.example' });
+    const info = inspectCertificate('valid.example', result.cert, result.authorizationError);
+    result.socket.destroy();
+
+    assert.equal(result.authorized, true);
+    assert.equal(result.alpn, 'h2');
+    assert.equal(info.hostnameMatch, true);
+    assert.equal(info.key.type, 'rsa');
+    assert.equal(info.key.bits, 2048);
+    assert.equal(info.validity.expiryStatus, 'ok');
+    // Node appends the trusted root from its CA store even though the server
+    // sent only leaf + intermediate.
+    assert.equal(info.chain.length, 3);
+    assert.equal(info.chainAnalysis.incomplete, false);
+    assert.equal(info.chainAnalysis.ordered, true);
+    assert.equal(info.chainAnalysis.rootIncluded, true);
+    assert.equal(info.chainAnalysis.rootTrusted, true);
+    assert.equal(info.chainAnalysis.extraRoot, false);
+  });
+});
+
+test('local TLS server: wrong name and expired certificates are reported', async () => {
+  await withTlsServer({
+    key: fixture('test-only-wrong-name.key.pem'),
+    cert: certFile('wrong-name'),
+    ca: ROOT_CA
+  }, async port => {
+    const result = await probe(port, { servername: 'valid.example', rejectUnauthorized: false });
+    const info = inspectCertificate('valid.example', result.cert, result.authorizationError);
+    result.socket.destroy();
+    assert.equal(info.hostnameMatch, false);
+    assert.deepEqual(info.hostnameCheck.san, ['wrong.example']);
+    assert.match(info.hostnameMessage, /does not match valid\.example/);
+  });
+
+  await withTlsServer({
+    key: fixture('test-only-expired.key.pem'),
+    cert: certFile('expired'),
+    ca: ROOT_CA
+  }, async port => {
+    const result = await probe(port, { servername: 'expired.example', rejectUnauthorized: false });
+    const info = inspectCertificate('expired.example', result.cert, result.authorizationError);
+    result.socket.destroy();
+    assert.equal(info.validity.expiryStatus, 'expired');
+    assert.ok(info.validity.daysRemaining < 0);
+  });
+});
+
+test('local TLS server: incomplete chain and an extra root are detected', async () => {
+  await withTlsServer({
+    key: fixture('test-only-incomplete.key.pem'),
+    cert: certFile('incomplete'),
+    ca: ROOT_CA
+  }, async port => {
+    const result = await probe(port, { servername: 'incomplete.example', rejectUnauthorized: false });
+    const info = inspectCertificate('incomplete.example', result.cert, result.authorizationError);
+    result.socket.destroy();
+    assert.equal(info.chain.length, 1);
+    assert.equal(info.chainAnalysis.incomplete, true);
+    assert.match(info.chainAnalysis.incompleteReason, /incomplete/);
+  });
+
+  await withTlsServer({
+    key: VALID_KEY,
+    cert: CHAIN_WITH_ROOT
+  }, async port => {
+    const result = await probe(port, { servername: 'valid.example', rejectUnauthorized: false, ca: [] });
+    const info = inspectCertificate('valid.example', result.cert, result.authorizationError);
+    result.socket.destroy();
+    assert.equal(result.authorized, false);
+    assert.equal(info.chain.length, 3);
+    assert.equal(info.chainAnalysis.rootIncluded, true);
+    assert.equal(info.chainAnalysis.extraRoot, true);
+  });
+});
+
+test('local TLS server: Alt-Svc is read over the same TLS socket', async () => {
+  const server = tls.createServer({
+    key: VALID_KEY,
+    cert: VALID_CHAIN,
+    ALPNProtocols: ['http/1.1']
+  }, socket => {
+    socket.once('data', () => {
+      socket.write('HTTP/1.1 200 OK\r\nAlt-Svc: h3=":443"; ma=86400\r\nContent-Length: 0\r\nConnection: close\r\n\r\n');
+      socket.end();
+    });
+  });
+  const port = await listen(server);
+  try {
+    const result = await probe(port, { servername: 'valid.example' });
+    assert.equal(result.alpn, 'http/1.1');
+    const header = await readAltSvcOnSocket(result.socket, 'valid.example', port, result.alpn, 2000);
+    result.socket.destroy();
+    assert.match(header, /h3=/);
+    assert.equal(parseAltSvc(header).http3, true);
+  } finally {
+    await close(server);
+  }
 });

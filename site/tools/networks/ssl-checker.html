@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="SSL/TLS Checker — certificate, chain, TLS versions, cipher suites, OCSP stapling and CAA">
+<meta name="description" content="SSL/TLS Checker — certificate chain, hostname and expiry checks, key strength, SCT, OCSP, ALPN and an A–F TLS grade">
 <meta name="theme-color" content="#16161a">
 <title>SSL/TLS Checker — OrbitNet</title>
 <link rel="canonical" href="https://orbitnet.ru/tools/networks/ssl-checker.html">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="OrbitNet">
 <meta property="og:title" content="SSL/TLS Checker — OrbitNet">
-<meta property="og:description" content="SSL/TLS Checker — certificate, chain, TLS versions, cipher suites, OCSP stapling and CAA">
+<meta property="og:description" content="SSL/TLS Checker — certificate chain, hostname and expiry checks, key strength, SCT, OCSP, ALPN and an A–F TLS grade">
 <meta property="og:url" content="https://orbitnet.ru/tools/networks/ssl-checker.html">
 <meta property="og:locale" content="en_US">
 <meta property="og:image" content="https://orbitnet.ru/assets/og-image.png">
@@ -20,7 +20,7 @@
 <meta property="og:image:alt" content="OrbitNet — open tools, no noise">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="SSL/TLS Checker — OrbitNet">
-<meta name="twitter:description" content="SSL/TLS Checker — certificate, chain, TLS versions, cipher suites, OCSP stapling and CAA">
+<meta name="twitter:description" content="SSL/TLS Checker — certificate chain, hostname and expiry checks, key strength, SCT, OCSP, ALPN and an A–F TLS grade">
 <meta name="twitter:image" content="https://orbitnet.ru/assets/og-image.png">
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=3">
@@ -31,14 +31,30 @@
 <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png?v=3">
 <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=3">
 <link rel="manifest" href="/site.webmanifest">
-<style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>
+<style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+.grade-row{display:flex;flex-wrap:wrap;gap:18px;align-items:center;margin-bottom:14px}
+.grade-badge{flex:0 0 auto;width:84px;height:84px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:2.6rem;font-weight:800;border:2px solid currentColor}
+.grade-badge.A{color:var(--accent);background:rgba(110,207,160,.12)}
+.grade-badge.B{color:#8ab4f8;background:rgba(138,180,248,.12)}
+.grade-badge.C{color:#e7c65b;background:rgba(231,198,91,.12)}
+.grade-badge.D{color:var(--warning);background:rgba(245,198,107,.12)}
+.grade-badge.E{color:#e0a06b;background:rgba(224,160,107,.12)}
+.grade-badge.F{color:var(--danger);background:rgba(242,139,130,.12)}
+.grade-meta h3{margin:0 0 4px}
+.grade-meta p{margin:0;color:var(--muted);font-size:.86rem}
+.chain-table{width:100%;border-collapse:collapse;font-size:.82rem}
+.chain-table th,.chain-table td{text-align:left;vertical-align:top;padding:6px 8px;border-bottom:1px solid var(--line)}
+.chain-table th{color:var(--muted);font-weight:600}
+.rule-table{width:100%;border-collapse:collapse;font-size:.84rem}
+.rule-table th,.rule-table td{text-align:left;vertical-align:top;padding:6px 8px;border-bottom:1px solid var(--line)}
+.rule-table th{color:var(--muted);font-weight:600}</style>
 <link rel="stylesheet" href="../../assets/css/style.css?v=6">
 <script type="application/ld+json" data-orbitnet-jsonld="software">
 {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "SSL/TLS Checker",
-  "description": "SSL/TLS Checker — certificate, chain, TLS versions, cipher suites, OCSP stapling and CAA",
+  "description": "SSL/TLS Checker — certificate chain, hostname and expiry checks, key strength, SCT, OCSP, ALPN and an A–F TLS grade",
   "url": "https://orbitnet.ru/tools/networks/ssl-checker.html",
   "applicationCategory": "NetworkApplication",
   "applicationSubCategory": "networks",
@@ -79,7 +95,7 @@
       <span>SSL/TLS Checker</span>
     </div>
     <h1>SSL/TLS Checker</h1>
-    <p>Inspect a server's TLS setup: certificate validity, issuer, SANs and chain, plus supported protocol versions, cipher suites, OCSP stapling and CAA records.</p>
+    <p>Inspect a server's TLS setup from a single handshake: certificate and chain details, hostname and expiry checks, key strength, SCT, OCSP stapling, ALPN/HTTP/3 and an A–F grade with the rules shown openly.</p>
   </div>
 
   <div class="tool-panel">
@@ -114,15 +130,43 @@
   <div class="info-section">
     <h3>What is checked</h3>
     <ul>
-      <li><strong>Validity:</strong> certificate not-before / not-after dates and days remaining.</li>
-      <li><strong>Trust:</strong> whether the certificate chains to a trusted root.</li>
-      <li><strong>Hostname match:</strong> the certificate must cover the requested host (CN or SAN).</li>
-      <li><strong>Chain:</strong> the certificates sent by the server, up to the root.</li>
-      <li><strong>Protocols &amp; ciphers (deep scan):</strong> which TLS versions and cipher suites the server accepts, with weak ones flagged.</li>
-      <li><strong>OCSP stapling:</strong> whether the server attaches a signed OCSP response to the handshake.</li>
+      <li><strong>Certificate &amp; chain:</strong> subject, issuer, validity dates, key type/size, self-signed status and the order of every certificate sent by the server.</li>
+      <li><strong>Incomplete chain:</strong> detected from <code>authorizationError</code> (for example <code>unable to get local issuer certificate</code>). Missing intermediates are never downloaded via AIA because that would add an SSRF surface.</li>
+      <li><strong>Extra root / order:</strong> a root sent by the server is flagged as unnecessary, and each certificate must be issued by the next one in the chain.</li>
+      <li><strong>Hostname:</strong> <code>tls.checkServerIdentity()</code> compares the requested host with CN/SAN; a mismatch lists all SAN entries.</li>
+      <li><strong>Expiry:</strong> warning below 30 days, error below 14 days and failure once expired. Validity longer than the current CA/B Forum limit is flagged: 398 days before 2026-03-15, 200 days from 2026-03-15, 100 days from 2027-03-15 and 47 days from 2029-03-15.</li>
+      <li><strong>Key strength:</strong> RSA below 2048 bits and deprecated elliptic curves (P-192/P-224 and binary curves) are errors.</li>
+      <li><strong>OCSP:</strong> “not stapled” is a warning only when the certificate contains an OCSP URL in <code>infoAccess</code>. Let’s Encrypt removed OCSP URLs in May 2025 and shut the service down in August 2025, so absence of a URL is not treated as a problem.</li>
+      <li><strong>Certificate Transparency:</strong> the raw certificate is searched for the embedded SCT OID <code>1.3.6.1.4.1.11129.2.4.2</code>.</li>
+      <li><strong>ALPN / HTTP/3:</strong> the handshake offers <code>h2</code> and <code>http/1.1</code>; Alt-Svc from the HTTP response (over the same TLS socket) shows whether HTTP/3 is advertised.</li>
       <li><strong>CAA records:</strong> which certificate authorities are allowed to issue for the domain (RFC 8659).</li>
     </ul>
     <p>The TLS handshake is performed by our server so the connection only ever goes to the resolved public IP of the host you entered. Legacy protocols and ciphers that our own OpenSSL refuses to offer are reported as “not verifiable” rather than “rejected”.</p>
+
+    <h3>TLS grade rules</h3>
+    <p>This is OrbitNet’s own A–F scale. The score is a weighted average of the checks below; caps are applied afterwards so a serious problem cannot be hidden by good marks elsewhere.</p>
+    <div style="overflow-x:auto;">
+      <table class="rule-table">
+        <thead><tr><th>Rule</th><th>Weight</th><th>Effect</th></tr></thead>
+        <tbody>
+          <tr><td>Trusted chain</td><td>25</td><td>Failure when the chain is untrusted or incomplete.</td></tr>
+          <tr><td>Hostname match</td><td>20</td><td>Failure when the certificate does not cover the host.</td></tr>
+          <tr><td>Validity period</td><td>20</td><td>Warning below 30 days, failure below 14 days or expired, warning when longer than the CA/B limit.</td></tr>
+          <tr><td>Chain structure</td><td>10</td><td>Incomplete chain fails; extra root or wrong order warns.</td></tr>
+          <tr><td>Public key strength</td><td>15</td><td>RSA below 2048 bits or a deprecated curve fails.</td></tr>
+          <tr><td>Certificate Transparency</td><td>5</td><td>No embedded SCT warns.</td></tr>
+          <tr><td>OCSP stapling</td><td>5</td><td>Only evaluated when an OCSP URL exists; a missing staple then warns.</td></tr>
+          <tr><td>ALPN</td><td>5</td><td>h2 passes; HTTP/1.1 or no negotiation warns.</td></tr>
+          <tr><td>HTTP/3 advertisement</td><td>3</td><td>An Alt-Svc h3 entry passes; otherwise warns.</td></tr>
+          <tr><td>TLS versions (deep)</td><td>15</td><td>TLS 1.0/1.1 fails; missing TLS 1.3 warns.</td></tr>
+          <tr><td>Cipher suites (deep)</td><td>10</td><td>A weak suite fails; legacy suites warn.</td></tr>
+          <tr><td><strong>Ceiling F</strong></td><td>—</td><td>Expired, hostname mismatch, untrusted/incomplete chain or weak key.</td></tr>
+          <tr><td><strong>Ceiling C</strong></td><td>—</td><td>TLS 1.0/1.1 or a weak cipher suite is accepted.</td></tr>
+          <tr><td><strong>Ceiling B</strong></td><td>—</td><td>Expiry below 30 days, excessive validity, chain/root/order issue, no SCT, OCSP not stapled, HTTP/1.1 only or no HTTP/3 advertisement.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p><strong>A</strong> ≥ 90, <strong>B</strong> ≥ 80, <strong>C</strong> ≥ 70, <strong>D</strong> ≥ 60, <strong>E</strong> ≥ 50, otherwise <strong>F</strong>. Rows marked “not evaluated” are skipped, so a basic scan is not penalised for deep-scan checks that were not requested.</p>
   </div>
 </main>
 
@@ -198,30 +242,119 @@ function mark(supported) {
   return '<span style="color:var(--danger);">rejected</span>';
 }
 
-function render(host, port, d) {
-  const expired = d.daysRemaining != null && d.daysRemaining < 0;
-  const expiringSoon = d.daysRemaining != null && d.daysRemaining >= 0 && d.daysRemaining < 30;
-  const ok = d.authorized && d.hostnameMatch && !expired;
+function keyLabel(k) {
+  if (!k) return '—';
+  const parts = [];
+  if (k.type) parts.push(String(k.type).toUpperCase());
+  if (k.bits) parts.push(k.bits + ' bits');
+  if (k.curve) parts.push(k.curve);
+  return parts.join(' ') || '—';
+}
+function gradeColor(g) {
+  return ({ A: 'var(--accent)', B: '#8ab4f8', C: '#e7c65b', D: 'var(--warning)', E: '#e0a06b', F: 'var(--danger)' })[g] || 'var(--muted)';
+}
+function statusColor(status) {
+  return status === 'pass' ? 'var(--accent)' : (status === 'fail' ? 'var(--danger)' : 'var(--warning)');
+}
 
-  let statusCls = 'error';
-  let statusText = 'Certificate is not trusted or invalid';
-  if (ok && expiringSoon) { statusCls = 'info'; statusText = 'Valid, but expires soon'; }
-  else if (ok) { statusCls = 'success'; statusText = 'Certificate is valid and trusted'; }
+function render(host, port, d) {
+  const validity = d.validity || {};
+  const expired = validity.expiryStatus === 'expired' || (d.daysRemaining != null && d.daysRemaining < 0);
+  const expiringSoon = validity.expiryStatus === 'warning' ||
+    (d.daysRemaining != null && d.daysRemaining >= 0 && d.daysRemaining < 30);
+  const hostnameOk = d.hostnameMatch !== false;
+  const chainInfo = d.chainAnalysis || {};
+  const certOk = d.authorized && hostnameOk && !expired;
+
+  let statusCls = certOk ? 'success' : 'error';
+  let statusText = certOk ? 'Certificate is valid and trusted' : 'Certificate is not trusted or invalid';
+  if (certOk && (expiringSoon || chainInfo.incomplete || chainInfo.extraRoot ||
+      (chainInfo.orderIssues && chainInfo.orderIssues.length))) {
+    statusCls = 'info';
+    statusText = 'Certificate is valid, with warnings';
+  }
+  if (!certOk && d.authorizationError) statusText += ' (' + d.authorizationError + ')';
 
   let html = '<div class="status-box ' + statusCls + '">' + esc(statusText) + '</div>';
   if (d.deepError) html += '<div class="status-box warning">' + esc(d.deepError) + '</div>';
 
+  if (d.grade) {
+    html += '<div class="grade-row" style="margin-top:14px;">' +
+      '<div class="grade-badge ' + esc(d.grade) + '">' + esc(d.grade) + '</div>' +
+      '<div class="grade-meta"><h3>' + esc(d.score) + ' / 100 · OrbitNet TLS grade</h3>' +
+      '<p>' + esc(d.gradeCappedBy ? 'Capped by: ' + d.gradeCappedBy : 'No rule cap applied.') + '</p>' +
+      '<p>This is OrbitNet’s own scale with the rules shown openly below.</p></div></div>';
+  }
+
+  if (validity.message && validity.expiryStatus !== 'ok') {
+    const cls = validity.expiryStatus === 'expired' || validity.expiryStatus === 'error' ? 'error' : 'warning';
+    html += '<div class="status-box ' + cls + '">' + esc(validity.message) + '</div>';
+  }
+  if (chainInfo.incomplete) {
+    html += '<div class="status-box error">Incomplete chain: ' + esc(chainInfo.incompleteReason || 'missing intermediate certificate') + '</div>';
+  }
+  if (chainInfo.extraRoot) {
+    html += '<div class="status-box warning">The server sends the root certificate in the chain. Roots are normally omitted; this also makes the chain longer than necessary.</div>';
+  }
+  if (chainInfo.orderIssues && chainInfo.orderIssues.length) {
+    html += '<div class="status-box warning">Chain order: ' + chainInfo.orderIssues.map(esc).join('; ') + '</div>';
+  }
+  if (validity.validityTooLong) {
+    html += '<div class="status-box warning">Certificate lifetime is ' + esc(validity.validityDays) +
+      ' days; the current CA/B Forum limit is ' + esc(validity.maxValidityDays) + ' days (' + esc(validity.validityRule) + ').</div>';
+  }
+
   html += '<div class="grid-2" style="margin-top:14px;">';
-  html += box('Trust', d.authorized ? 'Trusted chain' : 'Not trusted' + (d.authorizationError ? ' (' + d.authorizationError + ')' : ''), d.authorized ? 'var(--accent)' : 'var(--danger)');
-  html += box('Hostname match', d.hostnameMatch ? 'Yes' : 'No — ' + (d.hostnameError || 'mismatch'), d.hostnameMatch ? 'var(--accent)' : 'var(--danger)');
-  html += box('Days remaining', d.daysRemaining == null ? '—' : String(d.daysRemaining), expired ? 'var(--danger)' : (expiringSoon ? 'var(--warning)' : 'var(--accent)'));
-  const grade = d.cipherGrade || {};
-  const gradeColor = grade.strength === 'strong' ? 'var(--accent)' : (grade.strength === 'weak' ? 'var(--danger)' : 'var(--warning)');
+  html += box('Trust', d.authorized ? 'Trusted chain' : 'Not trusted' + (d.authorizationError ? ' (' + d.authorizationError + ')' : ''),
+    d.authorized ? 'var(--accent)' : 'var(--danger)');
+  html += box('Hostname match', hostnameOk ? 'Yes' : 'No — name does not match',
+    hostnameOk ? 'var(--accent)' : 'var(--danger)');
+  html += box('Days remaining', d.daysRemaining == null ? '—' : String(d.daysRemaining),
+    expired ? 'var(--danger)' : (expiringSoon ? 'var(--warning)' : 'var(--accent)'));
+  const pk = d.publicKey || d.key || {};
+  html += box('Public key', keyLabel(pk) + (pk.weak ? ' — weak' : ''),
+    pk.weak ? 'var(--danger)' : 'var(--accent)');
+  const cipherGrade = d.cipherGrade || {};
+  const cipherColor = cipherGrade.strength === 'strong' ? 'var(--accent)' : (cipherGrade.strength === 'weak' ? 'var(--danger)' : 'var(--warning)');
   html += box('Protocol / cipher', (d.protocol || '—') + ' / ' + (d.cipher || '—') +
-    (grade.strength ? ' (' + grade.strength + ')' : ''), gradeColor);
+    (cipherGrade.strength ? ' (' + cipherGrade.strength + ')' : ''), cipherColor);
+  html += box('ALPN', d.alpn ? d.alpn + ' (offered h2, http/1.1)' : 'none (offered h2, http/1.1)',
+    d.alpn === 'h2' ? 'var(--accent)' : 'var(--warning)');
+
   if (d.ocsp) {
-    html += box('OCSP stapling', d.ocsp.stapled ? 'Stapled' : (d.ocsp.requested ? 'Not stapled' : '—'),
-      d.ocsp.stapled ? 'var(--accent)' : 'var(--warning)');
+    let ocspText;
+    let ocspColor;
+    if (d.ocsp.stapled) {
+      ocspText = 'Stapled';
+      ocspColor = 'var(--accent)';
+    } else if (d.ocsp.applicable) {
+      ocspText = 'Not stapled (certificate contains an OCSP URL)';
+      ocspColor = 'var(--warning)';
+    } else {
+      ocspText = 'Not applicable — no OCSP URL in the certificate';
+      ocspColor = 'var(--muted)';
+    }
+    html += box('OCSP stapling', ocspText, ocspColor);
+  }
+  if (d.sct) {
+    html += box('Certificate Transparency',
+      d.sct.present ? 'Embedded SCT (' + d.sct.count + ')' : 'No embedded SCT',
+      d.sct.present ? 'var(--accent)' : 'var(--warning)');
+  }
+  if (d.altSvc) {
+    let altText;
+    let altColor;
+    if (!d.altSvc.checked) {
+      altText = 'Not evaluated on this port';
+      altColor = 'var(--muted)';
+    } else if (d.altSvc.raw) {
+      altText = d.altSvc.raw;
+      altColor = d.altSvc.http3 ? 'var(--accent)' : 'var(--warning)';
+    } else {
+      altText = 'No Alt-Svc header';
+      altColor = 'var(--warning)';
+    }
+    html += box('HTTP/3 (Alt-Svc)', altText, altColor);
   }
   if (d.caa) {
     const caaText = d.caa.found
@@ -230,6 +363,16 @@ function render(host, port, d) {
     html += box('CAA (certificate authority)', caaText, d.caa.found ? 'var(--accent)' : 'var(--warning)');
   }
   html += '</div>';
+
+  if (!hostnameOk) {
+    const mismatch = d.hostnameCheck || {};
+    const san = (mismatch.san && mismatch.san.length) ? mismatch.san : listSans(d.subjectaltname);
+    html += '<div class="result-box"><div class="result-label">Hostname mismatch</div>' +
+      '<div class="result-value" style="font-size:.9rem;line-height:1.7;color:var(--danger);">' +
+      esc(mismatch.message || d.hostnameMessage || d.hostnameError || ('Certificate name does not match ' + host)) +
+      (san.length ? '<div style="margin-top:6px;color:var(--muted);">SAN: ' + san.map(esc).join(', ') + '</div>' : '') +
+      '</div></div>';
+  }
 
   if (Array.isArray(d.protocols) && d.protocols.length) {
     const vs = d.versionSummary || {};
@@ -274,6 +417,10 @@ function render(host, port, d) {
   html += box('Issued by', name(d.issuer));
   html += box('Valid from', fmtDate(d.valid_from));
   html += box('Valid to', fmtDate(d.valid_to));
+  html += box('Certificate lifetime', validity.validityDays == null ? '—' :
+    validity.validityDays + ' days (limit ' + validity.maxValidityDays + ')',
+    validity.validityTooLong ? 'var(--warning)' : 'var(--accent)');
+  html += box('Serial number', d.serialNumber || '—');
   html += '</div>';
 
   const sans = listSans(d.subjectaltname);
@@ -283,17 +430,37 @@ function render(host, port, d) {
   }
 
   if (Array.isArray(d.chain) && d.chain.length) {
-    let chain = '<div class="result-box"><div class="result-label">Certificate chain (' + d.chain.length + ')</div>' +
-      '<div class="result-value" style="font-size:.9rem;line-height:1.8;">';
+    let chain = '<div class="result-box"><div class="result-label">Certificate chain (' + d.chain.length + ')' +
+      (chainInfo.incomplete ? ' — incomplete' : (chainInfo.ordered === false ? ' — out of order' : ' — ordered')) +
+      '</div><div class="result-value"><div style="overflow-x:auto;"><table class="chain-table">' +
+      '<thead><tr><th>#</th><th>Subject</th><th>Issuer</th><th>Valid to</th><th>Key</th><th>Flags</th></tr></thead><tbody>';
     d.chain.forEach((c, i) => {
-      chain += '<div>' + (i + 1) + '. ' + esc(name(c.subject)) + (c.selfSigned ? ' <span class="result-sub">(self-signed)</span>' : '') + '</div>';
+      const flags = [];
+      if (c.selfSigned) flags.push('self-signed');
+      if (c.ca) flags.push('CA');
+      if (c.publicKey && c.publicKey.weak) flags.push('weak key');
+      if (c.sct && c.sct.present) flags.push('SCT');
+      chain += '<tr><td>' + (i + 1) + '</td><td>' + esc(name(c.subject)) + '</td><td>' +
+        esc(name(c.issuer)) + '</td><td>' + esc(fmtDate(c.valid_to)) + '</td><td>' +
+        esc(keyLabel(c.publicKey)) + '</td><td>' + esc(flags.join(', ') || '—') + '</td></tr>';
     });
-    chain += '</div></div>';
+    chain += '</tbody></table></div></div></div>';
     html += chain;
   }
 
+  if (Array.isArray(d.gradeChecks) && d.gradeChecks.length) {
+    let gh = '<div class="result-box"><div class="result-label">TLS grade checks</div>' +
+      '<div class="result-value" style="font-size:.9rem;line-height:1.8;">';
+    d.gradeChecks.forEach(item => {
+      gh += '<div><span style="color:' + statusColor(item.status) + ';font-weight:600;">' +
+        esc(String(item.status || '').toUpperCase()) + '</span> — ' + esc(item.title) +
+        (item.detail ? ': <span style="color:var(--muted);">' + esc(item.detail) + '</span>' : '') + '</div>';
+    });
+    gh += '</div></div>';
+    html += gh;
+  }
+
   document.getElementById('results').innerHTML = html;
-}
-</script>
+}</script>
 </body>
 </html>

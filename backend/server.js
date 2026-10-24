@@ -1,5 +1,6 @@
 const http = require('http');
 const https = require('https');
+const http2 = require('http2');
 const tls = require('tls');
 const crypto = require('crypto');
 const dns = require('dns').promises;
@@ -1741,6 +1742,707 @@ function summarizeTlsVersions(versions) {
   return { supported, unknown, weak, issues };
 }
 
+const DAY_MS = 86400000;
+// CA/Browser Forum TLS Baseline Requirements, ballot SC-081v3. The limit is
+// selected from the certificate's notBefore date because shorter limits apply
+// only to certificates issued on or after each phase's effective date.
+const TLS_VALIDITY_SCHEDULE = [
+  { from: 0, maxDays: 398, rule: 'CA/B Forum Baseline Requirements (398 days)' },
+  { from: Date.parse('2026-03-15T00:00:00Z'), maxDays: 200, rule: 'CA/B Forum SC-081 phase 1 (200 days)' },
+  { from: Date.parse('2027-03-15T00:00:00Z'), maxDays: 100, rule: 'CA/B Forum SC-081 phase 2 (100 days)' },
+  { from: Date.parse('2029-03-15T00:00:00Z'), maxDays: 47, rule: 'CA/B Forum SC-081 phase 3 (47 days)' }
+];
+
+function parseCertificateDate(value) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function validityLimitFor(notBefore) {
+  const date = parseCertificateDate(notBefore);
+  const time = date ? date.getTime() : 0;
+  let selected = TLS_VALIDITY_SCHEDULE[0];
+  for (const entry of TLS_VALIDITY_SCHEDULE) {
+    if (time >= entry.from) selected = entry;
+  }
+  return { maxDays: selected.maxDays, rule: selected.rule };
+}
+
+function certificateValidityInfo(cert, now) {
+  const parsedNow = now == null ? null : (now instanceof Date ? now : parseCertificateDate(now));
+  const numericNow = Number(now);
+  const current = parsedNow ? parsedNow.getTime()
+    : (now == null ? Date.now() : (Number.isFinite(numericNow) ? numericNow : Date.now()));
+  const from = parseCertificateDate(cert && (cert.valid_from || cert.validFrom));
+  const to = parseCertificateDate(cert && (cert.valid_to || cert.validTo));
+  const daysRemaining = to == null ? null : Math.floor((to.getTime() - current) / DAY_MS);
+  const validityDays = from && to ? Math.round((to.getTime() - from.getTime()) / DAY_MS) : null;
+  const limit = validityLimitFor(from);
+  const exceeds398Days = validityDays != null && validityDays > 398;
+  const validityTooLong = validityDays != null && validityDays > limit.maxDays;
+
+  let expiryStatus = 'unknown';
+  let message = 'Certificate dates are unavailable';
+  if (to != null && daysRemaining != null) {
+    if (daysRemaining < 0) {
+      expiryStatus = 'expired';
+      message = 'Certificate expired ' + Math.abs(daysRemaining) + ' day(s) ago';
+    } else if (daysRemaining < 14) {
+      expiryStatus = 'error';
+      message = 'Certificate expires in ' + daysRemaining + ' day(s)';
+    } else if (daysRemaining < 30) {
+      expiryStatus = 'warning';
+      message = 'Certificate expires in ' + daysRemaining + ' day(s)';
+    } else {
+      expiryStatus = 'ok';
+      message = 'Certificate expires in ' + daysRemaining + ' day(s)';
+    }
+  }
+  if (validityTooLong) {
+    message += '; validity of ' + validityDays + ' days exceeds the current limit of ' +
+      limit.maxDays + ' days (' + limit.rule + ')';
+  }
+
+  return {
+    daysRemaining,
+    validityDays,
+    expiryStatus,
+    status: expiryStatus,
+    message,
+    maxValidityDays: limit.maxDays,
+    validityRule: limit.rule,
+    validityTooLong,
+    exceeds398Days,
+    valid_from: from ? from.toISOString() : '',
+    valid_to: to ? to.toISOString() : ''
+  };
+}
+
+const WEAK_EC_CURVES = new Set([
+  'secp192r1', 'prime192v1', 'secp224r1',
+  'secp192k1', 'secp224k1',
+  'sect163k1', 'sect163r1', 'sect163r2', 'sect193r1', 'sect193r2',
+  'sect233k1', 'sect233r1', 'sect239k1', 'sect283k1', 'sect283r1',
+  'sect409k1', 'sect409r1', 'sect571k1', 'sect571r1'
+]);
+const EC_CURVE_BITS = {
+  prime256v1: 256, secp256r1: 256, secp384r1: 384, secp521r1: 521,
+  secp192r1: 192, prime192v1: 192, secp224r1: 224, secp256k1: 256
+};
+
+function evaluatePublicKey(publicKey) {
+  if (!publicKey || typeof publicKey !== 'object') {
+    return { type: 'unknown', bits: null, curve: '', weak: false, reason: 'Public key is unavailable' };
+  }
+  const type = String(publicKey.asymmetricKeyType || 'unknown').toLowerCase();
+  const details = publicKey.asymmetricKeyDetails || {};
+  let bits = null;
+  let curve = '';
+  let weak = false;
+  let reason = '';
+
+  if (type === 'rsa' || type === 'rsa-pss') {
+    bits = Number(details.modulusLength) || null;
+    if (bits != null && bits < 2048) {
+      weak = true;
+      reason = 'RSA key is only ' + bits + ' bits; at least 2048 bits are required';
+    }
+  } else if (type === 'dsa') {
+    bits = Number(details.modulusLength) || null;
+    if (bits != null && bits < 2048) {
+      weak = true;
+      reason = 'DSA key is only ' + bits + ' bits; at least 2048 bits are required';
+    }
+  } else if (type === 'ec') {
+    curve = String(details.namedCurve || '');
+    const lower = curve.toLowerCase();
+    const fromName = /(\d{3})/.exec(lower);
+    bits = EC_CURVE_BITS[lower] || Number(details.bits) || (fromName ? Number(fromName[1]) : null);
+    if (WEAK_EC_CURVES.has(lower) || (bits != null && bits < 256)) {
+      weak = true;
+      reason = 'Deprecated elliptic curve' + (curve ? ' ' + curve : '') +
+        (bits ? ' (' + bits + ' bits)' : '');
+    }
+  } else if (type === 'ed25519') {
+    bits = 256;
+  } else if (type === 'ed448') {
+    bits = 448;
+  } else if (type === 'x25519') {
+    bits = 256;
+  } else if (type === 'x448') {
+    bits = 448;
+  } else if (type && type !== 'unknown') {
+    weak = false;
+  }
+
+  return {
+    type,
+    bits,
+    size: bits,
+    curve,
+    weak,
+    strength: weak ? 'weak' : 'ok',
+    reason
+  };
+}
+
+// The SCT extension is identified by this DER-encoded OID. Searching the raw
+// certificate avoids trusting a parsed string and also works for old Node.
+const SCT_OID_DER = Buffer.from('060a2b06010401d679020402', 'hex');
+const SCT_OID_TEXT = Buffer.from('1.3.6.1.4.1.11129.2.4.2');
+function hasEmbeddedSct(raw) {
+  if (!raw) return { present: false, count: 0 };
+  const bytes = Buffer.isBuffer(raw) ? raw : Buffer.from(raw);
+  let count = 0;
+  for (const needle of [SCT_OID_DER, SCT_OID_TEXT]) {
+    let offset = 0;
+    while ((offset = bytes.indexOf(needle, offset)) !== -1) {
+      count++;
+      offset += needle.length;
+    }
+  }
+  return { present: count > 0, count };
+}
+
+// Node reports Authority Information Access as text, for example:
+//   OCSP - URI:http://ocsp.example.test
+//   CA Issuers - URI:http://ca.example.test/ca.crt
+function parseInfoAccess(value) {
+  const text = String(value || '').trim();
+  if (!text) return [];
+  const out = [];
+  for (const line of text.split(/\r?\n/)) {
+    const match = /^(.+?)\s+-\s+([^:]+):\s*(.+)$/.exec(line.trim());
+    if (!match) continue;
+    out.push({
+      method: match[1].trim(),
+      type: match[2].trim(),
+      value: match[3].trim()
+    });
+  }
+  return out;
+}
+
+// Alt-Svc: h3=":443"; ma=86400, h3-29=":443"; ma=86400
+function parseAltSvc(value) {
+  const raw = String(value || '').trim();
+  const services = [];
+  if (!raw || /^clear$/i.test(raw)) {
+    return { checked: true, raw, services, http3: false };
+  }
+  for (const part of raw.split(',')) {
+    const quoted = /^\s*([A-Za-z0-9_.-]+)\s*=\s*"([^"]*)"\s*(.*)$/.exec(part);
+    const bare = quoted ? null : /^\s*([A-Za-z0-9_.-]+)\s*=\s*([^;\s]+)\s*(.*)$/.exec(part);
+    const match = quoted || bare;
+    if (!match) continue;
+    const params = {};
+    for (const token of String(match[3] || '').split(';')) {
+      const eq = token.indexOf('=');
+      if (eq === -1) continue;
+      const key = token.slice(0, eq).trim().toLowerCase();
+      const param = token.slice(eq + 1).trim().replace(/^"|"$/g, '');
+      if (key) params[key] = param;
+    }
+    const protocol = match[1].toLowerCase();
+    services.push({
+      protocol,
+      authority: match[2],
+      ma: Number.isFinite(Number(params.ma)) ? Number(params.ma) : null,
+      persist: params.persist === '1'
+    });
+  }
+  return {
+    checked: true,
+    raw,
+    services,
+    http3: services.some(service => /^h3(?:-\d+)?$/.test(service.protocol))
+  };
+}
+
+function certificateNameKey(name) {
+  if (!name || typeof name !== 'object') return '';
+  return Object.keys(name)
+    .filter(key => key !== 'subjectaltname')
+    .sort()
+    .map(key => {
+      const value = Array.isArray(name[key]) ? name[key].join(',') : String(name[key] == null ? '' : name[key]);
+      return key.toUpperCase() + '=' + value.trim().toLowerCase();
+    })
+    .join('|');
+}
+
+function certificateSelfSigned(cert) {
+  if (!cert) return false;
+  if (typeof cert.selfSigned === 'boolean') return cert.selfSigned;
+  const subject = certificateNameKey(cert.subject);
+  const issuer = certificateNameKey(cert.issuer);
+  return Boolean(subject && subject === issuer);
+}
+
+function incompleteChainReason(value) {
+  const text = String(value || '');
+  // OpenSSL reports either a human-readable string or an upper-case code
+  // (UNABLE_TO_GET_ISSUER_CERT_LOCALLY, UNABLE_TO_VERIFY_LEAF_SIGNATURE, ...).
+  if (/unable to get local issuer certificate|unable to get issuer certificate|unable to find the certificate issuer|UNABLE_TO_GET_ISSUER_CERT/i.test(text)) {
+    return 'The server did not send the intermediate certificate needed to build a trusted chain.';
+  }
+  if (/unable to verify the first certificate|unable to verify leaf signature|UNABLE_TO_VERIFY_LEAF_SIGNATURE/i.test(text)) {
+    return 'The first certificate could not be verified, so the chain is incomplete.';
+  }
+  if (/self[- ]signed certificate in certificate chain|SELF_SIGNED_CERT_IN_CHAIN/i.test(text)) {
+    return 'The chain contains a self-signed certificate that is not a trusted root.';
+  }
+  return '';
+}
+
+let systemRootFingerprints = null;
+function isKnownSystemRoot(fingerprint) {
+  if (!fingerprint) return false;
+  if (!systemRootFingerprints) {
+    systemRootFingerprints = new Set();
+    for (const pem of tls.rootCertificates || []) {
+      try {
+        systemRootFingerprints.add(new crypto.X509Certificate(pem).fingerprint256);
+      } catch (e) {
+        // Ignore malformed entries; the default store is only a hint here.
+      }
+    }
+  }
+  return systemRootFingerprints.has(fingerprint);
+}
+
+function analyzeCertificateChain(chain, authorizationError, options) {
+  const list = Array.isArray(chain) ? chain.filter(Boolean) : [];
+  const orderIssues = [];
+  for (let i = 0; i < list.length - 1; i++) {
+    const issuer = certificateNameKey(list[i].issuer);
+    const nextSubject = certificateNameKey(list[i + 1].subject);
+    if (issuer && nextSubject && issuer !== nextSubject) {
+      orderIssues.push('Certificate ' + (i + 1) + ' is not issued by certificate ' + (i + 2));
+    }
+  }
+  const last = list[list.length - 1];
+  const rootIncluded = list.length > 1 && certificateSelfSigned(last);
+  // Node appends the trust anchor from its CA store even when the server did
+  // not send it, so a self-signed tail alone does not prove an extra root. A
+  // trusted root (known system root or a chain that verified cleanly) is
+  // treated as the normal trust anchor; an untrusted self-signed tail was
+  // necessarily sent by the server and is flagged.
+  const rootTrusted = Boolean(rootIncluded && options && options.rootTrusted === true);
+  const reason = incompleteChainReason(authorizationError);
+  return {
+    length: list.length,
+    ordered: orderIssues.length === 0,
+    orderIssues,
+    rootIncluded,
+    rootTrusted,
+    extraRoot: rootIncluded && !rootTrusted,
+    selfSignedLeaf: list.length > 0 && certificateSelfSigned(list[0]),
+    incomplete: Boolean(reason),
+    incompleteReason: reason
+  };
+}
+
+function checkCertificateHostname(host, cert) {
+  let error = '';
+  try {
+    const result = tls.checkServerIdentity(host, cert || {});
+    if (result) error = result.message || String(result);
+  } catch (e) {
+    error = e.message || String(e);
+  }
+  const san = parseSubjectAltName(cert && cert.subjectaltname).map(entry => entry.value);
+  return {
+    match: !error,
+    error,
+    san,
+    names: cert && cert.subjectaltname ? cert.subjectaltname : '',
+    message: error
+      ? 'Certificate name does not match ' + host + '. SAN: ' + (san.length ? san.join(', ') : 'none')
+      : ''
+  };
+}
+
+function describeCertificateChain(leaf) {
+  const chain = [];
+  let node = leaf;
+  const seen = new Set();
+  while (node && node.subject) {
+    const marker = node.fingerprint256 || node.raw || node;
+    if (seen.has(marker)) break;
+    seen.add(marker);
+
+    let x509 = null;
+    try {
+      if (node.raw) x509 = new crypto.X509Certificate(node.raw);
+    } catch (e) {
+      x509 = null;
+    }
+    const publicKey = x509 ? evaluatePublicKey(x509.publicKey) : null;
+    const selfSigned = certificateSelfSigned(node);
+    chain.push({
+      subject: node.subject,
+      issuer: node.issuer,
+      valid_from: node.valid_from,
+      valid_to: node.valid_to,
+      fingerprint256: node.fingerprint256 || '',
+      selfSigned,
+      ca: x509 ? x509.ca : undefined,
+      publicKey,
+      sct: x509 ? hasEmbeddedSct(x509.raw) : { present: false, count: 0 },
+      infoAccess: x509 ? x509.infoAccess || '' : ''
+    });
+    node = node.issuerCertificate;
+  }
+  return chain;
+}
+
+function inspectCertificate(host, leaf, authorizationError) {
+  let x509 = null;
+  try {
+    if (leaf && leaf.raw) x509 = new crypto.X509Certificate(leaf.raw);
+  } catch (e) {
+    x509 = null;
+  }
+  const chain = describeCertificateChain(leaf);
+  const last = chain[chain.length - 1];
+  const rootTrusted = Boolean(last && certificateSelfSigned(last) &&
+    (isKnownSystemRoot(last.fingerprint256) || !authorizationError));
+  const hostname = checkCertificateHostname(host, leaf);
+  const validity = certificateValidityInfo(leaf);
+  const publicKey = x509 ? evaluatePublicKey(x509.publicKey) : evaluatePublicKey(null);
+  const infoAccess = x509 ? parseInfoAccess(x509.infoAccess) : [];
+  const ocspUrls = infoAccess.filter(entry => /^ocsp$/i.test(entry.method) && /^https?:\/\//i.test(entry.value))
+    .map(entry => entry.value);
+  const sct = x509 ? hasEmbeddedSct(x509.raw) : { present: false, count: 0 };
+
+  return {
+    subject: (leaf && leaf.subject) || {},
+    issuer: (leaf && leaf.issuer) || {},
+    valid_from: (leaf && leaf.valid_from) || '',
+    valid_to: (leaf && leaf.valid_to) || '',
+    daysRemaining: validity.daysRemaining,
+    validity,
+    serialNumber: (leaf && leaf.serialNumber) || '',
+    fingerprint256: (leaf && leaf.fingerprint256) || '',
+    subjectaltname: (leaf && leaf.subjectaltname) || '',
+    subjectAltNames: parseSubjectAltName(leaf && leaf.subjectaltname),
+    hostnameMatch: hostname.match,
+    hostnameError: hostname.error,
+    hostnameMessage: hostname.message,
+    hostnameCheck: hostname,
+    publicKey,
+    key: publicKey,
+    infoAccess,
+    ocspUrls,
+    sct,
+    chain,
+    chainAnalysis: analyzeCertificateChain(chain, authorizationError, { rootTrusted })
+  };
+}
+
+const TLS_GRADE_RULES = [
+  { id: 'trust', title: 'Trusted chain', weight: 25, rule: 'Pass when the certificate chains to a trusted root; an incomplete or untrusted chain is a failure.' },
+  { id: 'hostname', title: 'Hostname match', weight: 20, rule: 'Pass when tls.checkServerIdentity() accepts the requested host.' },
+  { id: 'validity', title: 'Validity period', weight: 20, rule: 'Warning below 30 days, failure below 14 days or when expired; a validity longer than the current CA/B Forum limit is a warning.' },
+  { id: 'chain', title: 'Chain structure', weight: 10, rule: 'An incomplete chain fails; an extra root or an incorrect certificate order is a warning.' },
+  { id: 'key', title: 'Public key strength', weight: 15, rule: 'RSA below 2048 bits or a deprecated elliptic curve is a failure.' },
+  { id: 'sct', title: 'Certificate Transparency', weight: 5, rule: 'Embedded SCTs pass; a certificate without SCTs is a warning.' },
+  { id: 'ocsp', title: 'OCSP stapling', weight: 5, rule: 'Only evaluated when the certificate contains an OCSP URL. A missing staple is then a warning.' },
+  { id: 'alpn', title: 'ALPN', weight: 5, rule: 'h2 passes, HTTP/1.1 or no ALPN negotiation is a warning.' },
+  { id: 'http3', title: 'HTTP/3 advertisement', weight: 3, rule: 'An Alt-Svc header advertising h3 passes; no HTTP/3 advertisement is a warning.' },
+  { id: 'versions', title: 'TLS versions (deep scan)', weight: 15, rule: 'TLS 1.0/1.1 is a failure; missing TLS 1.3 is a warning.' },
+  { id: 'ciphers', title: 'Cipher suites (deep scan)', weight: 10, rule: 'A weak suite is a failure; legacy CBC-only strength is a warning.' },
+  { id: 'cap-f', title: 'Ceiling F', weight: 0, rule: 'Expired certificate, hostname mismatch, untrusted/incomplete chain, or weak public key.' },
+  { id: 'cap-c', title: 'Ceiling C', weight: 0, rule: 'TLS 1.0/1.1 or a weak cipher suite is accepted.' },
+  { id: 'cap-b', title: 'Ceiling B', weight: 0, rule: 'Expiry below 30 days, excessive validity, chain ordering/root issues, no SCT, OCSP not stapled, HTTP/1.1 only, or no HTTP/3 advertisement.' }
+];
+
+function tlsGradeCheck(id, title, status, score, weight, detail) {
+  return {
+    id,
+    title,
+    status,
+    score: Math.max(0, Math.min(1, score)),
+    weight,
+    detail: detail || ''
+  };
+}
+
+function gradeRank(letter) {
+  return ['F', 'E', 'D', 'C', 'B', 'A'].indexOf(letter);
+}
+
+function capGrade(letter, cap) {
+  return gradeRank(letter) > gradeRank(cap) ? cap : letter;
+}
+
+function buildTlsReport(data) {
+  const checks = [];
+  const authorizationError = String((data && data.authorizationError) || '');
+  const chainAnalysis = (data && data.chainAnalysis) || analyzeCertificateChain(data && data.chain, authorizationError);
+  const hostnameMatch = data && data.hostnameMatch !== false &&
+    !(data.hostnameCheck && data.hostnameCheck.match === false);
+  const validity = (data && data.validity) || certificateValidityInfo({
+    valid_from: data && data.valid_from,
+    valid_to: data && data.valid_to
+  });
+  const key = (data && (data.publicKey || data.key)) || evaluatePublicKey(null);
+  const sct = (data && data.sct) || { present: false, count: 0 };
+  const ocsp = Object.assign({}, (data && data.ocsp) || {});
+  if (typeof ocsp.applicable !== 'boolean') {
+    const urls = Array.isArray(ocsp.urls) ? ocsp.urls
+      : (Array.isArray(data && data.ocspUrls) ? data.ocspUrls : []);
+    ocsp.applicable = urls.length > 0;
+  }
+  const trusted = data && data.authorized === true;
+
+  checks.push(tlsGradeCheck('trust', 'Trusted chain', trusted ? 'pass' : 'fail',
+    trusted ? 1 : 0, 25,
+    trusted ? 'The certificate chains to a trusted root.'
+      : (chainAnalysis.incomplete
+        ? 'Incomplete chain: ' + chainAnalysis.incompleteReason
+        : 'Chain is not trusted' + (authorizationError ? ': ' + authorizationError : ''))));
+
+  checks.push(tlsGradeCheck('hostname', 'Hostname match', hostnameMatch ? 'pass' : 'fail',
+    hostnameMatch ? 1 : 0, 20,
+    hostnameMatch ? 'The certificate covers ' + (data.host || 'the requested host') + '.'
+      : ((data.hostnameMessage || (data.hostnameCheck && data.hostnameCheck.message)) || 'Certificate name does not match')));
+
+  let validityStatus = validity.expiryStatus || validity.status || 'unknown';
+  let validityScore = validityStatus === 'ok' ? 1
+    : (validityStatus === 'warning' ? 0.6 : (validityStatus === 'unknown' ? 0.5 : 0));
+  let validityDetail = validity.message || '';
+  if (validity.validityTooLong && validityStatus !== 'expired' && validityStatus !== 'error') {
+    if (validityStatus === 'ok') validityStatus = 'warning';
+    if (validityScore > 0.6) validityScore = 0.6;
+  }
+  checks.push(tlsGradeCheck('validity', 'Validity period',
+    validityStatus === 'ok' || validityStatus === 'unknown' ? 'pass' : validityStatus,
+    validityScore, 20, validityDetail));
+
+  let chainStatus = 'pass';
+  let chainScore = 1;
+  const chainDetails = [];
+  if (chainAnalysis.incomplete) {
+    chainStatus = 'fail';
+    chainScore = 0;
+    chainDetails.push('Incomplete chain: ' + chainAnalysis.incompleteReason);
+  }
+  if (chainAnalysis.extraRoot) {
+    chainStatus = chainStatus === 'fail' ? 'fail' : 'warn';
+    chainScore = Math.min(chainScore, 0.6);
+    chainDetails.push('The server sends the root certificate; roots should normally be omitted.');
+  }
+  if (chainAnalysis.orderIssues && chainAnalysis.orderIssues.length) {
+    chainStatus = chainStatus === 'fail' ? 'fail' : 'warn';
+    chainScore = Math.min(chainScore, 0.5);
+    chainDetails.push(chainAnalysis.orderIssues.join('; '));
+  }
+  checks.push(tlsGradeCheck('chain', 'Chain structure', chainStatus, chainScore, 10,
+    chainDetails.length ? chainDetails.join(' ') : 'The chain is complete and ordered.'));
+
+  checks.push(tlsGradeCheck('key', 'Public key strength', key.weak ? 'fail' : 'pass',
+    key.weak ? 0 : 1, 15,
+    key.weak ? key.reason : ((key.type || 'Unknown') + (key.bits ? ', ' + key.bits + ' bits' : '') +
+      (key.curve ? ' (' + key.curve + ')' : ''))));
+
+  checks.push(tlsGradeCheck('sct', 'Certificate Transparency', sct.present ? 'pass' : 'warn',
+    sct.present ? 1 : 0.4, 5,
+    sct.present ? 'The certificate embeds ' + sct.count + ' SCT(s).'
+      : 'No embedded SCT (OID 1.3.6.1.4.1.11129.2.4.2) was found.'));
+
+  if (ocsp.applicable) {
+    checks.push(tlsGradeCheck('ocsp', 'OCSP stapling', ocsp.stapled ? 'pass' : 'warn',
+      ocsp.stapled ? 1 : 0.5, 5,
+      ocsp.stapled ? 'The server stapled an OCSP response.'
+        : 'The certificate has an OCSP URL but the response was not stapled.'));
+  } else {
+    checks.push(tlsGradeCheck('ocsp', 'OCSP stapling', 'unknown', 0, 5,
+      'Not applicable: the certificate has no OCSP responder URL.'));
+  }
+
+  const alpn = String((data && data.alpn) || '');
+  const port = data && data.port != null ? Number(data.port) : null;
+  const webPort = port == null || port === 443 || port === 8443;
+  if (webPort) {
+    checks.push(tlsGradeCheck('alpn', 'ALPN', alpn === 'h2' ? 'pass' : 'warn',
+      alpn === 'h2' ? 1 : (alpn === 'http/1.1' ? 0.5 : 0.3), 5,
+      alpn ? 'Negotiated ' + alpn + ' (offered h2, http/1.1).'
+        : 'No ALPN protocol was negotiated (offered h2, http/1.1).'));
+  } else {
+    checks.push(tlsGradeCheck('alpn', 'ALPN', 'unknown', 0, 5,
+      'Not applicable: this is not an HTTP port.'));
+  }
+
+  const altSvc = data && data.altSvc;
+  if (altSvc && altSvc.checked) {
+    checks.push(tlsGradeCheck('http3', 'HTTP/3 advertisement', altSvc.http3 ? 'pass' : 'warn',
+      altSvc.http3 ? 1 : 0.4, 3,
+      altSvc.http3 ? 'Alt-Svc advertises HTTP/3.'
+        : 'The HTTP response does not advertise HTTP/3.'));
+  } else {
+    checks.push(tlsGradeCheck('http3', 'HTTP/3 advertisement', 'unknown', 0, 3,
+      'Not evaluated for this port.'));
+  }
+
+  const protocols = Array.isArray(data && data.protocols) ? data.protocols : null;
+  const weakVersions = protocols
+    ? protocols.filter(item => item.supported === true && (item.version === 'TLSv1' || item.version === 'TLSv1.1')).map(item => item.version)
+    : [];
+  if (protocols) {
+    const supportedVersions = protocols.filter(item => item.supported === true).map(item => item.version);
+    if (weakVersions.length) {
+      checks.push(tlsGradeCheck('versions', 'TLS versions', 'fail', 0, 15,
+        'Deprecated ' + weakVersions.join(', ') + ' still accepted.'));
+    } else if (supportedVersions.length && !supportedVersions.includes('TLSv1.3')) {
+      checks.push(tlsGradeCheck('versions', 'TLS versions', 'warn', 0.6, 15,
+        'TLS 1.3 is not enabled.'));
+    } else {
+      checks.push(tlsGradeCheck('versions', 'TLS versions', 'pass', 1, 15,
+        supportedVersions.length ? supportedVersions.join(', ') : 'No TLS version was confirmed.'));
+    }
+  } else {
+    checks.push(tlsGradeCheck('versions', 'TLS versions', 'unknown', 0, 15,
+      'Deep scan was not requested.'));
+  }
+
+  const ciphers = Array.isArray(data && data.ciphers) ? data.ciphers : null;
+  const weakCiphers = ciphers
+    ? ciphers.filter(item => item.supported === true && item.weak === true).map(item => item.name)
+    : [];
+  const legacyCiphers = ciphers
+    ? ciphers.filter(item => item.supported === true && item.strength === 'legacy' && !item.weak).map(item => item.name)
+    : [];
+  if (ciphers) {
+    if (weakCiphers.length) {
+      checks.push(tlsGradeCheck('ciphers', 'Cipher suites', 'fail', 0, 10,
+        'Weak suites enabled: ' + weakCiphers.join(', ') + '.'));
+    } else if (legacyCiphers.length) {
+      checks.push(tlsGradeCheck('ciphers', 'Cipher suites', 'warn', 0.6, 10,
+        'Legacy suites enabled: ' + legacyCiphers.join(', ') + '.'));
+    } else {
+      checks.push(tlsGradeCheck('ciphers', 'Cipher suites', 'pass', 1, 10,
+        'No weak or legacy probe suite was accepted.'));
+    }
+  } else {
+    checks.push(tlsGradeCheck('ciphers', 'Cipher suites', 'unknown', 0, 10,
+      'Deep scan was not requested.'));
+  }
+
+  const { grade: scoreGrade, score } = gradeFromChecks(checks);
+  let ceiling = '';
+  let cappedBy = '';
+  if (!trusted || !hostnameMatch || key.weak ||
+      validityStatus === 'expired' || validityStatus === 'error' || chainAnalysis.incomplete) {
+    ceiling = 'F';
+    cappedBy = 'identity or trust failure';
+  } else if (weakVersions.length || weakCiphers.length ||
+      (data && (data.protocol === 'TLSv1' || data.protocol === 'TLSv1.1'))) {
+    ceiling = 'C';
+    cappedBy = 'deprecated TLS version or weak cipher';
+  } else if (validityStatus === 'warning' || validity.validityTooLong ||
+      chainAnalysis.extraRoot || (chainAnalysis.orderIssues && chainAnalysis.orderIssues.length) ||
+      !sct.present || (ocsp.applicable && !ocsp.stapled) || (webPort && alpn !== 'h2') ||
+      (altSvc && altSvc.checked && !altSvc.http3)) {
+    ceiling = 'B';
+    cappedBy = 'certificate, chain or protocol warning';
+  }
+  const grade = ceiling ? capGrade(scoreGrade, ceiling) : scoreGrade;
+
+  return {
+    grade,
+    score,
+    cappedBy,
+    checks,
+    rules: TLS_GRADE_RULES
+  };
+}
+
+function readAltSvcOnSocket(socket, host, port, alpn, timeoutMs) {
+  return new Promise((resolve) => {
+    if (!socket || socket.destroyed) return resolve(null);
+    const limit = timeoutMs || 2000;
+    let settled = false;
+    let timer = null;
+    let cleanup = () => {};
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      cleanup();
+      resolve(value);
+    };
+    timer = setTimeout(() => finish(null), limit);
+    if (timer && typeof timer.unref === 'function') timer.unref();
+
+    const normalizeHeaders = (headers) => {
+      const out = {};
+      for (const [key, value] of Object.entries(headers || {})) {
+        out[String(key).toLowerCase()] = Array.isArray(value) ? value.join(', ') : String(value);
+      }
+      return out;
+    };
+
+    if (alpn === 'h2') {
+      let session;
+      try {
+        session = http2.connect('https://' + host + ':' + port, {
+          createConnection: () => socket
+        });
+      } catch (e) {
+        return finish(null);
+      }
+      let request = null;
+      cleanup = () => {
+        if (request) try { request.close(); } catch (e) {}
+        try { session.close(); } catch (e) {}
+      };
+      session.once('error', () => finish(null));
+      request = session.request({ ':method': 'HEAD', ':path': '/' });
+      request.once('response', (headers) => {
+        const normalized = normalizeHeaders(headers);
+        finish(Object.prototype.hasOwnProperty.call(normalized, 'alt-svc') ? normalized['alt-svc'] : '');
+      });
+      request.once('error', () => finish(null));
+      request.end();
+      return;
+    }
+
+    if (alpn && alpn !== 'http/1.1') return finish(null);
+    let data = '';
+    const onData = (chunk) => {
+      data += chunk.toString('latin1');
+      const end = data.indexOf('\r\n\r\n');
+      if (end === -1) {
+        if (data.length > 32768) finish(null);
+        return;
+      }
+      const lines = data.slice(0, end).split('\r\n');
+      const headers = {};
+      for (const line of lines.slice(1)) {
+        const idx = line.indexOf(':');
+        if (idx === -1) continue;
+        const key = line.slice(0, idx).trim().toLowerCase();
+        const value = line.slice(idx + 1).trim();
+        if (key) headers[key] = headers[key] ? headers[key] + ', ' + value : value;
+      }
+      finish(Object.prototype.hasOwnProperty.call(headers, 'alt-svc') ? headers['alt-svc'] : '');
+    };
+    const onError = () => finish(null);
+    cleanup = () => {
+      socket.removeListener('data', onData);
+      socket.removeListener('error', onError);
+    };
+    socket.on('data', onData);
+    socket.once('error', onError);
+    socket.write('HEAD / HTTP/1.1\r\nHost: ' + host +
+      '\r\nUser-Agent: OrbitNet/1.0 (+https://orbitnet.ru)' +
+      '\r\nAccept: */*\r\nConnection: close\r\n\r\n');
+  });
+}
+
 function normalizeCaaRecord(raw) {
   if (!raw || typeof raw !== 'object') return { flag: 0, tag: '', value: '' };
   const critical = raw.critical != null ? raw.critical : raw.flag;
@@ -1846,6 +2548,7 @@ async function tlsInfo(host, port, options) {
   const base = await outbound(() => new Promise((resolve) => {
     let ocspResponse = null;
     let settled = false;
+    let readingAltSvc = false;
     const finish = (value) => { if (!settled) { settled = true; resolve(value); } };
     const socket = tls.connect({
       host: ip,
@@ -1853,70 +2556,73 @@ async function tlsInfo(host, port, options) {
       port: connectPort,
       rejectUnauthorized: false,
       requestOCSP: true,
+      ALPNProtocols: ['h2', 'http/1.1'],
       timeout: OUTBOUND_TIMEOUT
-    }, () => {
-      const cert = socket.getPeerCertificate(true);
-      const chain = [];
-      let node = cert;
-      const seen = new Set();
-      while (node && node.subject && !seen.has(node.fingerprint256)) {
-        seen.add(node.fingerprint256);
-        chain.push({
-          subject: node.subject,
-          issuer: node.issuer,
-          valid_from: node.valid_from,
-          valid_to: node.valid_to,
-          fingerprint256: node.fingerprint256,
-          selfSigned: node.subject && node.issuer &&
-            node.subject.CN === node.issuer.CN && node.subject.O === node.issuer.O
-        });
-        node = node.issuerCertificate;
-      }
-      let hostnameMatch = true;
-      let hostnameError = '';
+    }, async () => {
+      let out;
       try {
-        const e = tls.checkServerIdentity(host, cert);
-        if (e) { hostnameMatch = false; hostnameError = e.message; }
-      } catch (e) { hostnameMatch = false; hostnameError = e.message; }
+        const cert = socket.getPeerCertificate(true);
+        const authorizationError = socket.authorizationError ? String(socket.authorizationError) : '';
+        const inspected = inspectCertificate(host, cert, authorizationError);
+        const ocspUrls = inspected.ocspUrls;
+        const cipher = (socket.getCipher() || {}).name || '';
+        out = Object.assign({
+          host,
+          ip,
+          port: connectPort,
+          protocol: socket.getProtocol(),
+          cipher,
+          cipherGrade: classifyCipher(cipher),
+          alpn: socket.alpnProtocol || '',
+          alpnOffered: ['h2', 'http/1.1'],
+          authorized: socket.authorized,
+          authorizationError,
+          ocsp: {
+            requested: true,
+            stapled: !!(ocspResponse && ocspResponse.length),
+            responseBytes: ocspResponse ? ocspResponse.length : 0,
+            urls: ocspUrls,
+            applicable: ocspUrls.length > 0
+          }
+        }, inspected);
+      } catch (e) {
+        socket.destroy();
+        return finish({ host, ip, port: connectPort, error: e.code || e.message });
+      }
 
-      const validTo = new Date(cert.valid_to);
-      const daysRemaining = isNaN(validTo.getTime()) ? null :
-        Math.floor((validTo.getTime() - Date.now()) / 86400000);
-      const cipher = (socket.getCipher() || {}).name || '';
-
-      const out = {
-        host,
-        ip,
-        port: connectPort,
-        protocol: socket.getProtocol(),
-        cipher,
-        cipherGrade: classifyCipher(cipher),
-        authorized: socket.authorized,
-        authorizationError: socket.authorizationError ? String(socket.authorizationError) : '',
-        subject: cert.subject || {},
-        issuer: cert.issuer || {},
-        valid_from: cert.valid_from || '',
-        valid_to: cert.valid_to || '',
-        daysRemaining,
-        serialNumber: cert.serialNumber || '',
-        fingerprint256: cert.fingerprint256 || '',
-        subjectaltname: cert.subjectaltname || '',
-        subjectAltNames: parseSubjectAltName(cert.subjectaltname),
-        hostnameMatch,
-        hostnameError,
-        ocsp: {
-          requested: true,
-          stapled: !!(ocspResponse && ocspResponse.length),
-          responseBytes: ocspResponse ? ocspResponse.length : 0
-        },
-        chain
-      };
-      socket.end();
+      // Alt-Svc is carried in an HTTP response. Reuse this TLS socket, so the
+      // check does not open a second connection to the target. Mail ports do
+      // not speak HTTP, so they are skipped.
+      if (connectPort === 443 || connectPort === 8443) {
+        readingAltSvc = true;
+        let header = null;
+        try {
+          header = await readAltSvcOnSocket(socket, host, connectPort, out.alpn, 2000);
+        } catch (e) {
+          header = null;
+        } finally {
+          readingAltSvc = false;
+        }
+        out.altSvc = header == null
+          ? { checked: false, raw: '', services: [], http3: false }
+          : parseAltSvc(header);
+      } else {
+        out.altSvc = { checked: false, raw: '', services: [], http3: false };
+      }
+      out.http3 = !!(out.altSvc && out.altSvc.http3);
+      if (!socket.destroyed) socket.end();
       finish(out);
     });
     socket.on('OCSPResponse', (buf) => { ocspResponse = buf || null; });
-    socket.on('timeout', () => { socket.destroy(); finish({ host, ip, port: connectPort, error: 'timeout' }); });
-    socket.on('error', (e) => finish({ host, ip, port: connectPort, error: e.code || e.message }));
+    socket.on('timeout', () => {
+      if (readingAltSvc) return;
+      socket.destroy();
+      finish({ host, ip, port: connectPort, error: 'timeout' });
+    });
+    socket.on('error', (e) => {
+      if (readingAltSvc) return;
+      finish({ host, ip, port: connectPort, error: e.code || e.message });
+    });
   }));
 
   if (base.error) return base;
@@ -1935,6 +2641,13 @@ async function tlsInfo(host, port, options) {
       base.ciphers = [];
     }
   }
+
+  const report = buildTlsReport(base);
+  base.grade = report.grade;
+  base.score = report.score;
+  base.gradeCappedBy = report.cappedBy;
+  base.gradeChecks = report.checks;
+  base.gradeRules = report.rules;
   return base;
 }
 
@@ -3444,5 +4157,10 @@ module.exports = {
   parseCookies, parseMaxAge, findMixedContent, fetchSecurityTxt,
   securityHeaderRules,
   parseSubjectAltName, classifyCipher, summarizeTlsVersions, normalizeCaaRecord,
-  caaLookup, TLS_VERSION_PROBES, TLS_CIPHER_PROBES
+  caaLookup, TLS_VERSION_PROBES, TLS_CIPHER_PROBES,
+  TLS_VALIDITY_SCHEDULE, validityLimitFor, certificateValidityInfo,
+  evaluatePublicKey, hasEmbeddedSct, parseInfoAccess, parseAltSvc,
+  analyzeCertificateChain, incompleteChainReason, checkCertificateHostname,
+  inspectCertificate, describeCertificateChain, buildTlsReport, gradeTls: buildTlsReport,
+  TLS_GRADE_RULES, readAltSvcOnSocket, SCT_OID_DER
 };

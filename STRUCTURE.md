@@ -46,7 +46,8 @@ orbitnet/
 │   ├── anonymity.test.js          # timezone, private IP, score, WebRTC
 │   ├── spam.test.js               # DNSBL: reverse-метка, коды ответов, IP/домен/email
 │   ├── security.test.js           # аудит: парсеры HSTS/security.txt/cookies/mixed, оценка A-F
-│   ├── tls.test.js                # TLS: SAN, классы шифров, сводка версий, нормализация CAA
+│   ├── tls.test.js                # TLS: SAN, шифры, версии, цепочка, сроки, ключи, SCT, ALPN, Alt-Svc, оценка A–F
+│   ├── fixtures/                  # Тестовые сертификаты и ключи (только для тестов)
 │   ├── external-check.test.js     # Worker-клиент: HTTP/DNS/propagation/email
 │   ├── worker.test.js             # сам Cloudflare Worker с mock fetch
 │   ├── seo.test.js                # canonical, OG, JSON-LD, sitemap, og-image.png
@@ -197,7 +198,7 @@ npm run hooks:install
 - `tests/anonymity.test.js` проверяет расчёт часовых поясов, классификацию приватных IP, вклад сигналов в score, безопасное поведение без WebRTC, а также backend-эвристики для hosting/PTR/proxy-заголовков.
 - `tests/spam.test.js` проверяет reverse-метку IPv4, разбор ответов DNSBL (листинг, `127.255.255.x` как blocked, NXDOMAIN как «не в списке»), контрольный запрос Spamhaus (здоровые `127.0.0.2/4/10`, blocked `127.255.255.x`, NXDOMAIN как unknown), разбор цели IP/домен/email и `spamCheck` с внедрённым резолвером для IP, домена и MX.
 - `tests/security.test.js` проверяет парсеры HSTS `max-age`, `Set-Cookie`, `security.txt`, mixed content (игнор namespace-URL), отображение score в A–F и сборку отчёта для «хорошего», «плохого» и header-only (Worker) случая.
-- `tests/tls.test.js` проверяет разбор списка SAN (тип/значение, двоеточия внутри значения), классификацию шифров (AEAD/legacy/weak), сводку версий TLS с разделением supported/unknown/weak и нормализацию CAA-записей для обоих форматов Node.
+- `tests/tls.test.js` проверяет разбор SAN, классификацию шифров, сводку версий TLS, CAA, сроки и график CA/B Forum, силу ключа, SCT, OCSP, ALPN/Alt-Svc, анализ цепочки (неполная, порядок, лишний корень) и оценку A–F. Тесты поднимают локальный TLS-сервер на `node:tls` и используют сертификаты из `tests/fixtures` (все приватные ключи там тестовые).
 - `tests/seo.test.js` проверяет canonical и OG на каждой странице, уникальность URL, соответствие sitemap, JSON-LD `SoftwareApplication`/`WebSite`/`FAQPage` и размеры `og-image.png`.
 - `tests/live-check.js` проверяет доступность всех canonical URL и `og-image.png` на опубликованном сайте.
 
@@ -308,7 +309,7 @@ npm run hooks:install
 | `GET /api/whois` | net | whois-запрос |
 | `GET /api/site` | http/https, external-check | Статус, сервер, title, время ответа; fallback в Worker |
 | `GET /api/headers` | http/https, external-check | Заголовки ответа; fallback в Worker |
-| `GET /api/tls` | tls, dns, external-check | Сертификат и цепочка; `deep=1` — версии TLS, шифры, OCSP stapling, CAA |
+| `GET /api/tls` | tls, dns, external-check | Сертификат, цепочка, hostname/SAN, сроки, ключ, SCT, OCSP, ALPN/Alt-Svc, CAA и оценка A–F; `deep=1` — версии TLS и шифры |
 | `GET /api/email` | dns, external-check | MX, SPF, DMARC, DKIM, PTR; fallback в Worker при сбое MX |
 | `GET /api/propagation` | dns, external-check | Несколько публичных резолверов; fallback в Worker при отказе всех |
 | `GET /api/redirect` | http/https, external-check | Цепочка редиректов; fallback в Worker при сетевой ошибке |
