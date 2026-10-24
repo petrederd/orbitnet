@@ -175,7 +175,8 @@ Cloudflare Workers хранит один загруженный скрипт, а
 
 ```dotenv
 CHECKER_URL=https://orbitnet-site-checker.<account>.workers.dev/
-CHECKER_SECRET=<та же строка, что в wrangler secret put>
+# ровно то, что ввели в wrangler secret put, без < > и кавычек
+CHECKER_SECRET=та-же-строка-что-и-в-wrangler-secret-put
 # необязательно, миллисекунды
 CHECKER_TIMEOUT=20000
 ```
@@ -233,6 +234,9 @@ curl -sS -X POST "$CHECKER_URL" \
   отсутствие DMARC/DKIM (`ENODATA`) — нормальный ответ и не повод звать Worker.
 - `/api/propagation`: все локальные резолверы вернули транспортную ошибку или
   `ENOTFOUND`, а не обычный пустой ответ.
+- `/api/tls` и `/api/geo`: локальный резолвер вернул `Cannot resolve`. Worker
+  отдаёт A/AAAA, бэкенд сам проверяет публичность адресов и делает TLS
+  handshake или geo lookup. Сертификат Worker не видит.
 - Заблокированные локальным SSRF-guard адреса в Worker не отправляются.
 - Для fallback действуют отдельные лимиты на клиента и на процесс; при
   занятости очереди возвращается `503`, а Worker не вызывается. Для
@@ -256,8 +260,11 @@ curl -sS -X POST "$CHECKER_URL" \
 
 ## Ограничения
 
-- Worker не отдаёт TLS-сертификат, поэтому SSL Checker (`/api/tls`) остаётся
-  локальным.
+- Worker не отдаёт TLS-сертификат: `getPeerCertificate` в Workers не
+  реализован. SSL Checker (`/api/tls`) использует Worker только для A/AAAA при
+  локальном `Cannot resolve`; рукопожатие и сертификат читает бэкенд. Если
+  заблокирован не только DNS, а весь маршрут до IP, TLS-проверка останется
+  локальной и завершится ошибкой соединения.
 - Worker не умеет raw TCP: WHOIS (порт 43) и Port Checker (произвольные порты)
   остаются локальными. HTTP/HTTPS-порты 80/443 проверяются только косвенно,
   через обычный `fetch`.

@@ -575,3 +575,61 @@ test('readAltSvcOnSocket rejects an oversized HTTP header', async () => {
     await close(server);
   }
 });
+
+test('TLS name resolution falls back to the Worker when local DNS is filtered', async (t) => {
+  const http = require('node:http');
+
+  const secret = 'tls-resolve-secret';
+  const seen = [];
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.setEncoding('utf8');
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      if (req.method !== 'POST' || req.headers.authorization !== 'Bearer ' + secret) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Unauthorized' }));
+        return;
+      }
+      const payload = JSON.parse(body);
+      seen.push(payload);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        ok: true,
+        type: 'dns',
+        host: payload.host,
+        recordType: payload.recordType,
+        records: payload.recordType === 'A' ? ['93.184.216.34'] : [],
+        resolver: 'Cloudflare 1.1.1.1',
+        source: 'Cloudflare Worker'
+      }));
+    });
+  });
+  const port = await listen(server);
+
+  const savedUrl = process.env.CHECKER_URL;
+  const savedSecret = process.env.CHECKER_SECRET;
+  const savedTimeout = process.env.CHECKER_TIMEOUT;
+  process.env.CHECKER_URL = 'http://127.0.0.1:' + port + '/';
+  process.env.CHECKER_SECRET = secret;
+  process.env.CHECKER_TIMEOUT = '2000';
+
+  t.after(async () => {
+    await close(server);
+    if (savedUrl === undefined) delete process.env.CHECKER_URL;
+    else process.env.CHECKER_URL = savedUrl;
+    if (savedSecret === undefined) delete process.env.CHECKER_SECRET;
+    else process.env.CHECKER_SECRET = savedSecret;
+    if (savedTimeout === undefined) delete process.env.CHECKER_TIMEOUT;
+    else process.env.CHECKER_TIMEOUT = savedTimeout;
+  });
+
+  const resolved = await api.resolvePublicWithWorker(
+    'no-such-subdomain.orbitnet-tls-test.example.com',
+    { clientIp: '198.51.100.77', deadline: Date.now() + 5000 }
+  );
+
+  assert.equal(resolved.source, 'worker');
+  assert.deepEqual(resolved.ips, ['93.184.216.34']);
+  assert.ok(seen.some(item => item.type === 'dns' && item.recordType === 'A'));
+});

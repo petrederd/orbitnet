@@ -435,12 +435,13 @@ function pickAddress(ips) {
   return ips.find(net.isIPv4) || ips[0];
 }
 
-// Geo/whois pages need a public address for a domain. If the local resolver
-// cannot see the domain, ask the Worker for A/AAAA before giving up. Blocked
-// private targets are never forwarded.
-async function resolvePublicForGeo(host, context) {
+// Checks that need a public address for a domain (geo, TLS) can ask the Worker
+// for A/AAAA when the local resolver cannot see the name (DNS filtering, RKN).
+// The Worker answer is still filtered through the local public-IP guard, and
+// targets the local resolver already marked as private are never forwarded.
+async function resolvePublicWithWorker(host, context) {
   try {
-    return await resolvePublic(host);
+    return { ips: await resolvePublic(host), source: 'local' };
   } catch (e) {
     if (e.blocked || !e.unresolved) throw e;
     for (const type of ['A', 'AAAA']) {
@@ -459,7 +460,7 @@ async function resolvePublicForGeo(host, context) {
       }
       const ips = (Array.isArray(external.records) ? external.records : [])
         .filter(ip => net.isIP(ip) && isPublicIp(ip));
-      if (ips.length) return ips;
+      if (ips.length) return { ips, source: 'worker' };
     }
     throw e;
   }
@@ -2558,7 +2559,14 @@ async function tlsDeepProbe(ip, host, port) {
 
 async function tlsInfo(host, port, options) {
   const deep = !!(options && options.deep);
-  const ips = await resolvePublic(host);
+  const context = options && options.context;
+  // Local handshake first. The Worker is only used to resolve the name when
+  // local DNS is filtered; the certificate itself is always read locally.
+  // Worker-supplied addresses are rechecked by the local public-IP guard.
+  const resolved = context
+    ? await resolvePublicWithWorker(host, context)
+    : { ips: await resolvePublic(host), source: 'local' };
+  const ips = resolved.ips;
   const ip = pickAddress(ips);
   const connectPort = port || 443;
   const base = await outbound(() => new Promise((resolve) => {
@@ -2641,6 +2649,7 @@ async function tlsInfo(host, port, options) {
     });
   }));
 
+  base.source = resolved.source;
   if (base.error) return base;
 
   base.caa = await caaLookup(host).catch(() => ({ found: false, domain: '', records: [] }));
@@ -3874,8 +3883,8 @@ const server = http.createServer(async (req, res) => {
       let target = ipParam;
       if (!net.isIP(target)) {
         if (!isValidHost(hostParam)) return bad(res, 'Provide a valid IP address or hostname');
-        const ips = await resolvePublicForGeo(hostParam, externalContext);
-        target = pickAddress(ips);
+        const resolved = await resolvePublicWithWorker(hostParam, externalContext);
+        target = pickAddress(resolved.ips);
       }
       return send(res, 200, { ip: target, geo: await geoLookup(target) });
     }
@@ -4057,7 +4066,7 @@ const server = http.createServer(async (req, res) => {
       if (deep && isRateLimited(ip, tlsDeepHits, TLS_DEEP_RATE_MAX)) {
         return send(res, 429, { error: 'Deep TLS scans are limited to ' + TLS_DEEP_RATE_MAX + ' per minute' });
       }
-      return send(res, 200, await tlsInfo(host, port, { deep }));
+      return send(res, 200, await tlsInfo(host, port, { deep, context: externalContext }));
     }
 
     if (path === '/api/email') {
@@ -4164,6 +4173,7 @@ if (require.main === module) {
 
 module.exports = {
   normalizeIp, isPublicIp, clientIp, server, siteInfo, tlsInfo, headersInfo, emailInfo,
+  resolvePublicWithWorker,
   decodeHtml, propagation, redirectChain, anonymityInfo, anonymityPorts, torStatus,
   hostingSignals, hostnameSignals, proxyHeaderSignals, externalImproves, looksLikeBlockPage,
   spamCheck, parseSpamTarget, parseDnsblRecords, reverseIpName, spamCodeInfo,
