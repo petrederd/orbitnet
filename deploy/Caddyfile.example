@@ -12,14 +12,34 @@
 #
 # Keep the ranges in sync with cloudflare-ips.conf / scripts/update-cloudflare-ips.sh.
 #
-# Privacy: access logging is off unless you explicitly enable it. If you need
-# logs, follow the sanitised 7-day example in README.md ("Logs and privacy").
-# Never record client IPs, headers, or query strings.
+# Privacy: request logs are off unless you explicitly enable the sanitised
+# 7-day access log. Runtime/error logs are filtered below so they keep the
+# diagnostic message but never the client IP, headers or request URI. Follow
+# the example in README.md ("Logs and privacy"). Never record client IPs,
+# headers, or query strings.
 {
 	# Drop default access logs for requests that do not use the sanitised
 	# site-specific logger below (for example scanners hitting the origin by IP).
 	log {
 		exclude http.log.access
+
+		# Error and TLS logs would otherwise record the client IP and the full
+		# request URI (including the query string) on failures. Keep the error
+		# text and status, delete the identifying fields.
+		format filter {
+			wrap json
+			fields {
+				remote_ip delete
+				remote_port delete
+				client_ip delete
+				request>remote_ip delete
+				request>remote_port delete
+				request>client_ip delete
+				request>headers delete
+				request>uri delete
+				resp_headers delete
+			}
+		}
 	}
 
 	servers {

@@ -1,5 +1,5 @@
 # Cap Docker json-file logs at 30 MB per container (10 MB x 3).
-# Access logs live in Caddy, not in container stdout.
+# Request logs live in Caddy (sanitised), not in container stdout.
 x-logging: &default-logging
   driver: json-file
   options:

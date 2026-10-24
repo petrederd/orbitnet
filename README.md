@@ -318,7 +318,8 @@ IP посетителя определяется по `X-Real-IP`, которы�
 Публичная политика: [orbitnet.ru/privacy.html](https://orbitnet.ru/privacy.html).
 
 - **Caddy** хранит access-лог до 7 дней. В лог попадают время, метод, host, путь без query string, статус, размер ответа и длительность. IP-адреса, заголовки и query string удаляются на уровне формата.
-- **nginx** access-лог не ведёт: он доступен только локально через Caddy, а Caddy уже даёт достаточную диагностику. Это убирает дублирование и хранение IP-адресов.
+- **Caddy error-логи** проходят тот же фильтр: остаются текст ошибки, статус и время, а IP-адреса, заголовки и URI удаляются до записи в системный журнал.
+- **nginx** не ведёт ни access-, ни error-лог: он доступен только локально через Caddy, а Caddy уже даёт достаточную диагностику. Так в логи не попадают ни IP-адреса, ни адреса запросов с параметрами.
 - **Backend** не пишет per-request access-лог; остаются только сообщения запуска и ошибок.
 - **Docker** ограничивает json-file логи: `max-size: 10m`, `max-file: 3` (до 30 МБ на контейнер).
 - **Cloudflare** используется как CDN и защита. Logpush и выгрузка edge-логов не настраиваются. Cloudflare может присылать браузеру `NEL`/`Report-To` для отчётов о сетевых ошибках.
@@ -331,6 +332,20 @@ IP посетителя определяется по `X-Real-IP`, которы�
 {
 	log {
 		exclude http.log.access
+		format filter {
+			wrap json
+			fields {
+				remote_ip delete
+				remote_port delete
+				client_ip delete
+				request>remote_ip delete
+				request>remote_port delete
+				request>client_ip delete
+				request>headers delete
+				request>uri delete
+				resp_headers delete
+			}
+		}
 	}
 }
 
@@ -359,7 +374,7 @@ orbitnet.ru {
 }
 ```
 
-В глобальном блоке Caddy добавьте `log { exclude http.log.access }`, чтобы не писать в stdout access-логи для запросов, не попавших в именованный лог (например, сканеров, приходящих на origin по IP). Если вы форкаете проект и разворачиваете копию, вы становитесь оператором данных своей копии и должны обновить контакт в `site/privacy.html`.
+В глобальном блоке Caddy `exclude http.log.access` убирает лишние access-логи, а `format filter` очищает runtime/error-логи: без него Caddy при сбое пишет IP и полный URI в системный журнал. Если вы форкаете проект и разворачиваете копию, вы становитесь оператором данных своей копии и должны обновить контакт в `site/privacy.html`.
 
 ## GeoIP
 

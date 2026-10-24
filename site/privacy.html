@@ -54,119 +54,115 @@
       <a href="index.html">Home</a> /
       <span>Privacy</span>
     </div>
-    <h1>Privacy Policy</h1>
-    <p>What OrbitNet processes, why it is needed, how long it is kept, and which third parties may be involved. Available in Russian and English below.</p>
-    <p>Effective date: <time datetime="2026-10-24">24 October 2026</time>. Languages: <a href="#ru">Русский</a> · <a href="#en">English</a>.</p>
+    <h1>Privacy</h1>
+    <p>Plain words about what this site sees, keeps and shares. Written by a person, not a legal department. Русский и английский ниже.</p>
+    <p>Updated: <time datetime="2026-10-24">24 October 2026</time>. Languages: <a href="#ru">Русский</a> · <a href="#en">English</a>.</p>
   </div>
 
   <section class="info-section" id="ru" lang="ru">
-    <h2>Политика конфиденциальности</h2>
-    <p><strong>Кто является оператором.</strong> OrbitNet — личный открытый проект. Оператором этого экземпляра сайта <a href="index.html">orbitnet.ru</a> является его владелец. Связаться по вопросам персональных данных: <a href="mailto:petrederd@gmail.com">petrederd@gmail.com</a>. Если вы разворачиваете форк или собственную копию кода, оператором вашей копии становитесь вы; эта политика к ней не применяется автоматически.</p>
+    <h2>Приватность на orbitnet.ru</h2>
+    <p>OrbitNet — личный открытый проект, а не компания. Этот сайт сделал и поддерживает один человек, и я хочу, чтобы вы знали ровно то же, что знаю я сам: что происходит с вашими данными, пока вы здесь. Секретов нет — весь код опубликован на GitHub, и вы можете проверить каждое слово на этой странице по исходникам.</p>
 
     <h3>Коротко</h3>
-    <p>На сайте нет аккаунтов, рекламы, сторонних аналитических скриптов и рекламных трекеров. Мы не продаём данные и не строим профили. Большинство инструментов работают полностью в браузере. Сетевые инструменты отправляют на сервер только тот запрос, который нужен для проверки.</p>
-
-    <h3>Какие данные обрабатываются</h3>
     <ul>
-      <li><strong>Технические данные запросов.</strong> IP-адрес, время, метод, путь без query string, HTTP-статус, размер ответа и время обработки. Эти данные нужны для доставки страниц, защиты от злоупотреблений и диагностики.</li>
-      <li><strong>Данные, которые вы вводите в сетевые инструменты.</strong> Доменное имя, IP-адрес, email, DNS-селектор или иной параметр проверки. Они обрабатываются для выполнения запроса и не сохраняются в базе данных.</li>
-      <li><strong>Краткоживущие кэши в памяти.</strong> Некоторые результаты и счётчики ограничений хранятся в оперативной памяти процесса до 1 часа и исчезают при перезапуске. Это не постоянное хранилище.</li>
-      <li><strong>Избранное в браузере.</strong> Главная страница может сохранять список избранных инструментов в <code>localStorage</code> на вашем устройстве. Эти данные не отправляются на сервер.</li>
+      <li>Никаких аккаунтов, рекламы, аналитики и сторонних скриптов — все скрипты сайта лежат на моём сервере и загружаются с моего же домена.</li>
+      <li>Я не хочу знать, кто вы. В логах на моём сервере нет IP-адресов: Caddy фильтрует access- и error-логи, а nginx не ведёт журналов.</li>
+      <li>Большинство инструментов работает целиком в вашем браузере и никуда ничего не отправляет.</li>
+      <li>Если вы вводите данные в сетевой инструмент, они идут на сервер, чтобы выполнить проверку. Ни одна база данных на сайте не хранит ваши запросы. Навсегда ничего не остаётся: кэши живут до часа в оперативной памяти и исчезают при перезапуске.</li>
+      <li>Я не строю профили и мне нечего продавать.</li>
     </ul>
 
-    <h3>Зачем и на каком основании</h3>
-    <p>Данные обрабатываются для работы сайта и инструментов, защиты от чрезмерной нагрузки и атак, диагностики ошибок, ответа на ваши обращения и выполнения требований закона. В зависимости от ситуации основаниями являются ваш запрос, законные интересы в обеспечении безопасности и работоспособности, согласие (например, для необязательных функций) и требования законодательства. Если применяется 152-ФЗ, обработка ведётся с учётом его требований; для отдельных операций может потребоваться отдельное согласие.</p>
+    <h3>Кто я и как со мной связаться</h3>
+    <p>Я автор проекта и единственный человек, у которого есть доступ к серверу. По любым вопросам о данных пишите на <a href="mailto:petrederd@gmail.com">petrederd@gmail.com</a> — это единственный официальный канал, я отвечаю сам.</p>
 
-    <h3>Кому могут передаваться данные</h3>
+    <h3>Что я вижу о вас</h3>
+    <p>Технически, чтобы сайт вообще работал, запрос должен пройти через сервер. Вот что при этом остаётся:</p>
     <ul>
-      <li><strong>Cloudflare</strong> — CDN, защита от атак, Worker-fallback и отчёты о сетевых ошибках (NEL). Cloudflare видит технические данные запросов, включая IP-адрес и URL.</li>
-      <li><strong>DNS-over-HTTPS-провайдеры</strong> — Cloudflare, Google и AdGuard. Используются только для DNS-проверок, проверки распространения DNS и fallback; им передаётся проверяемое имя, но не IP-адрес посетителя.</li>
-      <li><strong>DNSBL/URIBL и авторитативные DNS-серверы</strong> — при проверке спам-листов и DNS им передаётся проверяемый IP, домен или email.</li>
-      <li><strong>WHOIS/RDAP-реестры и регистраторы</strong> — при WHOIS-проверке им передаётся проверяемый домен или IP.</li>
-      <li><strong>Проверяемые сайты</strong> — при HTTP-проверке target-сайт видит запрос от инфраструктуры OrbitNet, но не видит IP-адрес посетителя.</li>
-      <li><strong>Google STUN</strong> — только если вы сами включаете необязательный WebRTC-тест. В этом случае ваш браузер обращается к публичному STUN-серверу Google, и Google может увидеть ваш IP-адрес.</li>
-      <li><strong>MaxMind GeoLite2</strong> — база геоданных используется локально. IP-адрес посетителя не отправляется в MaxMind во время проверки.</li>
-      <li><strong>Tor Project</strong> — сервер периодически скачивает публичный список exit-узлов. Данные посетителей при этом не передаются.</li>
-      <li><strong>Хостинг-провайдер</strong> — обрабатывает данные, необходимые для работы сервера.</li>
+      <li><strong>Access-лог Caddy — до 7 дней.</strong> В нём время запроса, метод, адрес страницы без query string, HTTP-статус, размер ответа и время обработки. IP-адресов, заголовков и query string в этом логе физически нет — формат журнала удаляет их до записи на диск. Error-логи Caddy проходят тот же фильтр: остаются текст ошибки, статус и время, без IP, заголовков и URI.</li>
+      <li><strong>nginx — без журналов.</strong> nginx спрятан за Caddy и доступен только локально; и access-, и error-лог отключены, чтобы в них не попадали IP и адреса запросов.</li>
+      <li><strong>Код сайта — без журналов запросов.</strong> Остаются только сообщения запуска и тексты ошибок.</li>
+      <li><strong>Логи контейнеров — до 30 МБ</strong> (файлы по 10 МБ, ротация). Нужны только чтобы отлаживать сбои. IP-адресов в них нет: nginx не пишет журналов, а Caddy фильтрует свои.</li>
+      <li><strong>Капча и лимиты — только в оперативной памяти.</strong> Чтобы один клиент не укладывал сервер, есть счётчики запросов, а каждая третья проверка порта просит ввести капчу. Ответ капчи никуда не уходит: он хранится на сервере примерно 5 минут и привязан к вашему IP. Всё это живёт в памяти процесса, до 1 часа, и исчезает при перезапуске. В браузере и на диске этого не остаётся.</li>
     </ul>
-    <p>Мы не продаём данные, не передаём их для рекламы и не используем для профилирования.</p>
+    <p>Рассказываю это, чтобы было ясно, зачем серверу вообще видеть IP-адрес: лимиты работают только если помнить адрес. Хранить его дольше мне не нужно, поэтому он нигде и не хранится.</p>
 
-    <h3>Сроки хранения</h3>
+    <h3>Что происходит, когда вы вводите что-то в инструмент</h3>
+    <p>Калькулятор сабнетов, конвертеры, форматтеры — всё это работает в вашем браузере. Всё, что вы туда вводите, остаётся на вашем устройстве и никуда не отправляется.</p>
+    <p>Сетевые инструменты (DNS, IP, WHOIS, проверка портов) — другое дело: ответ должен откуда-то прийти. Запрос уходит на мой сервер, сервер делает проверку и отдаёт вам результат. Отдельно учтите: виджет «Ваш IP» на главной сам запрашивает <code>/api/ip</code>, чтобы показать ваш адрес и приблизительную геолокацию, — это тоже обычный запрос к серверу.</p>
+
+    <h3>Кто в итоге узнает о моём запросе</h3>
+    <p>Если вы запускаете сетевую проверку, вот кто про неё узнает — и что именно:</p>
     <ul>
-      <li><strong>Access-лог Caddy:</strong> до 7 дней; хранит время, метод, host, путь без query string, статус, размер ответа и время обработки. IP-адреса, заголовки и query string в него не записываются.</li>
-      <li><strong>Access-лог nginx:</strong> отключён. nginx доступен только локально через Caddy, поэтому отдельный лог с IP-адресами не нужен.</li>
-      <li><strong>Логи backend:</strong> только служебные сообщения при запуске и ошибках; отдельного access-лога запросов нет.</li>
-      <li><strong>Логи Docker:</strong> ограничены по размеру (до 30 МБ на контейнер, ротация по 10 МБ). Используются для диагностики, не для аналитики посещений.</li>
-      <li><strong>Данные в памяти:</strong> до 1 часа; большинство кэшей — от 60 секунд до 10 минут. При перезапуске всё исчезает.</li>
-      <li><strong>Cloudflare:</strong> обрабатывает и хранит данные в соответствии со своей политикой и настройками аккаунта. OrbitNet не настраивает Logpush и не выгружает edge-логи.</li>
+      <li><strong>Cloudflare</strong> — CDN и защита от атак, между вами и моим сервером. Видит ваш запрос (IP, URL), потому что стоит на краю сети — так устроен HTTPS. Edge-логи я не выгружаю (Logpush не настроен). Cloudflare хранит то, что видит, по своей политике; ещё он может присылать браузеру отчёты о сетевых ошибках (NEL/Report-To).</li>
+      <li><strong>DNS-серверы</strong> — когда вы проверяете домен, запрос уходит с моего сервера через его резолвер. DNS-серверы домена видят проверяемое имя и адрес резолвера, но не ваш IP. Проверка распространения DNS идёт прямыми запросами к публичным резолверам — Cloudflare (1.1.1.1, 1.0.0.1), Google (8.8.8.8, 8.8.4.4), Quad9 (9.9.9.9), OpenDNS (208.67.222.222) и Яндексу (77.88.8.8), не по DoH. Если локально имя не разрешается, fallback через Cloudflare Worker идёт по DoH к Cloudflare, Google и AdGuard — им передаётся только имя.</li>
+      <li><strong>DNSBL/URIBL-списки и WHOIS-серверы</strong> — при проверке спам-листов и WHOIS им уходит проверяемый IP, домен или email. Это то, что вы сами попросили проверить.</li>
+      <li><strong>Сайт, который вы проверяете</strong> — при HTTP/SSL-проверках запрос отправляется от имени моего сервера (User-Agent <code>OrbitNet/…</code>), а в fallback — с адреса Cloudflare Worker. Владелец сайта видит, что его сайт проверяли, но не ваш IP.</li>
+      <li><strong>Google STUN</strong> — только если вы сами включаете WebRTC-тест в Anonymity Check. Тогда ваш браузер сам обращается к публичному STUN-серверу Google, и Google может увидеть ваш IP. По умолчанию это выключено.</li>
     </ul>
+    <p>Что при этом <em>не</em> происходит: геолокация по вашему IP считается локально по базе MaxMind GeoLite2, лежащей на моём сервере, — ваш IP в MaxMind не отправляется (сервер лишь сам скачивает оттуда обновления базы). Список Tor-выходных узлов мой сервер скачивает сам с сайта Tor Project — это не ваше. Данных я не продаю, рекламным сетям не отдаю и не профилирую.</p>
 
-    <h3>Международная передача</h3>
-    <p>Cloudflare и некоторые fallback-провайдеры находятся за пределами России. Если к вам применяется 152-ФЗ, такие запросы могут считаться трансграничной передачей. Мы ограничиваем передачу только теми данными, которые нужны для конкретной проверки. Если вы не хотите, чтобы запрос обрабатывался через Cloudflare или внешние DNS-сервисы, используйте браузерные инструменты либо не запускайте соответствующую сетевую проверку.</p>
+    <h3>Что у вас в браузере</h3>
+    <p>Собственных cookies у сайта нет. Если Cloudflare решит вас проверить (например, в ответ на подозрительную активность), он может поставить строго необходимую защитную cookie — это его работа, не моя. В <code>localStorage</code> на вашем устройстве хранится только список избранных инструментов. Его содержимое никуда не уходит и в любой момент стирается через настройки браузера.</p>
 
-    <h3>Cookies и localStorage</h3>
-    <p>OrbitNet не устанавливает собственные cookies и не использует их для аналитики или рекламы. Cloudflare может установить строго необходимые защитные cookies, если запрос проходит проверку безопасности. В <code>localStorage</code> хранится только ваше избранное; это можно удалить через настройки браузера.</p>
+    <h3>Про закон</h3>
+    <p>Сайт физически работает в России, поэтому я исхожу из 152-ФЗ, насколько это применимо к одному человеку: собирать минимум, хранить недолго, не передавать лишнего. Часть запросов обрабатывается вне России. Cloudflare на краю видит ваш IP — без этого не доставить страницу; DoH-резолверы и Worker получают только проверяемое имя. Для 152-ФЗ это трансграничная передача, и я стараюсь ограничить её тем, что нужно для конкретной проверки. Хостинг-провайдер видит трафик сервера, как любой хостер. Если не хотите, чтобы проверка шла через внешние сервисы, используйте инструменты, которые работают в браузере локально.</p>
 
-    <h3>Ваши права</h3>
-    <p>Вы можете запросить доступ к своим данным, их исправление или удаление, ограничить обработку, возразить против неё или отозвать согласие, если оно было основанием. Напишите на <a href="mailto:petrederd@gmail.com">petrederd@gmail.com</a>. Также вы можете обратиться в уполномоченный орган по защите прав субъектов персональных данных, включая Роскомнадзор, или в надзорный орган вашей страны.</p>
-
-    <h3>Изменения</h3>
-    <p>Политика может обновляться при изменении сайта или требований закона. Новая версия публикуется на этой странице с новой датой вступления в силу.</p>
+    <h3>Ваши права и изменения политики</h3>
+    <p>С моих логов мало что можно узнать о вас лично, но если считаете, что что-то о вас нужно удалить или исправить, напишите на <a href="mailto:petrederd@gmail.com">petrederd@gmail.com</a>. Пожаловаться формально можно в Роскомнадзор или надзорный орган вашей страны.</p>
+    <p>Политика обновляется, когда меняется сайт. Новая версия появляется на этой странице с новой датой сверху.</p>
   </section>
 
   <section class="info-section" id="en" lang="en">
-    <h2>Privacy Policy</h2>
-    <p><strong>Who is the operator.</strong> OrbitNet is a personal open-source project. The operator of this instance at <a href="index.html">orbitnet.ru</a> is its maintainer. For privacy questions, contact <a href="mailto:petrederd@gmail.com">petrederd@gmail.com</a>. If you deploy a fork or your own copy of the code, you become the operator of that copy; this policy does not automatically apply to it.</p>
+    <h2>Privacy on orbitnet.ru</h2>
+    <p>OrbitNet is a personal open-source project, not a company. This site is built and maintained by one person, and I want you to know exactly what I know: what happens to your data while you are here. There is nothing to hide — the code is on GitHub, and you can check every word on this page against the source.</p>
 
     <h3>In short</h3>
-    <p>There are no accounts, ads, third-party analytics scripts, or advertising trackers. We do not sell data or build profiles. Most tools run entirely in your browser. Network tools send only the request needed to perform the check.</p>
-
-    <h3>What is processed</h3>
     <ul>
-      <li><strong>Technical request data.</strong> IP address, time, method, path without the query string, HTTP status, response size, and processing time. This is needed to deliver pages, prevent abuse, and diagnose failures.</li>
-      <li><strong>Data you enter in network tools.</strong> A hostname, IP address, email address, DNS selector, or other lookup parameter. It is processed to perform the request and is not stored in a database.</li>
-      <li><strong>Short-lived in-memory caches.</strong> Some results and rate-limit counters stay in process memory for up to 1 hour and disappear on restart. This is not persistent storage.</li>
-      <li><strong>Browser favourites.</strong> The home page may remember favourite tools in <code>localStorage</code> on your device. This is not sent to the server.</li>
+      <li>No accounts, no ads, no analytics, no third-party scripts — all the site's scripts live on my own server.</li>
+      <li>I don't want to know who you are. The logs on my server contain no IP addresses: Caddy filters both access and error logs, and nginx keeps no logs at all.</li>
+      <li>Most tools run entirely in your browser and send nothing anywhere.</li>
+      <li>If you enter data into a network tool, it goes to the server to perform the check. No database on this site stores your queries. Nothing stays forever: caches live up to an hour in RAM and vanish on restart.</li>
+      <li>I don't build profiles and have nothing to sell.</li>
     </ul>
 
-    <h3>Why and on what basis</h3>
-    <p>Data is processed to operate the site and tools, protect the service from abuse and attacks, diagnose failures, respond to your requests, and comply with the law. Depending on the situation, the basis is your request, legitimate interests in security and availability, consent (for optional features), or a legal obligation. Where Russian Federal Law No. 152-FZ applies, processing follows its requirements; some operations may require separate consent.</p>
+    <h3>Who I am and how to reach me</h3>
+    <p>I am the author of the project and the only person with access to the server. For any data questions, write to <a href="mailto:petrederd@gmail.com">petrederd@gmail.com</a> — that is the only official channel, and I answer personally.</p>
 
-    <h3>Who may receive data</h3>
+    <h3>What I see about you</h3>
+    <p>Technically, for the site to exist, requests must pass through a server. Here is what remains:</p>
     <ul>
-      <li><strong>Cloudflare</strong> — CDN, attack protection, Worker fallback, and network error reports (NEL). Cloudflare sees technical request data, including your IP address and URL.</li>
-      <li><strong>DNS-over-HTTPS providers</strong> — Cloudflare, Google, and AdGuard. Used only for DNS lookups, DNS propagation checks, and fallback; they receive the name being checked, not the visitor's IP address.</li>
-      <li><strong>DNSBL/URIBL and authoritative DNS servers</strong> — for spam-list and DNS checks, they receive the IP address, domain, or email being checked.</li>
-      <li><strong>WHOIS/RDAP registries and registrars</strong> — a WHOIS lookup sends the domain or IP being checked to them.</li>
-      <li><strong>Target websites</strong> — an HTTP check is made from OrbitNet infrastructure, not from your browser; the target sees OrbitNet's infrastructure address, not your IP address.</li>
-      <li><strong>Google STUN</strong> — only if you enable the optional WebRTC test. Your browser then contacts a public Google STUN server, and Google may see your IP address.</li>
-      <li><strong>MaxMind GeoLite2</strong> — the geolocation database is used locally. Your IP address is not sent to MaxMind during a lookup.</li>
-      <li><strong>Tor Project</strong> — the server periodically downloads the public Tor exit list. No visitor data is sent.</li>
-      <li><strong>Hosting provider</strong> — processes data needed to run the server.</li>
+      <li><strong>Caddy access log — up to 7 days.</strong> It keeps the request time, method, page path without the query string, HTTP status, response size and duration. There are physically no IP addresses, headers or query strings in it — the log format deletes them before anything is written to disk. Caddy error logs go through the same filter: error text, status and time remain, without IP, headers or URI.</li>
+      <li><strong>nginx — no logs at all.</strong> nginx sits behind Caddy and is reachable only locally; both access and error logs are disabled so no IPs or request addresses are written.</li>
+      <li><strong>The backend code — no request journal.</strong> Only startup messages and error texts remain.</li>
+      <li><strong>Container logs — up to 30 MB</strong> (10 MB files, rotated). Only for debugging failures. They contain no IP addresses: nginx writes no logs, and Caddy filters its own.</li>
+      <li><strong>Captcha and rate limits — RAM only.</strong> To keep one client from flattening the server, there are request counters, and every third port probe asks you to solve a captcha. The captcha answer never leaves the server: it is stored for about 5 minutes, bound to your IP. All of that lives in process memory, up to 1 hour, and disappears on restart. It never touches your browser or the disk.</li>
     </ul>
-    <p>We do not sell data, share it for advertising, or use it for profiling.</p>
+    <p>I mention this so it is clear why the server sees an IP at all: rate limiting only works if it can remember an address. Keeping it any longer is unnecessary, so it is not stored anywhere.</p>
 
-    <h3>Retention</h3>
+    <h3>What happens when you type something into a tool</h3>
+    <p>The subnet calculator, converters and formatters all run in your browser. Whatever you type stays on your device and is never sent anywhere.</p>
+    <p>Network tools (DNS, IP, WHOIS, port checks) are a different story: an answer has to come from somewhere. Your input goes to my server, the server performs the check and hands you the result. Note separately that the "Your IP" widget on the home page requests <code>/api/ip</code> on its own to show your address and approximate location — that is also an ordinary request to the server.</p>
+
+    <h3>Who ends up knowing about my request</h3>
+    <p>If you run a network check, here is who learns about it — and exactly what:</p>
     <ul>
-      <li><strong>Caddy access log:</strong> up to 7 days; stores time, method, host, path without query string, status, response size, and duration. It does not record IP addresses, headers, or query strings.</li>
-      <li><strong>nginx access log:</strong> disabled. nginx is reachable only locally through Caddy, so a second log containing IP addresses is unnecessary.</li>
-      <li><strong>Backend logs:</strong> startup and error messages only; there is no per-request access log.</li>
-      <li><strong>Docker logs:</strong> size-capped at up to 30 MB per container, rotated in 10 MB files. Used for diagnostics, not visitor analytics.</li>
-      <li><strong>In-memory data:</strong> up to 1 hour; most caches last 60 seconds to 10 minutes. Everything disappears on restart.</li>
-      <li><strong>Cloudflare:</strong> processes and retains data under its own policy and account settings. OrbitNet does not configure Logpush or export edge logs.</li>
+      <li><strong>Cloudflare</strong> — the CDN and attack protection sitting between you and my server. It sees your request (IP, URL), because it sits at the network edge — that is how HTTPS works. I do not export edge logs (Logpush is not enabled). Cloudflare retains what it sees under its own policy; it may also send your browser network error reports (NEL/Report-To).</li>
+      <li><strong>DNS servers</strong> — when you check a domain, the query goes from my server through its resolver. The domain's DNS servers see the name being checked and the resolver's address, not your IP. The DNS propagation check queries public resolvers directly — Cloudflare (1.1.1.1, 1.0.0.1), Google (8.8.8.8, 8.8.4.4), Quad9 (9.9.9.9), OpenDNS (208.67.222.222) and Yandex (77.88.8.8) — over plain DNS, not DoH. If local resolution fails, the fallback goes through a Cloudflare Worker over DoH to Cloudflare, Google and AdGuard; they receive only the name.</li>
+      <li><strong>DNSBL/URIBL lists and WHOIS servers</strong> — for spam-list and WHOIS checks, the IP, domain or email you are checking goes to them. That is exactly what you asked to check.</li>
+      <li><strong>The site you are checking</strong> — for HTTP/SSL checks, the request is made from my server (User-Agent <code>OrbitNet/…</code>), or from Cloudflare's address in Worker fallback. The site's owner sees that their site was probed, but not your IP.</li>
+      <li><strong>Google STUN</strong> — only if you manually enable the WebRTC test in Anonymity Check. Your browser then contacts Google's public STUN server, and Google may see your IP. It is off by default.</li>
     </ul>
+    <p>What does <em>not</em> happen: geolocation for your IP is computed locally with the MaxMind GeoLite2 database stored on my server — your IP is not sent to MaxMind (the server only downloads database updates from there). The Tor exit-node list is downloaded by my server from the Tor Project — that doesn't involve you. I do not sell data, hand it to ad networks or profile anyone.</p>
 
-    <h3>International transfers</h3>
-    <p>Cloudflare and some fallback providers are located outside Russia. If Russian Law No. 152-FZ applies to you, such requests may be treated as a cross-border transfer. We limit transfers to the data needed for the specific check. If you do not want a request to be processed through Cloudflare or external DNS services, use browser-based tools or do not run the relevant network check.</p>
+    <h3>What lives in your browser</h3>
+    <p>The site sets no cookies of its own. If Cloudflare decides to challenge you (for example, after suspicious activity), it may set a strictly necessary security cookie — that's its job, not mine. <code>localStorage</code> on your device holds only your favorites. It never leaves the browser and can be wiped any time in your browser settings.</p>
 
-    <h3>Cookies and localStorage</h3>
-    <p>OrbitNet does not set its own cookies and does not use cookies for analytics or advertising. Cloudflare may set strictly necessary security cookies if a request is challenged. <code>localStorage</code> only holds your favourites and can be cleared through your browser settings.</p>
+    <h3>About the law</h3>
+    <p>The site physically runs in Russia, so I follow Russian Law No. 152-FZ as far as it applies to one person: collect the minimum, keep it briefly, transfer nothing extra. Some requests are processed outside Russia. Cloudflare at the edge sees your IP — without that the page cannot be delivered; DoH resolvers and the Worker receive only the name being checked. Under 152-FZ this counts as a cross-border transfer, and I try to limit it to what the specific check needs. The hosting provider sees the server's traffic, like any host. If you'd rather a check not go through external services, use the tools that work locally in your browser.</p>
 
-    <h3>Your rights</h3>
-    <p>You may request access to your data, correction or deletion, restriction of processing, object to processing, or withdraw consent where consent was the basis. Email <a href="mailto:petrederd@gmail.com">petrederd@gmail.com</a>. You may also complain to a data protection authority, including Roskomnadzor in Russia or the supervisory authority in your country.</p>
-
-    <h3>Changes</h3>
-    <p>This policy may be updated when the site or legal requirements change. The new version will be published on this page with a new effective date.</p>
+    <h3>Your rights and changes to this page</h3>
+    <p>There is little in my data that can be linked to you personally, but if you believe something about you should be deleted or corrected, write to <a href="mailto:petrederd@gmail.com">petrederd@gmail.com</a>. You can also complain formally to Roskomnadzor or your country's supervisory authority.</p>
+    <p>This page is updated when the site changes. The new version appears here with a new "Updated" date at the top.</p>
   </section>
 </main>
 
