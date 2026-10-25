@@ -1,0 +1,154 @@
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0;
+  const l = (max + min) / 2;
+  const d = max - min;
+  if (d !== 0) {
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  return [Math.round(h), Math.round(s * 100), Math.round(l * 100)];
+}
+
+function hslToRgb(h, s, l) {
+  h = ((h % 360) + 360) % 360;
+  s /= 100; l /= 100;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const m = l - c / 2;
+  let r = 0, g = 0, b = 0;
+  if (h < 60) { r = c; g = x; }
+  else if (h < 120) { r = x; g = c; }
+  else if (h < 180) { g = c; b = x; }
+  else if (h < 240) { g = x; b = c; }
+  else if (h < 300) { r = x; b = c; }
+  else { r = c; b = x; }
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
+}
+
+function parseNumber(s) {
+  if (!/^[-+]?(\d+\.?\d*|\.\d+)$/.test(s)) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function parsePercent(s) {
+  if (!/^[-+]?(\d+\.?\d*|\.\d+)%?$/.test(s)) return null;
+  const n = Number(s.replace('%', ''));
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseRgbChannel(s) {
+  let n;
+  if (s.endsWith('%')) {
+    if (!/^[-+]?(\d+\.?\d*|\.\d+)%$/.test(s)) return null;
+    n = Number(s.slice(0, -1)) * 255 / 100;
+  } else {
+    n = parseNumber(s);
+  }
+  return n === null ? null : clamp(n, 0, 255);
+}
+
+function splitColorArgs(body) {
+  const slash = body.split('/');
+  if (slash.length > 2) return null;
+  const core = slash[0].trim();
+  if (!core) return null;
+  const parts = core.includes(',') ? core.split(',').map(p => p.trim()) : core.split(/\s+/);
+  if (parts.some(p => p === '' || /\s/.test(p))) return null;
+  if (slash.length === 2) {
+    if (parts.length !== 3) return null;
+    const alpha = slash[1].trim();
+    if (!alpha || /\s/.test(alpha) || parsePercent(alpha) === null) return null;
+  } else if (parts.length === 4) {
+    if (parsePercent(parts[3]) === null) return null;
+  } else if (parts.length !== 3) {
+    return null;
+  }
+  return parts;
+}
+
+function parseColor(str) {
+  str = str.trim().toLowerCase();
+  let m;
+  if ((m = str.match(/^#?([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/))) {
+    let h = m[1];
+    if (h.length === 3 || h.length === 4) {
+      h = h.slice(0, 3).split('').map(c => c + c).join('');
+    } else {
+      h = h.slice(0, 6);
+    }
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  }
+  if ((m = str.match(/^rgba?\s*\((.*)\)$/))) {
+    const parts = splitColorArgs(m[1]);
+    if (!parts) return null;
+    const rgb = parts.slice(0, 3).map(parseRgbChannel);
+    return rgb.some(v => v === null) ? null : rgb;
+  }
+  if ((m = str.match(/^hsla?\s*\((.*)\)$/))) {
+    const parts = splitColorArgs(m[1]);
+    if (!parts) return null;
+    const h = parseNumber(parts[0]);
+    const s = parsePercent(parts[1]);
+    const l = parsePercent(parts[2]);
+    if (h === null || s === null || l === null) return null;
+    return hslToRgb(h, clamp(s, 0, 100), clamp(l, 0, 100));
+  }
+  return null;
+}
+
+function toHex(r, g, b) {
+  return '#' + [r, g, b].map(v => clamp(v, 0, 255).toString(16).padStart(2, '0')).join('');
+}
+
+function render(rgb, updateText) {
+  const r = clamp(Math.round(rgb[0]), 0, 255);
+  const g = clamp(Math.round(rgb[1]), 0, 255);
+  const b = clamp(Math.round(rgb[2]), 0, 255);
+  const hex = toHex(r, g, b);
+  const [h, s, l] = rgbToHsl(r, g, b);
+  document.getElementById('swatch').style.background = hex;
+  document.getElementById('picker').value = hex;
+  if (updateText) document.getElementById('value').value = hex;
+
+  const results = {
+    HEX: hex,
+    RGB: 'rgb(' + r + ', ' + g + ', ' + b + ')',
+    HSL: 'hsl(' + h + ', ' + s + '%, ' + l + '%)',
+    'RGB channels': r + ', ' + g + ', ' + b,
+    'HSL channels': h + '°, ' + s + '%, ' + l + '%',
+  };
+  document.getElementById('results').innerHTML = Object.entries(results).map(([k, v]) =>
+    '<div class="result-box"><div class="result-label">' + k + '</div><div class="result-value" style="font-size:1.05rem;">' + v + '</div></div>'
+  ).join('');
+}
+
+function fromText() {
+  const raw = document.getElementById('value').value;
+  const errEl = document.getElementById('errorMsg');
+  errEl.innerHTML = '';
+  if (!raw.trim()) { document.getElementById('results').innerHTML = '<div class="result-sub">Enter a color to convert.</div>'; return; }
+  const rgb = parseColor(raw);
+  if (!rgb) {
+    errEl.innerHTML = '<div class="error">Unrecognised color format.</div>';
+    document.getElementById('results').innerHTML = '<div class="result-sub">Enter a valid color.</div>';
+    return;
+  }
+  render(rgb, false);
+}
+
+function fromPicker() {
+  const rgb = parseColor(document.getElementById('picker').value);
+  document.getElementById('errorMsg').innerHTML = '';
+  render(rgb, true);
+}
+
+fromText();

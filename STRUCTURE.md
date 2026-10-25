@@ -34,10 +34,11 @@ orbitnet/
 │   └── pre-push                   # Локальный запуск npm test перед push
 │
 ├── tests/
-│   ├── helpers.js                 # Загрузка inline-скриптов инструментов в vm
+│   ├── helpers.js                 # Загрузка внешних скриптов инструментов в vm
 │   ├── calculators.test.js        # timestamp, color, scientific, statistics, unit, Base64, regex worker
 │   ├── tools-extra.test.js        # cron, URL, YAML/JSON/CSV, diff, redirects, robots, headers, IPv6, Unicode, JWT
 │   ├── smoke.test.js              # Playwright: все страницы, CSP, Worker, избранное, axe
+│   ├── csp.test.js                # Нет inline-скриптов/обработчиков, строгий CSP в nginx
 │   ├── health.test.js             # /health + метрики, публичный /api/health
 │   ├── subnet.test.js             # /0, /24, /31, /32 и режим маски
 │   ├── password.test.js           # обычный, распространённый и длинный пароль
@@ -68,7 +69,15 @@ orbitnet/
 │   │   ├── css/
 │   │   │   └── style.css          # Общая тема и UI-компоненты
 │   │   ├── js/
-│   │   │   └── main.js            # Поиск, фильтры, сортировка, IP-виджет
+│   │   │   ├── main.js            # Поиск, фильтры, сортировка, IP-виджет
+│   │   │   ├── site.js            # Год в подвале + делегированные data-action
+│   │   │   ├── regex-worker.js    # Статический Web Worker для Regex Tester
+│   │   │   └── tools/             # По одному внешнему скрипту на страницу инструмента
+│   │   │       ├── developer/
+│   │   │       ├── electricity/
+│   │   │       ├── math/
+│   │   │       ├── networks/
+│   │   │       └── text/
 │   │   └── og-image.png           # Превью 1200×630 для Open Graph
 │   │
 │   └── tools/
@@ -190,9 +199,10 @@ npm run hooks:install
 
 - `tests/calculators.test.js` проверяет timestamp (секунды/миллисекунды, UTC/local), color (современный синтаксис, clamp, мусор после `)`), scientific notation (запятые, 2^53), statistics (hex, малые числа), unit converter (абсолютный ноль), Base64 (UTF-8/эмодзи) и regex worker (лимит совпадений, ошибки).
 - `tests/tools-extra.test.js` проверяет cron, URL encode/parse, YAML ↔ JSON, JSON → CSV, JSON diff, redirect/robots/security headers generators, IPv6, Unicode и JWT HS256 verification.
-- `tests/smoke.test.js` поднимает статический сервер с CSP из `nginx.conf`, открывает все страницы, проверяет отсутствие console/page errors, реальный Web Worker, `?q=`, избранное и serious/critical нарушения axe. Без Chromium тест пропускается; в CI `REQUIRE_BROWSER_TESTS=1` делает его обязательным.
+- `tests/smoke.test.js` поднимает статический сервер с CSP из `nginx.conf`, открывает все страницы, проверяет отсутствие console/page errors, строгий `script-src 'self'`, реальный Web Worker, `?q=`, избранное и serious/critical нарушения axe. Без Chromium тест пропускается; в CI `REQUIRE_BROWSER_TESTS=1` делает его обязательным.
+- `tests/csp.test.js` статически проверяет, что в `nginx.conf` нет `unsafe-inline`/`unsafe-eval` в `script-src`, а на страницах нет inline-скриптов и inline-обработчиков; все внешние скрипты существуют.
 - `tests/health.test.js` проверяет подробный внутренний `/health` и минимальный публичный `/api/health`.
-- `tests/subnet.test.js` загружает inline-скрипт Subnet Calculator в `vm` и проверяет `/0`, `/24`, `/31`, `/32` и ввод маски `255.255.255.0`.
+- `tests/subnet.test.js` загружает внешний скрипт Subnet Calculator в `vm` и проверяет `/0`, `/24`, `/31`, `/32` и ввод маски `255.255.255.0`.
 - `tests/password.test.js` проверяет обычный пароль, список распространённых паролей и длинный случайный пароль.
 - `tests/prime.test.js` проверяет 0, 1, 2, 97, 561, большое простое и большое составное число, факторизацию и отображение соседних простых.
 - `tests/uuid.test.js` проверяет, что fallback UUID использует `crypto.getRandomValues()`, а не `Math.random()`.
@@ -400,11 +410,14 @@ IP клиента берётся из `X-Real-IP`, который выставл
 8. Проверьте мобильную вёрстку, клавиатуру и консоль браузера.
 9. Добавьте карточку в `site/index.html` и URL в `site/sitemap.xml`.
 10. Добавьте JSON-LD `SoftwareApplication` и прогоните `npm test`.
+11. Вынесите скрипт в `site/assets/js/tools/<category>/<name>.js`, а кнопки/поля подключайте через `data-action` (и `data-event`), без `onclick` и inline `<script>`.
 
 ## Что стоит знать перед изменениями
 
 - Фронтенд не использует сборщик: пути к CSS и ассетам относительные от страницы.
 - В `site/tools/**` путь к общим ассетам — `../../assets/...`.
+- Никаких inline `<script>` и `onclick`/`oninput`: логика лежит в `site/assets/js/tools/**`, а события делегируются через `data-action` (и `data-event` для `input`/`change`/`submit`). Это требование строгого CSP.
+- Тяжёлые вычисления в Worker подключайте статическим файлом (`worker-src 'self'`), без `blob:`.
 - Все страницы должны оставаться рабочими при прямом открытии через локальный HTTP-сервер.
 - Сетевые инструменты без Docker требуют отдельного проксирования `/api/`.
 - Backend не хранит пользовательские данные в базе; краткоживущие кэши живут в памяти до 1 часа. Access-логи Caddy хранятся до 7 дней без IP, заголовков и query string, error-логи Caddy фильтруются; nginx не ведёт журналов.

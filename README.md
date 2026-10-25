@@ -426,7 +426,7 @@ npm run test:live # проверка опубликованного сайта �
 npm run hooks:install
 ```
 
-`npm run hooks:install` включает локальный Git-хук `.githooks/pre-push`, который автоматически запускает `npm test` перед каждым `git push`. Unit-тесты покрывают калькуляторы, IPv6, cron, URL/YAML/JSON-утилиты, JWT, Unicode и парсеры, canonical/Open Graph/JSON-LD, sitemap и API health. Playwright-тесты открывают все 55 страниц, проверяют консольные ошибки, production CSP, реальный запуск regex Web Worker, поиск `?q=` и избранное. Axe-core проверяет key-страницы на serious/critical нарушения доступности.
+`npm run hooks:install` включает локальный Git-хук `.githooks/pre-push`, который автоматически запускает `npm test` перед каждым `git push`. Unit-тесты покрывают калькуляторы, IPv6, cron, URL/YAML/JSON-утилиты, JWT, Unicode и парсеры, canonical/Open Graph/JSON-LD, sitemap и API health. Playwright-тесты открывают все 55 страниц, проверяют консольные ошибки, строгий production CSP без `unsafe-inline`, реальный запуск regex Web Worker, поиск `?q=` и избранное. Axe-core проверяет key-страницы на serious/critical нарушения доступности.
 
 `npm run test:live` обращается к `https://orbitnet.ru`, проверяет доступность всех canonical URL и `og-image.png`. Он запускается в CI после деплоя и требует сети.
 

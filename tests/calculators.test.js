@@ -13,7 +13,6 @@ const SCIENTIFIC_FILE = path.join(SITE, 'tools/math/scientific-notation.html');
 const STATISTICS_FILE = path.join(SITE, 'tools/math/statistics-calculator.html');
 const UNIT_FILE = path.join(SITE, 'tools/math/unit-converter.html');
 const BASE64_FILE = path.join(SITE, 'tools/developer/base64.html');
-const REGEX_FILE = path.join(SITE, 'tools/developer/regex-tester.html');
 
 test('timestamp auto mode distinguishes seconds from milliseconds', () => {
   const { context, get } = loadTool(TIMESTAMP_FILE, {
@@ -175,15 +174,13 @@ test('base64 round-trips multibyte text', () => {
 });
 
 test('regex worker reports matches and truncates at the limit', () => {
-  const html = fs.readFileSync(REGEX_FILE, 'utf8');
-  const sourceMatch = html.match(/const workerSource = `([\s\S]*?)`;/);
-  assert.ok(sourceMatch, 'worker source should be present');
+  const source = fs.readFileSync(path.join(SITE, 'assets/js/regex-worker.js'), 'utf8');
 
   const messages = [];
   const sandbox = { self: { postMessage(message) { messages.push(message); } } };
   sandbox.self.onmessage = null;
   vm.createContext(sandbox);
-  vm.runInContext(sourceMatch[1], sandbox, { filename: 'regex-worker.js' });
+  vm.runInContext(source, sandbox, { filename: 'regex-worker.js' });
 
   sandbox.self.onmessage({ data: { pattern: 'a+', flags: 'g', text: 'aa b aaa', maxMatches: 100 } });
   assert.equal(messages.at(-1).ok, true);

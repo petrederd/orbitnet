@@ -62,6 +62,19 @@ function startServer() {
       'Content-Security-Policy': csp,
     };
 
+    if (pathname === '/axe.min.js') {
+      fs.readFile(require.resolve('axe-core/axe.min.js'), (error, data) => {
+        if (error) {
+          res.writeHead(404, headers);
+          res.end('Not found');
+          return;
+        }
+        res.writeHead(200, { ...headers, 'Content-Type': CONTENT_TYPES['.js'] });
+        res.end(data);
+      });
+      return;
+    }
+
     if (pathname === '/api/ip') {
       const body = JSON.stringify({
         ip: '203.0.113.10',
@@ -155,7 +168,11 @@ async function open(pathname, errors) {
   page.on('pageerror', error => errors.push('pageerror: ' + error.message));
   const response = await page.goto(base + pathname, { waitUntil: 'load' });
   assert.equal(response.status(), 200, pathname + ' should return 200');
-  assert.match(response.headers()['content-security-policy'] || '', /worker-src 'self' blob:/);
+  const csp = response.headers()['content-security-policy'] || '';
+  assert.match(csp, /script-src 'self';/);
+  assert.doesNotMatch(csp, /script-src[^;]*'unsafe-inline'/);
+  assert.match(csp, /worker-src 'self';/);
+  assert.doesNotMatch(csp, /worker-src[^;]*blob:/);
   await page.waitForTimeout(200);
   return page;
 }
@@ -169,6 +186,12 @@ test('every tool page loads without console errors or page exceptions', async t 
     let page;
     try {
       page = await open(pagePath, errors);
+      const missingActions = await page.evaluate(() => [...document.querySelectorAll('[data-action]')]
+        .map(el => el.dataset.action)
+        .filter(action => typeof window[action] !== 'function'));
+      if (missingActions.length) {
+        errors.push('missing data-action handlers: ' + [...new Set(missingActions)].join(', '));
+      }
       if (errors.length) failures.push(pagePath + '\n  ' + errors.join('\n  '));
     } catch (error) {
       failures.push(pagePath + '\n  ' + error.message);
@@ -193,6 +216,36 @@ test('regex tester starts a real Web Worker under the production CSP', async t =
       document.querySelector('#summary .stats span').textContent === '2'
     );
     assert.equal(await page.locator('#matches .result-box').count(), 2);
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.close();
+  }
+});
+
+test('dynamically generated data-action controls work under the production CSP', async t => {
+  if (!browser) return t.skip(browserUnavailable);
+
+  let errors = [];
+  let page = await open('/tools/developer/uuid-generator.html', errors);
+  try {
+    await page.fill('#bulkCount', '3');
+    await page.click('[data-action="generateBulk"]');
+    await page.waitForFunction(() => document.querySelectorAll('[data-action="copyUUID"]').length === 3);
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.close();
+  }
+
+  errors = [];
+  page = await open('/tools/developer/security-headers.html', errors);
+  try {
+    await page.fill('#headersInput', 'X-Test: yes');
+    await page.click('[data-action="analyze"]');
+    await page.waitForFunction(() => document.querySelectorAll('[data-action="copyCodeBlock"]').length === 2);
+    const missing = await page.evaluate(() => [...document.querySelectorAll('[data-action]')]
+      .map(el => el.dataset.action)
+      .filter(action => typeof window[action] !== 'function'));
+    assert.deepEqual(missing, []);
     assert.deepEqual(errors, []);
   } finally {
     await page.close();
@@ -232,7 +285,6 @@ test('home search deep link and favorites work together', async t => {
 test('key pages have no serious or critical axe violations', async t => {
   if (!browser) return t.skip(browserUnavailable);
 
-  const axePath = require.resolve('axe-core/axe.min.js');
   const pages = ['/', '/about.html', '/privacy.html', '/tools/developer/regex-tester.html'];
   const failures = [];
 
@@ -240,7 +292,7 @@ test('key pages have no serious or critical axe violations', async t => {
     const errors = [];
     const page = await open(pagePath, errors);
     try {
-      await page.addScriptTag({ path: axePath });
+      await page.addScriptTag({ url: base + '/axe.min.js' });
       const result = await page.evaluate(async () => {
         return await axe.run(document, {
           runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa'] },
