@@ -2,16 +2,19 @@
 
 // Client for the OrbitNet Cloudflare Worker.
 //
-// The worker has four check types:
+// The worker has five check types:
 //   http         - fetch a site and return status, headers and an optional
 //                  redirect chain;
 //   dns          - resolve one record through DNS-over-HTTPS;
 //   propagation  - compare the same record across several DoH resolvers;
-//   email        - MX/SPF/DMARC/DKIM/PTR for a domain.
+//   email        - MX/SPF/DMARC/DKIM/PTR for a domain;
+//   dnssec       - validate DS/DNSKEY/RRSIG and classify the zone.
 //
-// It is a fallback only: local checks run first and the worker is called when
-// the local server cannot complete them (DNS filtering, RKN blocking, an
-// unreachable route). Targets rejected by the local SSRF guard are never sent.
+// It is a fallback for most checks: local checks run first and the worker is
+// called when the local server cannot complete them (DNS filtering, RKN
+// blocking, an unreachable route). DNSSEC is the exception and always uses the
+// worker, because the local Unbound resolver is reserved for DNSBL queries.
+// Targets rejected by the local SSRF guard are never sent.
 //
 // Worker contract:
 //   POST /  {"type":"http","host":"example.com","follow":false}
@@ -368,6 +371,128 @@ function normalizeEmailResponse(raw, fallbackHost) {
   };
 }
 
+const DNSSEC_STATUSES = new Set(['secure', 'insecure', 'bogus', 'indeterminate']);
+
+function dnssecInteger(value, min, max) {
+  return Number.isInteger(value) && value >= min && value <= max ? value : null;
+}
+
+function normalizeDnssecName(value) {
+  const name = limitString(String(value == null ? '' : value), 253)
+    .trim().toLowerCase().replace(/\.$/, '');
+  if (!name || !name.includes('.')) return '';
+  return name;
+}
+
+function normalizeDnssecZoneName(value) {
+  const name = limitString(String(value == null ? '' : value), 253)
+    .trim().toLowerCase().replace(/\.$/, '');
+  if (!name) return '';
+  return /^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/.test(name) ? name : '';
+}
+
+function normalizeDnssecDsRecord(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const digest = limitString(String(raw.digest == null ? '' : raw.digest), 256);
+  if (!digest) return null;
+  return {
+    keyTag: dnssecInteger(raw.keyTag, 0, 65535),
+    algorithm: dnssecInteger(raw.algorithm, 0, 255),
+    digestType: dnssecInteger(raw.digestType, 0, 255),
+    digest
+  };
+}
+
+function normalizeDnssecDnskeyRecord(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  return {
+    flags: dnssecInteger(raw.flags, 0, 65535),
+    protocol: dnssecInteger(raw.protocol, 0, 255),
+    algorithm: dnssecInteger(raw.algorithm, 0, 255)
+  };
+}
+
+function normalizeDnssecRrsigRecord(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  return {
+    name: normalizeDnssecName(raw.name),
+    typeCovered: limitString(raw.typeCovered, 10).toUpperCase(),
+    algorithm: dnssecInteger(raw.algorithm, 0, 255),
+    labels: dnssecInteger(raw.labels, 0, 127),
+    originalTtl: dnssecInteger(raw.originalTtl, 0, 2147483647),
+    expiration: dnssecInteger(raw.expiration, 0, 4294967295),
+    inception: dnssecInteger(raw.inception, 0, 4294967295),
+    keyTag: dnssecInteger(raw.keyTag, 0, 65535),
+    signer: normalizeDnssecZoneName(raw.signer)
+  };
+}
+
+function normalizeDnssecZone(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const name = normalizeDnssecZoneName(raw.name);
+  if (!name) return null;
+  return {
+    name,
+    ds: Array.isArray(raw.ds)
+      ? raw.ds.slice(0, 20).map(normalizeDnssecDsRecord).filter(Boolean)
+      : [],
+    dnskey: Array.isArray(raw.dnskey)
+      ? raw.dnskey.slice(0, 20).map(normalizeDnssecDnskeyRecord).filter(Boolean)
+      : [],
+    rrsig: Array.isArray(raw.rrsig)
+      ? raw.rrsig.slice(0, 20).map(normalizeDnssecRrsigRecord).filter(Boolean)
+      : [],
+    dsOk: raw.dsOk === true,
+    dnskeyOk: raw.dnskeyOk === true
+  };
+}
+
+function normalizeDnssecResponse(raw, fallbackHost, fallbackType) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { error: 'External checker returned an invalid response' };
+  }
+  if (raw.ok === false || raw.error) {
+    return { error: limitString(raw.error, 300) || 'External DNSSEC check failed' };
+  }
+
+  const zones = Array.isArray(raw.zones)
+    ? raw.zones.slice(0, 4).map(normalizeDnssecZone).filter(Boolean)
+    : [];
+  const answer = Array.isArray(raw.answer)
+    ? raw.answer.slice(0, 50).map(record => {
+      if (!record || typeof record !== 'object' || Array.isArray(record)) return null;
+      return {
+        name: normalizeDnssecName(record.name),
+        type: limitString(record.type, 10).toUpperCase(),
+        ttl: dnssecInteger(record.ttl, 0, 2147483647),
+        data: limitString(String(record.data == null ? '' : record.data), 2048)
+      };
+    }).filter(record => record && record.name && record.type)
+    : [];
+  const rrsig = Array.isArray(raw.rrsig)
+    ? raw.rrsig.slice(0, 20).map(normalizeDnssecRrsigRecord).filter(Boolean)
+    : [];
+  const status = DNSSEC_STATUSES.has(raw.status) ? raw.status : 'indeterminate';
+  const ad = raw.ad === true ? true : raw.ad === false ? false : null;
+  const zone = normalizeDnssecZoneName(raw.zone) || (zones[0] && zones[0].name) || '';
+
+  return {
+    host: normalizeDnsName(raw.host) || fallbackHost,
+    type: 'dnssec',
+    recordType: limitString(raw.recordType, 10).toUpperCase() || fallbackType,
+    status,
+    ad,
+    dnsStatus: dnssecInteger(raw.dnsStatus, 0, 15),
+    zone,
+    zones,
+    answer,
+    rrsig,
+    detail: limitString(raw.detail, 300),
+    resolver: limitString(raw.resolver, 100),
+    source: 'worker'
+  };
+}
+
 function postJson(workerUrl, secret, payload, timeoutMs) {
   return new Promise((resolve) => {
     const lib = workerUrl.protocol === 'https:' ? https : http;
@@ -555,6 +680,20 @@ async function checkEmail(host, selector, options) {
   return normalizeEmailResponse(result.raw, normalizedHost);
 }
 
+async function checkDnssec(host, type, options) {
+  const normalizedHost = normalizeDnsName(host);
+  if (!normalizedHost) return { error: 'Invalid host for the external checker' };
+  const recordType = String(type || 'A').toUpperCase();
+
+  const result = await requestWorker({
+    type: 'dnssec',
+    host: normalizedHost,
+    recordType
+  }, { timeoutMs: options && options.timeoutMs });
+  if (result.error) return result;
+  return normalizeDnssecResponse(result.raw, normalizedHost, recordType);
+}
+
 // A local result is worth retrying externally when it never produced an HTTP
 // status, or when it looks like an ISP/geo block (403/451). Normal 2xx/3xx/4xx
 // answers and blocked targets are not forwarded to the worker.
@@ -577,9 +716,11 @@ module.exports = {
   normalizeDnsResponse,
   normalizePropagationResponse,
   normalizeEmailResponse,
+  normalizeDnssecResponse,
   shouldUseExternal,
   checkHttp,
   checkDns,
   checkPropagation,
-  checkEmail
+  checkEmail,
+  checkDnssec
 };

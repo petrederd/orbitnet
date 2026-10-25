@@ -9,6 +9,7 @@
 //   POST /  {"type":"dns","host":"example.com","recordType":"A"}
 //   POST /  {"type":"propagation","host":"example.com","recordType":"A"}
 //   POST /  {"type":"email","host":"example.com","selector":"default"}
+//   POST /  {"type":"dnssec","host":"example.com","recordType":"A"}
 // Header: Authorization: Bearer <CHECKER_SECRET>
 //
 // The worker is a fallback for checks that the Russian server cannot complete
@@ -585,6 +586,245 @@ function parseSoa(data) {
   };
 }
 
+const DNS_TYPE_NAMES = {
+  1: "A",
+  2: "NS",
+  5: "CNAME",
+  6: "SOA",
+  12: "PTR",
+  15: "MX",
+  16: "TXT",
+  28: "AAAA",
+  43: "DS",
+  46: "RRSIG",
+  48: "DNSKEY",
+  257: "CAA"
+};
+
+function dnssecRecordList(data, type) {
+  const list = data && Array.isArray(data.Answer) ? data.Answer : [];
+  return list.filter(record => record && record.type === type).slice(0, 100);
+}
+
+function parseDnssecDs(record) {
+  const parts = String(record && record.data || "").trim().split(/\s+/);
+  if (parts.length < 4) return null;
+  return {
+    keyTag: Number(parts[0]),
+    algorithm: Number(parts[1]),
+    digestType: Number(parts[2]),
+    digest: parts.slice(3).join("").slice(0, 256)
+  };
+}
+
+function parseDnssecDnskey(record) {
+  const parts = String(record && record.data || "").trim().split(/\s+/);
+  if (parts.length < 4) return null;
+  return {
+    flags: Number(parts[0]),
+    protocol: Number(parts[1]),
+    algorithm: Number(parts[2])
+  };
+}
+
+function parseDnssecRrsig(record) {
+  const parts = String(record && record.data || "").trim().split(/\s+/);
+  if (parts.length < 8) return null;
+  return {
+    name: stripDot(record.name),
+    typeCovered: String(parts[0] || "").toUpperCase(),
+    algorithm: Number(parts[1]),
+    labels: Number(parts[2]),
+    originalTtl: Number(parts[3]),
+    expiration: Number(parts[4]),
+    inception: Number(parts[5]),
+    keyTag: Number(parts[6]),
+    signer: stripDot(parts[7])
+  };
+}
+
+function dnssecZoneCandidates(data) {
+  const zones = new Set();
+  for (const section of [data && data.Answer, data && data.Authority]) {
+    if (!Array.isArray(section)) continue;
+    for (const record of section) {
+      if (!record) continue;
+      if (record.type === 46) {
+        const signature = parseDnssecRrsig(record);
+        if (signature && signature.signer) zones.add(signature.signer);
+      } else if (record.type === 6) {
+        const zone = stripDot(record.name);
+        if (zone) zones.add(zone);
+      }
+    }
+  }
+  return [...zones];
+}
+
+function dnssecAnswerRecords(data) {
+  const list = data && Array.isArray(data.Answer) ? data.Answer : [];
+  return list.filter(record => record && record.type !== 46).slice(0, 50).map(record => ({
+    name: stripDot(record.name),
+    type: DNS_TYPE_NAMES[record.type] || String(record.type),
+    ttl: Number.isFinite(record.TTL) ? record.TTL : null,
+    data: limitString(String(record.data || ""), 2048)
+  }));
+}
+
+async function findDnssecZone(name, resolver) {
+  let candidate = name;
+  while (candidate.includes(".")) {
+    const result = await dohQuery(candidate, "SOA", resolver, { dnssec: true });
+    if (!result.error) {
+      const zones = dnssecZoneCandidates(result.data);
+      if (zones.length) return zones[0];
+    }
+    candidate = candidate.slice(candidate.indexOf(".") + 1);
+  }
+  return "";
+}
+
+async function inspectDnssecZone(zone, resolver) {
+  const [dsResult, dnskeyResult] = await Promise.all([
+    dohQuery(zone, "DS", resolver, { dnssec: true }),
+    dohQuery(zone, "DNSKEY", resolver, { dnssec: true })
+  ]);
+  const ds = dsResult.error
+    ? []
+    : dnssecRecordList(dsResult.data, 43).map(parseDnssecDs).filter(Boolean);
+  const dnskey = dnskeyResult.error
+    ? []
+    : dnssecRecordList(dnskeyResult.data, 48).map(parseDnssecDnskey).filter(Boolean);
+  const rrsig = dnskeyResult.error
+    ? []
+    : dnssecRecordList(dnskeyResult.data, 46).map(parseDnssecRrsig)
+      .filter(signature => signature && signature.typeCovered === "DNSKEY");
+  return {
+    name: zone,
+    ds,
+    dnskey,
+    rrsig,
+    dsOk: !dsResult.error,
+    dnskeyOk: !dnskeyResult.error
+  };
+}
+
+async function inspectDnssec(rawHost, rawType) {
+  const host = normalizeDnsName(rawHost);
+  if (!host) return { ok: false, error: "Invalid or non-public host" };
+  const type = String(rawType || "A").toUpperCase();
+  if (!RECORD_TYPES.has(type) || type === "PTR") {
+    return { ok: false, error: "Unsupported record type" };
+  }
+
+  let resolver = null;
+  let answer = null;
+  let lastError = "DNS resolvers unavailable";
+  for (const candidate of DNS_RESOLVERS) {
+    const result = await dohQuery(host, type, candidate, { dnssec: true });
+    if (!result.error) {
+      resolver = candidate;
+      answer = result.data;
+      break;
+    }
+    lastError = result.error;
+  }
+
+  if (!answer) {
+    return {
+      ok: true,
+      type: "dnssec",
+      host,
+      recordType: type,
+      status: "indeterminate",
+      ad: null,
+      dnsStatus: null,
+      zone: "",
+      zones: [],
+      answer: [],
+      rrsig: [],
+      detail: lastError,
+      resolver: "",
+      source: "Cloudflare Worker"
+    };
+  }
+
+  const dnsStatus = Number.isInteger(answer.Status) ? answer.Status : null;
+  const ad = answer.AD === true ? true : answer.AD === false ? false : null;
+  const rrsig = dnssecRecordList(answer, 46)
+    .map(parseDnssecRrsig).filter(Boolean).slice(0, 20);
+  const recordType = type;
+
+  let zoneNames = dnssecZoneCandidates(answer).slice(0, 4);
+  if (!zoneNames.length && dnsStatus === 2) {
+    const dsHost = await dohQuery(host, "DS", resolver, { dnssec: true });
+    if (!dsHost.error && dnssecRecordList(dsHost.data, 43).length) {
+      zoneNames = [host];
+    }
+  } else if (!zoneNames.length && (dnsStatus === 0 || dnsStatus === 3)) {
+    const fallbackZone = await findDnssecZone(host, resolver);
+    if (fallbackZone) zoneNames = [fallbackZone];
+  }
+
+  const zones = [];
+  for (const zone of zoneNames) {
+    zones.push(await inspectDnssecZone(zone, resolver));
+  }
+
+  let status = "indeterminate";
+  let detail = "Some DNSSEC records could not be retrieved, so the result is inconclusive.";
+
+  if (dnsStatus === 2) {
+    status = "bogus";
+    detail = "The validating resolver returned SERVFAIL, which usually means DNSSEC validation failed.";
+  } else if (dnsStatus !== null && dnsStatus !== 0 && dnsStatus !== 3) {
+    status = "indeterminate";
+    detail = "The resolver returned DNS status " + dnsStatus + ", so the result is inconclusive.";
+  } else if (ad === true) {
+    status = "secure";
+    detail = "The resolver set the Authenticated Data (AD) bit, so the full chain of trust validated.";
+  } else if (!zones.length) {
+    status = "indeterminate";
+    detail = "Could not determine the DNSSEC zone or retrieve DS/DNSKEY records.";
+  } else {
+    const unsigned = zones.find(zone => zone.dsOk && !zone.ds.length);
+    const broken = zones.find(zone =>
+      zone.ds.length && (!zone.dnskeyOk || !zone.dnskey.length || !zone.rrsig.length)
+    );
+    const allSigned = zones.every(zone =>
+      zone.dsOk && zone.ds.length && zone.dnskeyOk && zone.dnskey.length && zone.rrsig.length
+    );
+
+    if (unsigned) {
+      status = "insecure";
+      detail = "No DS record exists at " + unsigned.name + ", so the zone is not signed.";
+    } else if (broken) {
+      status = "bogus";
+      detail = "DS exists at " + broken.name + ", but the DNSKEY RRset or its RRSIG is missing.";
+    } else if (allSigned) {
+      status = "bogus";
+      detail = "DS, DNSKEY and RRSIG records exist, but the resolver did not set the AD bit, so validation failed.";
+    }
+  }
+
+  return {
+    ok: true,
+    type: "dnssec",
+    host,
+    recordType,
+    status,
+    ad,
+    dnsStatus,
+    zone: zoneNames[0] || "",
+    zones,
+    answer: dnssecAnswerRecords(answer),
+    rrsig,
+    detail,
+    resolver: resolver.name,
+    source: "Cloudflare Worker"
+  };
+}
+
 function normalizeAnswers(type, answers, txtSeparator = " ") {
   const list = Array.isArray(answers) ? answers : [];
 
@@ -623,10 +863,11 @@ function normalizeAnswers(type, answers, txtSeparator = " ") {
   return [];
 }
 
-async function dohQuery(name, type, resolver) {
+async function dohQuery(name, type, resolver, options = {}) {
   const url = new URL(resolver.url);
   url.searchParams.set("name", name);
   url.searchParams.set("type", type);
+  if (options.dnssec) url.searchParams.set("do", "true");
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), DNS_TIMEOUT_MS);
@@ -904,6 +1145,12 @@ export default {
 
       if (type === "email") {
         return json(await inspectEmail(input.host, input.selector));
+      }
+
+      if (type === "dnssec") {
+        const recordType = String(input.recordType || "A").toUpperCase();
+        const out = await inspectDnssec(input.host, recordType);
+        return json(out, out.ok === false && /Unsupported/.test(out.error || "") ? 400 : 200);
       }
 
       return json({ error: "Unsupported check type" }, 400);

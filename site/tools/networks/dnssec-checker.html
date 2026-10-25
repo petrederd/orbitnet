@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="DNSSEC Checker — check DS, DNSKEY and RRSIG records and validate a domain's DNSSEC chain">
+<meta name="theme-color" content="#16161a">
+<title>DNSSEC Checker — OrbitNet</title>
+<link rel="canonical" href="https://orbitnet.ru/tools/networks/dnssec-checker.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OrbitNet">
+<meta property="og:title" content="DNSSEC Checker — OrbitNet">
+<meta property="og:description" content="DNSSEC Checker — check DS, DNSKEY and RRSIG records and validate a domain's DNSSEC chain">
+<meta property="og:url" content="https://orbitnet.ru/tools/networks/dnssec-checker.html">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://orbitnet.ru/assets/og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="OrbitNet — open tools, no noise">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="DNSSEC Checker — OrbitNet">
+<meta name="twitter:description" content="DNSSEC Checker — check DS, DNSKEY and RRSIG records and validate a domain's DNSSEC chain">
+<meta name="twitter:image" content="https://orbitnet.ru/assets/og-image.png">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=3">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/favicon-192x192.png?v=3">
+<link rel="icon" type="image/png" sizes="96x96" href="/icons/favicon-96x96.png?v=3">
+<link rel="icon" type="image/png" sizes="48x48" href="/icons/favicon-48x48.png?v=3">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png?v=3">
+<link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png?v=3">
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=3">
+<link rel="manifest" href="/site.webmanifest">
+<style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>
+<link rel="stylesheet" href="../../assets/css/style.css?v=6">
+<script type="application/ld+json" data-orbitnet-jsonld="software">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "DNSSEC Checker",
+  "description": "DNSSEC Checker — check DS, DNSKEY and RRSIG records and validate a domain's DNSSEC chain",
+  "url": "https://orbitnet.ru/tools/networks/dnssec-checker.html",
+  "applicationCategory": "NetworkApplication",
+  "applicationSubCategory": "networks",
+  "operatingSystem": "Any",
+  "browserRequirements": "Requires JavaScript and a modern browser.",
+  "isAccessibleForFree": true,
+  "inLanguage": "en",
+  "publisher": {
+    "@type": "Organization",
+    "name": "OrbitNet",
+    "url": "https://orbitnet.ru/"
+  },
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  }
+}
+</script>
+</head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="../../index.html">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="../../index.html#tools">Tools</a>
+    <a href="../../about.html">About</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a> /
+      <a href="../../index.html#tools">Tools</a> /
+      <span>DNSSEC Checker</span>
+    </div>
+    <h1>DNSSEC Checker</h1>
+    <p>Check whether a domain is protected by DNSSEC. The check follows the delegation chain through DS, DNSKEY and RRSIG records and reads the resolver's AD bit.</p>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Check</h2>
+    <div id="errorMsg"></div>
+
+    <div class="input-group">
+      <label for="host">Domain</label>
+      <input type="text" id="host" placeholder="example.com">
+    </div>
+
+    <div class="input-group">
+      <label for="type">Record type to validate</label>
+      <select id="type">
+        <option value="A">A</option>
+        <option value="AAAA">AAAA</option>
+        <option value="MX">MX</option>
+        <option value="TXT">TXT</option>
+        <option value="NS">NS</option>
+        <option value="CNAME">CNAME</option>
+        <option value="SOA">SOA</option>
+        <option value="CAA">CAA</option>
+      </select>
+    </div>
+
+    <button class="btn" data-action="checkDnssec">Check DNSSEC</button>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Result</h2>
+    <div id="results">
+      <div style="text-align: center; padding: 40px 20px; color: var(--muted);">Enter a domain and click Check DNSSEC</div>
+    </div>
+  </div>
+
+  <div class="info-section">
+    <h3>What the states mean</h3>
+    <ul>
+      <li><strong>Secure</strong> — a DS record delegates the zone, DNSKEY and RRSIG records are present, and the validating resolver set the AD bit.</li>
+      <li><strong>Insecure</strong> — no DS record exists at the delegation, so the zone is not signed. This is normal for many domains and is not an error.</li>
+      <li><strong>Bogus</strong> — DNSSEC is deployed but validation failed: the resolver returned SERVFAIL, or DS exists while DNSKEY/RRSIG data is missing or not trusted.</li>
+      <li><strong>Indeterminate</strong> — not enough data was available to classify the chain, usually because a DoH query failed.</li>
+    </ul>
+    <p>The check uses public DNS-over-HTTPS resolvers through the OrbitNet Worker. It is an indicative validation result, not a replacement for a full DNSSEC debugger such as DNSViz or Verisign's tool. The local Unbound instance is not used.</p>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Open source. No ads. No tracking. © <span id="year"></span></div>
+  <div class="footer-links"><a href="../../index.html#tools">Browse tools</a><a href="../../about.html">About</a><a href="../../privacy.html">Privacy</a></div>
+</footer>
+
+<script src="../../assets/js/tools/networks/dnssec-checker.js?v=1"></script>
+<script src="../../assets/js/site.js?v=1"></script>
+</body>
+</html>

@@ -75,7 +75,74 @@ function installFetch(t) {
     if (parsed.hostname === 'cloudflare-dns.com' ||
         parsed.hostname === 'dns.google' ||
         parsed.hostname === 'dns.adguard-dns.com') {
-      global.__dohQueries.push({ name, type });
+      global.__dohQueries.push({
+        name,
+        type,
+        dnssec: parsed.searchParams.get('do') === 'true'
+      });
+
+      if (name === 'indeterminate.example.com') {
+        throw new TypeError('network failed');
+      }
+
+      if (name === 'servfail.example.com') {
+        return Response.json({ Status: type === 'A' ? 2 : 0, AD: false, Answer: [] });
+      }
+
+      if (name === 'signed.example.com') {
+        const answer = type === 'A'
+          ? [
+            { name: 'signed.example.com.', type: 1, TTL: 300, data: '192.0.2.10' },
+            { name: 'signed.example.com.', type: 46, TTL: 300, data: 'A 13 3 300 1792997346 1792817346 2371 example.com. sig' }
+          ]
+          : dohAnswers(name, type);
+        return Response.json({ Status: 0, AD: true, Answer: answer });
+      }
+
+      if (name === 'broken.example.com') {
+        if (type === 'DS') {
+          return Response.json({
+            Status: 0,
+            AD: false,
+            Answer: [{ name: 'broken.example.com.', type: 43, TTL: 3600, data: '2371 13 2 ABCD' }]
+          });
+        }
+        if (type === 'DNSKEY') {
+          return Response.json({ Status: 0, AD: false, Answer: [] });
+        }
+        return Response.json({
+          Status: 0,
+          AD: false,
+          Answer: [
+            { name: 'broken.example.com.', type: 1, TTL: 300, data: '192.0.2.10' },
+            { name: 'broken.example.com.', type: 46, TTL: 300, data: 'A 13 2 300 1792997346 1792817346 2371 broken.example.com. sig' }
+          ]
+        });
+      }
+
+      if (name === 'unsigned.example.com') {
+        return Response.json({ Status: 0, AD: false, Answer: dohAnswers(name, type) });
+      }
+
+      if (name === 'example.com' && type === 'DS') {
+        return Response.json({
+          Status: 0,
+          AD: true,
+          Answer: [{ name: 'example.com.', type: 43, TTL: 3600, data: '2371 13 2 ABCD' }]
+        });
+      }
+
+      if (name === 'example.com' && type === 'DNSKEY') {
+        return Response.json({
+          Status: 0,
+          AD: true,
+          Answer: [
+            { name: 'example.com.', type: 48, TTL: 3600, data: '257 3 13 base64key' },
+            { name: 'example.com.', type: 46, TTL: 3600, data: 'DNSKEY 13 2 3600 1792997346 1792817346 2371 example.com. sig' }
+          ]
+        });
+      }
+
       const missing = name.startsWith('missing.');
       return Response.json({
         Status: missing ? 3 : 0,
@@ -286,6 +353,42 @@ test('worker compares propagation across resolvers', async (t) => {
   assert.equal(data.ok, true);
   assert.equal(data.resolvers.length, 3);
   assert.ok(data.resolvers.every(r => r.records[0] === '192.0.2.10'));
+});
+
+test('worker classifies Secure, Insecure, Bogus and Indeterminate DNSSEC states', async (t) => {
+  installFetch(t);
+
+  const secure = await run({ type: 'dnssec', host: 'signed.example.com', recordType: 'A' });
+  assert.equal(secure.data.ok, true);
+  assert.equal(secure.data.status, 'secure');
+  assert.equal(secure.data.ad, true);
+  assert.equal(secure.data.zone, 'example.com');
+  assert.equal(secure.data.zones[0].ds.length, 1);
+  assert.equal(secure.data.zones[0].dnskey.length, 1);
+  assert.equal(secure.data.zones[0].rrsig.length, 1);
+  assert.ok(global.__dohQueries.some(q => q.type === 'DS' && q.name === 'example.com' && q.dnssec));
+  assert.ok(global.__dohQueries.some(q => q.type === 'DNSKEY' && q.name === 'example.com' && q.dnssec));
+
+  const insecure = await run({ type: 'dnssec', host: 'unsigned.example.com', recordType: 'A' });
+  assert.equal(insecure.data.status, 'insecure');
+  assert.equal(insecure.data.ad, false);
+  assert.equal(insecure.data.zones[0].name, 'unsigned.example.com');
+  assert.deepEqual(insecure.data.zones[0].ds, []);
+
+  const broken = await run({ type: 'dnssec', host: 'broken.example.com', recordType: 'A' });
+  assert.equal(broken.data.status, 'bogus');
+  assert.equal(broken.data.zones[0].name, 'broken.example.com');
+  assert.equal(broken.data.zones[0].dnskey.length, 0);
+
+  const servfail = await run({ type: 'dnssec', host: 'servfail.example.com', recordType: 'A' });
+  assert.equal(servfail.data.status, 'bogus');
+  assert.match(servfail.data.detail, /SERVFAIL/);
+
+  const indeterminate = await run({ type: 'dnssec', host: 'indeterminate.example.com', recordType: 'A' });
+  assert.equal(indeterminate.response.status, 200);
+  assert.equal(indeterminate.data.status, 'indeterminate');
+  assert.equal(indeterminate.data.ad, null);
+  assert.match(indeterminate.data.detail, /unavailable/);
 });
 
 test('worker composes the email check from MX, SPF, DMARC and DKIM', async (t) => {

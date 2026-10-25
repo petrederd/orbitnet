@@ -227,6 +227,55 @@ test('normalizes external propagation and email results', () => {
   assert.equal(email.errors.dkim, 'ENODATA');
 });
 
+test('normalizes DNSSEC status, zones and records', () => {
+  const result = checker.normalizeDnssecResponse({
+    ok: true,
+    type: 'dnssec',
+    host: 'example.com',
+    recordType: 'A',
+    status: 'secure',
+    ad: true,
+    dnsStatus: 0,
+    zone: 'example.com',
+    zones: [{
+      name: 'example.com',
+      ds: [{ keyTag: 2371, algorithm: 13, digestType: 2, digest: 'ABCD' }],
+      dnskey: [{ flags: 257, protocol: 3, algorithm: 13 }],
+      rrsig: [{ name: 'example.com', typeCovered: 'DNSKEY', algorithm: 13, keyTag: 2371, signer: 'example.com' }],
+      dsOk: true,
+      dnskeyOk: true
+    }],
+    answer: [{ name: 'example.com', type: 'A', ttl: 300, data: '192.0.2.1' }],
+    rrsig: [{ name: 'example.com', typeCovered: 'A', algorithm: 13, keyTag: 2371, signer: 'example.com' }],
+    detail: 'The resolver set AD.',
+    resolver: 'Cloudflare 1.1.1.1',
+    source: 'Cloudflare Worker'
+  }, 'example.com', 'A');
+  assert.equal(result.error, undefined);
+  assert.equal(result.status, 'secure');
+  assert.equal(result.ad, true);
+  assert.equal(result.zone, 'example.com');
+  assert.equal(result.zones[0].ds[0].keyTag, 2371);
+  assert.equal(result.zones[0].dnskey[0].flags, 257);
+  assert.equal(result.zones[0].rrsig[0].typeCovered, 'DNSKEY');
+  assert.equal(result.answer[0].type, 'A');
+  assert.equal(result.rrsig[0].signer, 'example.com');
+  assert.equal(result.source, 'worker');
+
+  const unknown = checker.normalizeDnssecResponse({
+    ok: true,
+    host: 'example.com',
+    recordType: 'A',
+    status: 'something-else',
+    zones: [{ name: 'example.com', ds: [], dnskey: [], rrsig: [] }]
+  }, 'example.com', 'A');
+  assert.equal(unknown.status, 'indeterminate');
+  assert.equal(unknown.ad, null);
+
+  assert.match(checker.normalizeDnssecResponse(null).error, /invalid response/);
+  assert.match(checker.normalizeDnssecResponse({ ok: false, error: 'nope' }).error, /nope/);
+});
+
 test('blocked pages are replaced only by a non-blocked external answer', () => {
   const { externalImproves, looksLikeBlockPage } = require('../backend/server');
   assert.equal(externalImproves({ status: 200, blockedPage: true }, { status: 200, title: 'Example Domain' }), true);
@@ -401,6 +450,32 @@ test('calls the worker for HTTP, DNS, propagation and email checks', async (t) =
       });
       return;
     }
+    if (payload.type === 'dnssec') {
+      respond(res, {
+        ok: true,
+        type: 'dnssec',
+        host: payload.host,
+        recordType: payload.recordType,
+        status: 'secure',
+        ad: true,
+        dnsStatus: 0,
+        zone: 'example.com',
+        zones: [{
+          name: 'example.com',
+          ds: [{ keyTag: 2371, algorithm: 13, digestType: 2, digest: 'ABCD' }],
+          dnskey: [{ flags: 257, protocol: 3, algorithm: 13 }],
+          rrsig: [{ typeCovered: 'DNSKEY', algorithm: 13, keyTag: 2371, signer: 'example.com' }],
+          dsOk: true,
+          dnskeyOk: true
+        }],
+        answer: [],
+        rrsig: [],
+        detail: 'AD bit set.',
+        resolver: 'Cloudflare 1.1.1.1',
+        source: 'Cloudflare Worker'
+      });
+      return;
+    }
     respond(res, workerHttpResponse(payload.host));
   });
   t.after(() => server.close());
@@ -425,6 +500,10 @@ test('calls the worker for HTTP, DNS, propagation and email checks', async (t) =
   const email = await checker.checkEmail('example.com', 'default');
   assert.equal(email.mx[0].host, 'mail.example.com');
   assert.equal(email.spf, 'v=spf1 -all');
+
+  const dnssec = await checker.checkDnssec('example.com', 'A');
+  assert.equal(dnssec.status, 'secure');
+  assert.equal(dnssec.zones[0].ds.length, 1);
 });
 
 test('email does not call the worker for ordinary missing DMARC/DKIM answers', async (t) => {
@@ -549,6 +628,55 @@ test('DNS API falls back on ENOTFOUND and caches the worker answer', async (t) =
   assert.deepEqual(first.records, ['192.0.2.77']);
   assert.deepEqual(second.records, ['192.0.2.77']);
   assert.equal(calls, 1);
+});
+
+test('DNSSEC API always calls the worker, caches results and validates the type', async (t) => {
+  let calls = 0;
+  const secret = 'dnssec-api-secret';
+  const { server: worker, url } = await startWorker(secret, (payload, res) => {
+    calls++;
+    assert.equal(payload.type, 'dnssec');
+    respond(res, {
+      ok: true,
+      type: 'dnssec',
+      host: payload.host,
+      recordType: payload.recordType,
+      status: 'insecure',
+      ad: false,
+      dnsStatus: 0,
+      zone: 'example.com',
+      zones: [{ name: 'example.com', ds: [], dnskey: [], rrsig: [], dsOk: true, dnskeyOk: true }],
+      answer: [],
+      rrsig: [],
+      detail: 'No DS record.',
+      resolver: 'Cloudflare 1.1.1.1',
+      source: 'Cloudflare Worker'
+    });
+  });
+  t.after(() => worker.close());
+
+  process.env.CHECKER_URL = url;
+  process.env.CHECKER_SECRET = secret;
+  process.env.CHECKER_TIMEOUT = '2000';
+
+  const { server } = require('../backend/server');
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => server.close());
+  const base = 'http://127.0.0.1:' + server.address().port;
+  const apiUrl = base + '/api/dnssec?host=' + encodeURIComponent('unsigned-dnssec.orbitnet-test.example.com') + '&type=A';
+  const firstResponse = await fetch(apiUrl);
+  const first = await firstResponse.json();
+  const second = await fetch(apiUrl).then(r => r.json());
+  assert.equal(firstResponse.status, 200);
+  assert.equal(first.status, 'insecure');
+  assert.equal(first.source, 'worker');
+  assert.equal(second.status, 'insecure');
+  assert.equal(calls, 1);
+
+  const badType = await fetch(base + '/api/dnssec?host=example.com&type=PTR');
+  assert.equal(badType.status, 400);
+  const badHost = await fetch(base + '/api/dnssec?host=not-a-domain&type=A');
+  assert.equal(badHost.status, 400);
 });
 
 test('backend decodes windows-1251 HTML using the meta charset', () => {

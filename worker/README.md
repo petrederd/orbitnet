@@ -5,7 +5,9 @@ Worker выполняет проверки из сети Cloudflare. Нужен 
 фильтрация DNS, недоступный маршрут), хотя из остального мира ресурс работает.
 
 Worker вызывается **только бэкендом** (`backend/external-check.js`) и только
-как fallback. Локальная проверка всегда выполняется первой.
+как fallback. Локальная проверка всегда выполняется первой. Исключение —
+DNSSEC: эта проверка всегда идёт через Worker, потому что локальный Unbound
+занят DNSBL-запросами и не используется как валидирующий резолвер.
 
 ## Контракт
 
@@ -18,6 +20,7 @@ Content-Type: application/json
 {"type":"dns","host":"example.com","recordType":"A"}
 {"type":"propagation","host":"example.com","recordType":"A"}
 {"type":"email","host":"example.com","selector":"default"}
+{"type":"dnssec","host":"example.com","recordType":"A"}
 ```
 
 `example.com` здесь — только пример. Поле `host` принимает любой публичный
@@ -136,6 +139,53 @@ TXT — строка.
 MX, SPF, DMARC, DKIM и PTR основного MX собираются из DoH-запросов. Ошибки по
 отдельным полям возвращаются в `errors`, как в локальном `/api/email`.
 
+### DNSSEC
+
+```json
+{
+  "ok": true,
+  "type": "dnssec",
+  "host": "example.com",
+  "recordType": "A",
+  "status": "secure",
+  "ad": true,
+  "dnsStatus": 0,
+  "zone": "example.com",
+  "zones": [
+    {
+      "name": "example.com",
+      "ds": [{"keyTag": 2371, "algorithm": 13, "digestType": 2, "digest": "..."}],
+      "dnskey": [{"flags": 257, "protocol": 3, "algorithm": 13}],
+      "rrsig": [{"typeCovered": "DNSKEY", "algorithm": 13, "keyTag": 2371, "signer": "example.com"}],
+      "dsOk": true,
+      "dnskeyOk": true
+    }
+  ],
+  "answer": [{"name": "example.com", "type": "A", "ttl": 300, "data": "192.0.2.1"}],
+  "rrsig": [{"typeCovered": "A", "algorithm": 13, "keyTag": 2371, "signer": "example.com"}],
+  "detail": "The resolver set the Authenticated Data (AD) bit, so the full chain of trust validated.",
+  "resolver": "Cloudflare 1.1.1.1",
+  "source": "Cloudflare Worker"
+}
+```
+
+Проверка идёт через DoH с `do=true`: берётся ответ на выбранный тип записи,
+затем по SOA/RRSIG определяется зона, у её apex запрашиваются `DS` и `DNSKEY`.
+RRSIG приходит вместе с этими ответами; отдельный запрос типа `RRSIG` не
+используется, потому что валидирующие резолверы отвечают на него SERVFAIL.
+Бит `AD` показывает, что резолвер проверил всю цепочку.
+
+Состояния:
+
+- `secure` — `AD=true`; DS, DNSKEY и RRSIG на месте.
+- `insecure` — на делегировании нет DS, зона не подписана.
+- `bogus` — резолвер вернул SERVFAIL (обычно ошибка валидации) либо DS есть,
+  а DNSKEY/RRSIG отсутствуют.
+- `indeterminate` — DoH-резолвер недоступен или данных не хватило для вывода.
+
+Ответ всегда HTTP 200, даже при `status: "indeterminate"`: это результат
+проверки, а не сбой Worker. Ошибки валидации входных данных остаются HTTP 400.
+
 ## Что нужно
 
 - Аккаунт Cloudflare (бесплатного плана достаточно).
@@ -214,6 +264,11 @@ curl -sS -X POST "$CHECKER_URL" \
   -H "Authorization: Bearer $CHECKER_SECRET" \
   -H 'Content-Type: application/json' \
   -d '{"type":"email","host":"example.com","selector":"default"}'
+
+curl -sS -X POST "$CHECKER_URL" \
+  -H "Authorization: Bearer $CHECKER_SECRET" \
+  -H 'Content-Type: application/json' \
+  -d '{"type":"dnssec","host":"example.com","recordType":"A"}'
 ```
 
 Без правильного `Authorization` Worker вернёт `401`.
@@ -232,6 +287,8 @@ curl -sS -X POST "$CHECKER_URL" \
   контрольный запрос. Успешный ответ Worker кэшируется на 60 секунд.
 - `/api/email`: транспортная ошибка DNS или `ENOTFOUND` при поиске MX. Обычное
   отсутствие DMARC/DKIM (`ENODATA`) — нормальный ответ и не повод звать Worker.
+- `/api/dnssec`: всегда, без локальной попытки. Успешный ответ кэшируется на
+  60 секунд; при недоступном Worker возвращается `503`.
 - `/api/propagation`: все локальные резолверы вернули транспортную ошибку или
   `ENOTFOUND`, а не обычный пустой ответ.
 - `/api/tls`: локальный резолвер вернул `Cannot resolve` или локальный
@@ -273,6 +330,9 @@ curl -sS -X POST "$CHECKER_URL" \
   через обычный `fetch`.
 - Для DNS используются публичные DoH-резолверы, а не те же IP, что в локальном
   `/api/propagation`; набор резолверов и их кэш могут отличаться.
+- DNSSEC-проверка показывает результат публичного валидирующего резолвера, а
+  не полный разбор цепочки, как DNSViz. Для сложных CNAME-цепочек и спорных
+  случаев состояние может быть `indeterminate`.
 - Бесплатный план Cloudflare имеет дневной лимит запросов и subrequests.
   Успешные fallback-ответы кэшируются на бэкенде на 60 секунд, но при больших
   нагрузках стоит рассмотреть платный план.

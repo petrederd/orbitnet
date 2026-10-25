@@ -445,3 +445,52 @@ test('JWT decoder highlights time claims and verifies HMAC signatures', async ()
   await context.verifySignature();
   assert.match(get('verifyError').children[get('verifyError').children.length - 1].textContent, /not valid base64/);
 });
+
+test('DNSSEC checker renders statuses, the chain and escapes detail text', () => {
+  const { context, get } = loadTool(tool('networks', 'dnssec-checker'), {
+    host: 'example.com', type: 'A', results: '', errorMsg: '',
+  });
+
+  context.renderDnssec('example.com', 'A', {
+    status: 'secure',
+    ad: true,
+    dnsStatus: 0,
+    zone: 'example.com',
+    resolver: 'Cloudflare 1.1.1.1',
+    detail: 'The resolver set the Authenticated Data (AD) bit.',
+    zones: [{
+      name: 'example.com',
+      ds: [{ keyTag: 2371, algorithm: 13, digestType: 2, digest: 'ABCD' }],
+      dnskey: [{ flags: 257, protocol: 3, algorithm: 13 }],
+      rrsig: [{ typeCovered: 'DNSKEY', algorithm: 13, keyTag: 2371, signer: 'example.com' }],
+      dsOk: true,
+      dnskeyOk: true,
+    }],
+    answer: [{ name: 'example.com', type: 'A', ttl: 300, data: '192.0.2.1' }],
+    rrsig: [{ typeCovered: 'A', algorithm: 13, keyTag: 2371, signer: 'example.com', expiration: 1792997346 }],
+  });
+  let html = get('results').innerHTML;
+  assert.match(html, /<strong>Secure<\/strong>/);
+  assert.match(html, /AD bit: set/);
+  assert.match(html, /DS keyTag=2371/);
+  assert.match(html, /DNSKEY flags=257/);
+  assert.match(html, /RRSIG DNSKEY/);
+  assert.match(html, /192\.0\.2\.1/);
+
+  context.renderDnssec('bad.example.com', 'A', {
+    status: 'bogus',
+    ad: false,
+    dnsStatus: 2,
+    zone: '',
+    resolver: 'Cloudflare 1.1.1.1',
+    detail: '<script>alert(1)</script>',
+    zones: [],
+    answer: [],
+    rrsig: [],
+  });
+  html = get('results').innerHTML;
+  assert.match(html, /<strong>Bogus<\/strong>/);
+  assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.doesNotMatch(html, /<script>alert/);
+  assert.match(html, /No answer records/);
+});

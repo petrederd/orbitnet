@@ -1271,6 +1271,7 @@ function domainSuffixes(host) {
 }
 const DNS_TYPES = new Set(['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'SOA', 'CAA', 'PTR']);
 const PROPAGATION_TYPES = new Set(['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'SOA', 'CAA']);
+const DNSSEC_TYPES = new Set(['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'SOA', 'CAA']);
 // Returns the upper-cased record type when it is supported, or null so the
 // caller can answer 400 instead of silently falling back to A.
 function parseType(t, allowed = DNS_TYPES) {
@@ -1326,6 +1327,26 @@ async function dnsLookup(host, type) {
     error.code = e.code || 'ERROR';
     throw error;
   }
+}
+
+// ---------- /api/dnssec ----------
+// DNSSEC always goes through the Worker: the local Unbound instance is used
+// for DNSBL queries and is not treated as a validating resolver.
+async function dnssecInfo(host, type, context) {
+  const cacheKey = externalCacheKey('dnssec', host, type);
+  let external = getExternalCache(cacheKey);
+  if (!external) {
+    external = await callExternal(
+      opts => externalCheck.checkDnssec(host, type, opts),
+      context
+    );
+    if (!external.error) setExternalCache(cacheKey, external);
+  }
+  if (external.error) {
+    logExternalFailure(external.error);
+    throw httpError(external.unavailable ? 503 : 502, external.error);
+  }
+  return external;
 }
 
 // ---------- /api/port ----------
@@ -3990,7 +4011,7 @@ const server = http.createServer(async (req, res) => {
   const limited = path === '/api/ip' || path === '/api/geo' || path === '/api/dns' ||
     path === '/api/port' || path === '/api/captcha' || path === '/api/whois' || path === '/api/site' ||
     path === '/api/tls' || path === '/api/headers' || path === '/api/email' ||
-    path === '/api/propagation' || path === '/api/redirect' ||
+    path === '/api/propagation' || path === '/api/dnssec' || path === '/api/redirect' ||
     path === '/api/spam' || path === '/api/security' ||
     path === '/api/anonymity' || path === '/api/anonymity/ports' ||
     path === '/api/anonymity/ping';
@@ -4115,6 +4136,14 @@ const server = http.createServer(async (req, res) => {
       if (nxdomain) response.nxdomain = true;
       else if (Array.isArray(records) && !records.length) response.nodata = true;
       return send(res, 200, response);
+    }
+
+    if (path === '/api/dnssec') {
+      const host = externalCheck.normalizeDnsName(query.get('host') || '');
+      const type = parseType(query.get('type'), DNSSEC_TYPES);
+      if (!type) return bad(res, 'Unsupported record type');
+      if (!host) return bad(res, 'Invalid hostname');
+      return send(res, 200, await dnssecInfo(host, type, externalContext));
     }
 
     if (path === '/api/captcha') {

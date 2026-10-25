@@ -90,6 +90,7 @@
     'tools/math/percentage-calculator.html': 'percentage percent calculate calculator discount increase decrease change проценты процент скидка',
     'tools/math/unit-converter.html': 'unit converter convert conversion length width weight mass temperature area volume speed metric imperial единицы конвертер температура вес длина',
     'tools/networks/dns-lookup.html': 'dns lookup record records a aaaa mx txt ns cname soa caa resolver domain днс запись домен',
+    'tools/networks/dnssec-checker.html': 'dnssec dns security ds dnskey rrsig ad chain validation secure insecure bogus indeterminate подпись домен проверка',
     'tools/networks/port-checker.html': 'port check checker tcp open closed scan scanner порт проверка',
     'tools/networks/ip-info.html': 'ip domain info whois dns reverse geolocation provider registrar информация домен',
     'tools/networks/site-info.html': 'site website info inspect http status server title response time сайт информация',

@@ -2,7 +2,7 @@
 
 > Организация кода, соглашения и точки расширения.
 
-**Обновлено:** 22 октября 2026
+**Обновлено:** 25 октября 2026
 **Версия:** 0.4.0
 
 ## Общая схема
@@ -17,7 +17,7 @@ nginx  ──► site/ (статические HTML, CSS, JS)
                        ├── dns / net / tls / http / https
                        ├── whois
                        ├── MaxMind GeoLite2 (data/geoip/)
-                       └── external-check.js ──► Cloudflare Worker (fallback)
+                       └── external-check.js ──► Cloudflare Worker (fallback, DNSSEC always)
 ```
 
 Проект намеренно разделён на статический фронтенд и небольшой API. Клиентские инструменты работают без бэкенда; сетевые функции обращаются к `/api/`.
@@ -49,18 +49,18 @@ orbitnet/
 │   ├── security.test.js           # аудит: парсеры HSTS/security.txt/cookies/mixed, оценка A-F
 │   ├── tls.test.js                # TLS: SAN, шифры, версии, цепочка, сроки, ключи, SCT, ALPN, Alt-Svc, оценка A–F
 │   ├── fixtures/                  # Тестовые сертификаты и ключи (только для тестов)
-│   ├── external-check.test.js     # Worker-клиент: HTTP/DNS/propagation/email
+│   ├── external-check.test.js     # Worker-клиент: HTTP/DNS/propagation/email/DNSSEC
 │   ├── worker.test.js             # сам Cloudflare Worker с mock fetch
 │   ├── seo.test.js                # canonical, OG, JSON-LD, sitemap, og-image.png
 │   └── live-check.js              # проверка опубликованного сайта
 │
 ├── site/                          # Публичная директория nginx
-│   ├── index.html                 # Каталог 55 инструментов + IP-виджет
+│   ├── index.html                 # Каталог 56 инструментов + IP-виджет
 │   ├── about.html                 # О проекте
 │   ├── privacy.html               # Политика конфиденциальности (RU + EN)
 │   ├── 404.html                   # Кастомная страница «не найдено»
 │   ├── robots.txt                 # Индексация и ссылка на sitemap
-│   ├── sitemap.xml                # 58 URL: главная, about, privacy, 55 инструментов
+│   ├── sitemap.xml                # 59 URL: главная, about, privacy, 56 инструментов
 │   │
 │   ├── icons/
 │   │   └── favicon.svg
@@ -83,13 +83,14 @@ orbitnet/
 │   └── tools/
 │       ├── _template.html         # Шаблон новой страницы
 │       │
-│       ├── networks/              # 23 инструмента
+│       ├── networks/              # 24 инструмента
 │       │   ├── subnet-calculator.html
 │       │   ├── ipv6-subnet-calculator.html
 │       │   ├── ipv6-converter.html
 │       │   ├── ip-lookup.html
 │       │   ├── ip-info.html
 │       │   ├── dns-lookup.html
+│       │   ├── dnssec-checker.html
 │       │   ├── reverse-ip.html
 │       │   ├── port-checker.html
 │       │   ├── site-info.html
@@ -149,14 +150,14 @@ orbitnet/
 │           └── ne555-calculator.html
 │
 ├── backend/
-│   ├── server.js                  # HTTP API, 15 маршрутов
+│   ├── server.js                  # HTTP API, 16 маршрутов
 │   ├── external-check.js          # клиент Worker, нормализация ответов
 │   ├── package.json               # Единственная зависимость: maxmind
 │   ├── package-lock.json
 │   └── Dockerfile                 # node:22-alpine, non-root, healthcheck
 │
 ├── worker/
-│   ├── src/index.js               # Cloudflare Worker: HTTP, DNS, propagation, email + SSRF-защита
+│   ├── src/index.js               # Cloudflare Worker: HTTP, DNS, propagation, email, DNSSEC + SSRF-защита
 │   ├── package.json
 │   ├── wrangler.toml
 │   └── README.md                  # деплой и настройка секрета
@@ -198,7 +199,7 @@ npm run hooks:install
 ```
 
 - `tests/calculators.test.js` проверяет timestamp (секунды/миллисекунды, UTC/local), color (современный синтаксис, clamp, мусор после `)`), scientific notation (запятые, 2^53), statistics (hex, малые числа), unit converter (абсолютный ноль), Base64 (UTF-8/эмодзи) и regex worker (лимит совпадений, ошибки).
-- `tests/tools-extra.test.js` проверяет cron, URL encode/parse, YAML ↔ JSON, JSON → CSV, JSON diff, redirect/robots/security headers generators, IPv6, Unicode и JWT HS256 verification.
+- `tests/tools-extra.test.js` проверяет cron, URL encode/parse, YAML ↔ JSON, JSON → CSV, JSON diff, redirect/robots/security headers generators, IPv6, Unicode, JWT HS256 verification и отрисовку DNSSEC.
 - `tests/smoke.test.js` поднимает статический сервер с CSP из `nginx.conf`, открывает все страницы, проверяет отсутствие console/page errors, строгий `script-src 'self'`, реальный Web Worker, `?q=`, избранное и serious/critical нарушения axe. Без Chromium тест пропускается; в CI `REQUIRE_BROWSER_TESTS=1` делает его обязательным.
 - `tests/csp.test.js` статически проверяет, что в `nginx.conf` нет `unsafe-inline`/`unsafe-eval` в `script-src`, а на страницах нет inline-скриптов и inline-обработчиков; все внешние скрипты существуют.
 - `tests/health.test.js` проверяет подробный внутренний `/health` и минимальный публичный `/api/health`.
@@ -305,7 +306,7 @@ npm run hooks:install
 
 ## Backend
 
-`backend/server.js` — CommonJS-приложение на встроенных модулях Node.js. Внешняя зависимость только `maxmind`. `backend/external-check.js` — клиент Cloudflare Worker: используется как fallback для HTTP, DNS, propagation, email и цепочек редиректов, когда локальная проверка не смогла получить ответ.
+`backend/server.js` — CommonJS-приложение на встроенных модулях Node.js. Внешняя зависимость только `maxmind`. `backend/external-check.js` — клиент Cloudflare Worker: используется как fallback для HTTP, DNS, propagation, email и цепочек редиректов; DNSSEC всегда идёт через Worker.
 
 ### Маршруты
 
@@ -316,6 +317,7 @@ npm run hooks:install
 | `GET /api/ip` | dns, geo | IP клиента, PTR, геолокация, ASN |
 | `GET /api/geo` | dns, maxmind | Геолокация по IP или домену |
 | `GET /api/dns` | dns, external-check | DNS-записи; fallback в Worker при сетевой ошибке |
+| `GET /api/dnssec` | external-check | DNSSEC через Worker: DS, DNSKEY, RRSIG, AD; `secure`, `insecure`, `bogus`, `indeterminate` |
 | `GET /api/port` | net | TCP-проверка |
 | `GET /api/whois` | net | whois-запрос |
 | `GET /api/site` | http/https, external-check | Статус, сервер, title, время ответа; fallback в Worker |
@@ -384,7 +386,7 @@ IP клиента берётся из `X-Real-IP`, который выставл
 
 ## SEO и индексация
 
-- `site/sitemap.xml` содержит главную, `about.html`, `privacy.html` и все 55 инструментов.
+- `site/sitemap.xml` содержит главную, `about.html`, `privacy.html` и все 56 инструментов.
 - `site/robots.txt` разрешает индексацию и указывает на sitemap.
 - У всех страниц есть canonical и Open Graph.
 - У инструментов есть JSON-LD `SoftwareApplication`; на главной — `WebSite`, `SearchAction` (`/?q=`) и `FAQPage`.
