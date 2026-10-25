@@ -192,11 +192,9 @@ function copyToClipboard() {
     return;
   }
   
-  navigator.clipboard.writeText(output).then(() => {
-    showStatus('outputStatus', 'success', 'Copied to clipboard!');
-    setTimeout(() => clearStatus('outputStatus'), 3000);
-  }).catch(() => {
-    showStatus('outputStatus', 'error', 'Failed to copy to clipboard');
+  copyText(output).then(copied => {
+    showStatus('outputStatus', copied ? 'success' : 'error', copied ? 'Copied to clipboard!' : 'Failed to copy to clipboard');
+    if (copied) setTimeout(() => clearStatus('outputStatus'), 3000);
   });
 }
 

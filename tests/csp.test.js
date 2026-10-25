@@ -61,6 +61,24 @@ test('pages have no inline scripts or inline event handlers', () => {
   assert.deepEqual(failures, []);
 });
 
+test('tool scripts use the shared clipboard helper', () => {
+  const jsRoot = path.join(SITE, 'assets', 'js');
+  const failures = [];
+
+  for (const file of walk(jsRoot).filter(file => file.endsWith('.js'))) {
+    const relative = path.relative(SITE, file);
+    if (relative === path.join('assets', 'js', 'site.js')) continue;
+    const source = fs.readFileSync(file, 'utf8');
+    if (/navigator\s*\.\s*clipboard/.test(source)) failures.push(relative);
+  }
+
+  assert.deepEqual(failures, []);
+
+  const shared = fs.readFileSync(path.join(jsRoot, 'site.js'), 'utf8');
+  assert.match(shared, /globalThis\.copyText\s*=/);
+  assert.match(shared, /execCommand\(['"]copy['"]\)/);
+});
+
 test('external scripts referenced by pages exist', () => {
   const missing = [];
 

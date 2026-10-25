@@ -25,6 +25,9 @@ const MAX_REDIRECTS = 10;
 const HTTP_TIMEOUT_MS = 8000;
 const HTTP_TOTAL_TIMEOUT_MS = 12000;
 const DNS_TIMEOUT_MS = 5000;
+const DNSSEC_QUERY_TIMEOUT_MS = 3000;
+const DNSSEC_DEADLINE_MS = 12000;
+const DNSSEC_EXPIRY_WARNING_SECONDS = 3 * 24 * 60 * 60;
 
 const USER_AGENT = "OrbitNet-Checker/1.1 (+https://orbitnet.ru)";
 
@@ -33,6 +36,15 @@ const DNS_RESOLVERS = [
   { name: "Google 8.8.8.8", url: "https://dns.google/resolve" },
   { name: "AdGuard 94.140.14.14", url: "https://dns.adguard-dns.com/resolve" }
 ];
+
+// DNSSEC needs resolvers that reliably set the AD bit. AdGuard is useful for
+// propagation checks but is not used here; two validating resolvers are enough.
+const DNSSEC_RESOLVERS = DNS_RESOLVERS.filter(resolver =>
+  resolver.url.includes("cloudflare-dns.com") || resolver.url.includes("dns.google")
+);
+
+const DEPRECATED_DNSSEC_ALGORITHMS = new Set([3, 5, 6, 7]);
+const MODERN_DNSSEC_ALGORITHMS = new Set([13, 15]);
 
 const RECORD_TYPES = new Set([
   "A", "AAAA", "CNAME", "MX", "TXT", "NS", "SOA", "CAA", "PTR"
@@ -671,10 +683,19 @@ function dnssecAnswerRecords(data) {
   }));
 }
 
-async function findDnssecZone(name, resolver) {
+async function dnssecQuery(name, type, resolver, options = {}, deadline = Infinity) {
+  const remaining = deadline - Date.now();
+  if (remaining <= 250) return { error: "DNSSEC deadline exceeded" };
+  return dohQuery(name, type, resolver, {
+    ...options,
+    timeoutMs: Math.min(options.timeoutMs || DNSSEC_QUERY_TIMEOUT_MS, remaining)
+  });
+}
+
+async function findDnssecZone(name, resolver, deadline) {
   let candidate = name;
-  while (candidate.includes(".")) {
-    const result = await dohQuery(candidate, "SOA", resolver, { dnssec: true });
+  while (candidate.includes(".") && Date.now() < deadline) {
+    const result = await dnssecQuery(candidate, "SOA", resolver, { dnssec: true, cd: true }, deadline);
     if (!result.error) {
       const zones = dnssecZoneCandidates(result.data);
       if (zones.length) return zones[0];
@@ -684,10 +705,10 @@ async function findDnssecZone(name, resolver) {
   return "";
 }
 
-async function inspectDnssecZone(zone, resolver) {
+async function inspectDnssecZone(zone, resolver, deadline) {
   const [dsResult, dnskeyResult] = await Promise.all([
-    dohQuery(zone, "DS", resolver, { dnssec: true }),
-    dohQuery(zone, "DNSKEY", resolver, { dnssec: true })
+    dnssecQuery(zone, "DS", resolver, { dnssec: true, cd: true }, deadline),
+    dnssecQuery(zone, "DNSKEY", resolver, { dnssec: true, cd: true }, deadline)
   ]);
   const ds = dsResult.error
     ? []
@@ -709,6 +730,125 @@ async function inspectDnssecZone(zone, resolver) {
   };
 }
 
+function dnssecTargetCandidates(data) {
+  const names = new Set();
+  const records = data && Array.isArray(data.Answer) ? data.Answer : [];
+  for (const record of records) {
+    if (!record) continue;
+    if (record.type === 5) {
+      const target = stripDot(record.data);
+      if (target) names.add(target);
+    }
+    if ([1, 28, 15, 16, 257].includes(record.type)) {
+      const owner = stripDot(record.name);
+      if (owner) names.add(owner);
+    }
+  }
+  return [...names].slice(0, 6);
+}
+
+function dnssecCnameTargets(data) {
+  const records = data && Array.isArray(data.Answer) ? data.Answer : [];
+  return [...new Set(records
+    .filter(record => record && record.type === 5)
+    .map(record => stripDot(record.data))
+    .filter(Boolean))].slice(0, 4);
+}
+
+function dnssecWarnings(zones, answerRrsig, nowSeconds) {
+  const now = Number.isFinite(nowSeconds) ? nowSeconds : Math.floor(Date.now() / 1000);
+  const warnings = [];
+  const seen = new Set();
+  const add = (level, code, message) => {
+    const key = level + ":" + code + ":" + message;
+    if (seen.has(key)) return;
+    seen.add(key);
+    warnings.push({ level, code, message });
+  };
+
+  const signatures = [];
+  for (const zone of zones) {
+    if (Array.isArray(zone.rrsig)) signatures.push(...zone.rrsig);
+  }
+  if (Array.isArray(answerRrsig)) signatures.push(...answerRrsig);
+
+  for (const signature of signatures) {
+    if (!signature) continue;
+    const label = (signature.typeCovered || "record") +
+      (signature.name ? " at " + signature.name : "");
+    if (Number.isFinite(signature.expiration)) {
+      const remaining = signature.expiration - now;
+      if (remaining <= 0) {
+        add("error", "rrsig-expired", "The RRSIG for " + label + " has expired.");
+      } else if (remaining < DNSSEC_EXPIRY_WARNING_SECONDS) {
+        const days = Math.max(1, Math.ceil(remaining / 86400));
+        add("warning", "rrsig-expiry", "The RRSIG for " + label +
+          " expires in " + days + " day" + (days === 1 ? "" : "s") + ".");
+      }
+    }
+    if (Number.isFinite(signature.inception) && signature.inception > now) {
+      add("warning", "rrsig-not-yet-valid", "The RRSIG for " + label + " is not valid yet.");
+    }
+  }
+
+  const algorithms = new Set();
+  for (const zone of zones) {
+    for (const record of zone.ds || []) {
+      if (Number.isFinite(record.algorithm)) algorithms.add(record.algorithm);
+    }
+    for (const record of zone.dnskey || []) {
+      if (Number.isFinite(record.algorithm)) algorithms.add(record.algorithm);
+    }
+    for (const record of zone.rrsig || []) {
+      if (Number.isFinite(record.algorithm)) algorithms.add(record.algorithm);
+    }
+  }
+  if (Array.isArray(answerRrsig)) {
+    for (const signature of answerRrsig) {
+      if (signature && Number.isFinite(signature.algorithm)) algorithms.add(signature.algorithm);
+    }
+  }
+  for (const algorithm of [...algorithms].sort((a, b) => a - b)) {
+    if (DEPRECATED_DNSSEC_ALGORITHMS.has(algorithm)) {
+      add("warning", "deprecated-algorithm", "DNSSEC algorithm " + algorithm +
+        " is deprecated (DSA/RSASHA1); migrate to ECDSA P-256 (13) or Ed25519 (15).");
+    }
+  }
+
+  const dsRecords = zones.flatMap(zone => Array.isArray(zone.ds) ? zone.ds : []);
+  if (dsRecords.length && dsRecords.every(record => record.digestType === 1)) {
+    add("warning", "ds-sha1", "All DS records use SHA-1 (digest type 1); add a SHA-256 DS record.");
+  }
+
+  const dnskeyRecords = zones.flatMap(zone => Array.isArray(zone.dnskey) ? zone.dnskey : []);
+  if (dnskeyRecords.length &&
+      dnskeyRecords.every(record => MODERN_DNSSEC_ALGORITHMS.has(record.algorithm))) {
+    add("info", "modern-algorithm", "DNSSEC keys use a modern algorithm (13/15).");
+  }
+
+  return warnings.slice(0, 12);
+}
+
+function dnssecIndeterminate(host, type, detail, options = {}) {
+  return {
+    ok: true,
+    type: "dnssec",
+    host,
+    recordType: type,
+    status: "indeterminate",
+    ad: options.ad === true ? true : options.ad === false ? false : null,
+    dnsStatus: Number.isInteger(options.dnsStatus) ? options.dnsStatus : null,
+    zone: "",
+    zones: [],
+    answer: [],
+    rrsig: [],
+    warnings: [],
+    detail,
+    resolver: options.resolver || "",
+    source: "Cloudflare Worker"
+  };
+}
+
 async function inspectDnssec(rawHost, rawType) {
   const host = normalizeDnsName(rawHost);
   if (!host) return { ok: false, error: "Invalid or non-public host" };
@@ -717,94 +857,123 @@ async function inspectDnssec(rawHost, rawType) {
     return { ok: false, error: "Unsupported record type" };
   }
 
+  const deadline = Date.now() + DNSSEC_DEADLINE_MS;
   let resolver = null;
-  let answer = null;
+  let firstAnswer = null;
   let lastError = "DNS resolvers unavailable";
-  for (const candidate of DNS_RESOLVERS) {
-    const result = await dohQuery(host, type, candidate, { dnssec: true });
+  for (const candidate of DNSSEC_RESOLVERS) {
+    const result = await dnssecQuery(host, type, candidate, { dnssec: true }, deadline);
     if (!result.error) {
       resolver = candidate;
-      answer = result.data;
+      firstAnswer = result.data;
       break;
     }
     lastError = result.error;
   }
+  if (!firstAnswer) return dnssecIndeterminate(host, type, lastError);
 
-  if (!answer) {
-    return {
-      ok: true,
-      type: "dnssec",
-      host,
-      recordType: type,
-      status: "indeterminate",
-      ad: null,
-      dnsStatus: null,
-      zone: "",
-      zones: [],
-      answer: [],
-      rrsig: [],
-      detail: lastError,
-      resolver: "",
-      source: "Cloudflare Worker"
-    };
+  const firstStatus = Number.isInteger(firstAnswer.Status) ? firstAnswer.Status : null;
+  const ad = firstAnswer.AD === true ? true : firstAnswer.AD === false ? false : null;
+  if (firstStatus !== null && firstStatus !== 0 && firstStatus !== 2 && firstStatus !== 3) {
+    return dnssecIndeterminate(host, type,
+      "The resolver returned DNS status " + firstStatus + ", so the result is inconclusive.",
+      { ad, dnsStatus: firstStatus, resolver: resolver.name });
   }
 
-  const dnsStatus = Number.isInteger(answer.Status) ? answer.Status : null;
-  const ad = answer.AD === true ? true : answer.AD === false ? false : null;
+  let answer = firstAnswer;
+  let validationFailed = false;
+  if (firstStatus === 2) {
+    const cdResult = await dnssecQuery(host, type, resolver, { dnssec: true, cd: true }, deadline);
+    if (cdResult.error) {
+      return dnssecIndeterminate(host, type,
+        "The validating resolver returned SERVFAIL and the CD retry failed: " + cdResult.error,
+        { ad, dnsStatus: 2, resolver: resolver.name });
+    }
+    const cdStatus = Number.isInteger(cdResult.data.Status) ? cdResult.data.Status : null;
+    if (cdStatus === 0 || cdStatus === 3) {
+      validationFailed = true;
+      answer = cdResult.data;
+    } else if (cdStatus === 2) {
+      return dnssecIndeterminate(host, type,
+        "The resolver returned SERVFAIL both with and without the CD bit. This can be broken delegation or unreachable nameservers, not necessarily a DNSSEC failure.",
+        { ad, dnsStatus: 2, resolver: resolver.name });
+    } else {
+      return dnssecIndeterminate(host, type,
+        "The CD retry returned DNS status " + (cdStatus == null ? "unknown" : cdStatus) +
+          ", so the result is inconclusive.",
+        { ad, dnsStatus: 2, resolver: resolver.name });
+    }
+  }
+
+  const recordType = type;
   const rrsig = dnssecRecordList(answer, 46)
     .map(parseDnssecRrsig).filter(Boolean).slice(0, 20);
-  const recordType = type;
 
   let zoneNames = dnssecZoneCandidates(answer).slice(0, 4);
-  if (!zoneNames.length && dnsStatus === 2) {
-    const dsHost = await dohQuery(host, "DS", resolver, { dnssec: true });
-    if (!dsHost.error && dnssecRecordList(dsHost.data, 43).length) {
-      zoneNames = [host];
-    }
-  } else if (!zoneNames.length && (dnsStatus === 0 || dnsStatus === 3)) {
-    const fallbackZone = await findDnssecZone(host, resolver);
+  if (!zoneNames.length) {
+    const fallbackZone = await findDnssecZone(host, resolver, deadline);
     if (fallbackZone) zoneNames = [fallbackZone];
   }
 
-  const zones = [];
-  for (const zone of zoneNames) {
-    zones.push(await inspectDnssecZone(zone, resolver));
+  let cnameTargetZones = [];
+  if (ad !== true && !validationFailed) {
+    const targetNames = dnssecTargetCandidates(answer);
+    const cnameNames = new Set(dnssecCnameTargets(answer));
+    const resolved = await Promise.all(targetNames.map(async name => ({
+      name,
+      zone: await findDnssecZone(name, resolver, deadline)
+    })));
+    cnameTargetZones = [...new Set(resolved
+      .filter(item => cnameNames.has(item.name))
+      .map(item => item.zone)
+      .filter(Boolean))];
+    for (const item of resolved) {
+      if (item.zone && !zoneNames.includes(item.zone)) zoneNames.push(item.zone);
+    }
+    zoneNames = zoneNames.slice(0, 6);
   }
+
+  const zones = await Promise.all(zoneNames.map(zone =>
+    inspectDnssecZone(zone, resolver, deadline)
+  ));
+  const warnings = dnssecWarnings(zones, rrsig, Math.floor(Date.now() / 1000));
+
+  const cnameZoneSet = new Set(cnameTargetZones);
+  const cnameUnsigned = zones.find(zone =>
+    cnameZoneSet.has(zone.name) && zone.dsOk && !zone.ds.length
+  );
+  const unsigned = zones.find(zone => zone.dsOk && !zone.ds.length);
+  const broken = zones.find(zone =>
+    zone.ds.length && (!zone.dnskeyOk || !zone.dnskey.length || !zone.rrsig.length)
+  );
+  const allSigned = zones.every(zone =>
+    zone.dsOk && zone.ds.length && zone.dnskeyOk && zone.dnskey.length && zone.rrsig.length
+  );
 
   let status = "indeterminate";
   let detail = "Some DNSSEC records could not be retrieved, so the result is inconclusive.";
 
-  if (dnsStatus === 2) {
+  if (validationFailed) {
     status = "bogus";
-    detail = "The validating resolver returned SERVFAIL, which usually means DNSSEC validation failed.";
-  } else if (dnsStatus !== null && dnsStatus !== 0 && dnsStatus !== 3) {
-    status = "indeterminate";
-    detail = "The resolver returned DNS status " + dnsStatus + ", so the result is inconclusive.";
+    detail = "The validating resolver returned SERVFAIL, but the same query with the CD bit succeeded, so DNSSEC validation failed.";
   } else if (ad === true) {
     status = "secure";
     detail = "The resolver set the Authenticated Data (AD) bit, so the full chain of trust validated.";
   } else if (!zones.length) {
-    status = "indeterminate";
     detail = "Could not determine the DNSSEC zone or retrieve DS/DNSKEY records.";
-  } else {
-    const unsigned = zones.find(zone => zone.dsOk && !zone.ds.length);
-    const broken = zones.find(zone =>
-      zone.ds.length && (!zone.dnskeyOk || !zone.dnskey.length || !zone.rrsig.length)
-    );
-    const allSigned = zones.every(zone =>
-      zone.dsOk && zone.ds.length && zone.dnskeyOk && zone.dnskey.length && zone.rrsig.length
-    );
-
-    if (unsigned) {
-      status = "insecure";
-      detail = "No DS record exists at " + unsigned.name + ", so the zone is not signed.";
-    } else if (broken) {
-      status = "bogus";
-      detail = "DS exists at " + broken.name + ", but the DNSKEY RRset or its RRSIG is missing.";
-    } else if (allSigned) {
-      status = "bogus";
-      detail = "DS, DNSKEY and RRSIG records exist, but the resolver did not set the AD bit, so validation failed.";
-    }
+  } else if (cnameUnsigned) {
+    status = "insecure";
+    detail = "The CNAME chain crosses " + cnameUnsigned.name +
+      ", which has no DS record, so the answer is not signed.";
+  } else if (unsigned) {
+    status = "insecure";
+    detail = "No DS record exists at " + unsigned.name + ", so the zone is not signed.";
+  } else if (broken) {
+    status = "bogus";
+    detail = "DS exists at " + broken.name + ", but the DNSKEY RRset or its RRSIG is missing.";
+  } else if (allSigned) {
+    detail = "DS, DNSKEY and RRSIG records exist, but the resolver did not set the AD bit. " +
+      "The answer may cross an unsigned CNAME target, or the resolver may not be validating.";
   }
 
   return {
@@ -814,11 +983,12 @@ async function inspectDnssec(rawHost, rawType) {
     recordType,
     status,
     ad,
-    dnsStatus,
+    dnsStatus: firstStatus,
     zone: zoneNames[0] || "",
     zones,
     answer: dnssecAnswerRecords(answer),
     rrsig,
+    warnings,
     detail,
     resolver: resolver.name,
     source: "Cloudflare Worker"
@@ -868,9 +1038,13 @@ async function dohQuery(name, type, resolver, options = {}) {
   url.searchParams.set("name", name);
   url.searchParams.set("type", type);
   if (options.dnssec) url.searchParams.set("do", "true");
+  if (options.cd) url.searchParams.set("cd", "true");
 
+  const timeoutMs = Number.isFinite(options.timeoutMs)
+    ? Math.max(250, Math.min(options.timeoutMs, DNS_TIMEOUT_MS))
+    : DNS_TIMEOUT_MS;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), DNS_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url.toString(), {
       signal: controller.signal,

@@ -372,9 +372,21 @@ function normalizeEmailResponse(raw, fallbackHost) {
 }
 
 const DNSSEC_STATUSES = new Set(['secure', 'insecure', 'bogus', 'indeterminate']);
+const DNSSEC_WARNING_LEVELS = new Set(['error', 'warning', 'info']);
 
 function dnssecInteger(value, min, max) {
   return Number.isInteger(value) && value >= min && value <= max ? value : null;
+}
+
+function normalizeDnssecWarning(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const message = limitString(String(raw.message == null ? '' : raw.message), 300);
+  if (!message) return null;
+  return {
+    level: DNSSEC_WARNING_LEVELS.has(raw.level) ? raw.level : 'info',
+    code: limitString(String(raw.code == null ? '' : raw.code), 64),
+    message
+  };
 }
 
 function normalizeDnssecName(value) {
@@ -472,6 +484,9 @@ function normalizeDnssecResponse(raw, fallbackHost, fallbackType) {
   const rrsig = Array.isArray(raw.rrsig)
     ? raw.rrsig.slice(0, 20).map(normalizeDnssecRrsigRecord).filter(Boolean)
     : [];
+  const warnings = Array.isArray(raw.warnings)
+    ? raw.warnings.slice(0, 12).map(normalizeDnssecWarning).filter(Boolean)
+    : [];
   const status = DNSSEC_STATUSES.has(raw.status) ? raw.status : 'indeterminate';
   const ad = raw.ad === true ? true : raw.ad === false ? false : null;
   const zone = normalizeDnssecZoneName(raw.zone) || (zones[0] && zones[0].name) || '';
@@ -487,6 +502,7 @@ function normalizeDnssecResponse(raw, fallbackHost, fallbackType) {
     zones,
     answer,
     rrsig,
+    warnings,
     detail: limitString(raw.detail, 300),
     resolver: limitString(raw.resolver, 100),
     source: 'worker'

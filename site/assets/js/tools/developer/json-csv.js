@@ -121,15 +121,7 @@ function convert() {
 async function copyCsv() {
   const output = document.getElementById('csvOutput');
   output.select();
-  try {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(output.value);
-    } else {
-      document.execCommand('copy');
-    }
-  } catch (error) {
-    // Selecting the text is still useful if clipboard access is blocked.
-  }
+  if (!await copyText(output.value)) output.select();
 }
 
 function clearAll() {

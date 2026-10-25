@@ -35,7 +35,7 @@ function statusMeta(status) {
     return { className: 'success', label: 'Secure', summary: 'The DNSSEC chain of trust validated.' };
   }
   if (status === 'insecure') {
-    return { className: 'warning', label: 'Insecure', summary: 'The zone is not signed with DNSSEC.' };
+    return { className: 'warning', label: 'Insecure', summary: 'The zone or a CNAME target is not signed with DNSSEC.' };
   }
   if (status === 'bogus') {
     return { className: 'error', label: 'Bogus', summary: 'DNSSEC validation failed.' };
@@ -61,6 +61,14 @@ function renderDnssec(host, recordType, data) {
     'Zone: ' + esc(data.zone || 'unknown'),
     'Resolver: ' + esc(data.resolver || 'unknown')
   ].join('<br>')));
+
+  const warnings = Array.isArray(data.warnings) ? data.warnings : [];
+  if (warnings.length) {
+    html += resultBlock('Warnings and recommendations', warnings.map(item => {
+      const level = item.level === 'error' ? 'error' : item.level === 'info' ? 'info' : 'warning';
+      return '<div class="status-box ' + level + '">' + esc(item.message) + '</div>';
+    }).join(''));
+  }
 
   const zones = Array.isArray(data.zones) ? data.zones : [];
   if (!zones.length) {

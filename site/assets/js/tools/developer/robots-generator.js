@@ -90,15 +90,7 @@ function generate() {
 async function copyOutput() {
   const output = document.getElementById('output');
   output.select();
-  try {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(output.value);
-    } else {
-      document.execCommand('copy');
-    }
-  } catch (error) {
-    // The text remains selected for manual copying.
-  }
+  if (!await copyText(output.value)) output.select();
 }
 
 generate();

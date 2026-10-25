@@ -57,11 +57,9 @@ function run(direction) {
 function copyOutput() {
   const output = document.getElementById('output');
   output.select();
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(output.value);
-  } else {
-    document.execCommand('copy');
-  }
+  copyText(output.value).then(copied => {
+    if (!copied) output.select();
+  });
 }
 
 function clearAll() {

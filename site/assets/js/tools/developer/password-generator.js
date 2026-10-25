@@ -54,10 +54,10 @@ function generate() {
 function copyPassword() {
   const text = document.getElementById('password').textContent;
   if (!text || text === 'click generate') return;
-  navigator.clipboard.writeText(text).then(() => {
+  copyText(text).then(copied => {
     const b = document.getElementById('copyBtn');
     const old = b.textContent;
-    b.textContent = 'Copied';
+    b.textContent = copied ? 'Copied' : 'Copy failed';
     setTimeout(() => { b.textContent = old; }, 1200);
   });
 }

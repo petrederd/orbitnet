@@ -87,6 +87,27 @@ test('URL encoder handles component and full-URI modes', () => {
   assert.match(get('stats').textContent, /UTF-8 bytes/);
 });
 
+test('shared copyText falls back when clipboard permission is denied', async () => {
+  const { context } = loadTool(tool('developer', 'url-encoder'), {
+    input: '', mode: 'component', output: '', stats: '', errorMsg: '',
+  }, {
+    navigator: {
+      clipboard: {
+        writeText: async () => { throw new Error('clipboard blocked'); },
+      },
+    },
+  });
+
+  let command = '';
+  context.document.execCommand = name => { command = name; return true; };
+  assert.equal(await context.copyText('hello'), true);
+  assert.equal(command, 'copy');
+
+  context.document.execCommand = () => false;
+  assert.equal(await context.copyText('hello'), false);
+  assert.equal(await context.copyText(''), false);
+});
+
 test('URL parser splits credentials, segments and duplicate query keys', () => {
   const { context } = loadTool(tool('developer', 'url-parser'), {
     urlInput: '', errorMsg: '', results: '',
@@ -468,6 +489,10 @@ test('DNSSEC checker renders statuses, the chain and escapes detail text', () =>
     }],
     answer: [{ name: 'example.com', type: 'A', ttl: 300, data: '192.0.2.1' }],
     rrsig: [{ typeCovered: 'A', algorithm: 13, keyTag: 2371, signer: 'example.com', expiration: 1792997346 }],
+    warnings: [
+      { level: 'warning', code: 'rrsig-expiry', message: 'The RRSIG expires in 2 days.' },
+      { level: 'info', code: 'modern-algorithm', message: 'DNSSEC keys use a modern algorithm.' },
+    ],
   });
   let html = get('results').innerHTML;
   assert.match(html, /<strong>Secure<\/strong>/);
@@ -476,6 +501,10 @@ test('DNSSEC checker renders statuses, the chain and escapes detail text', () =>
   assert.match(html, /DNSKEY flags=257/);
   assert.match(html, /RRSIG DNSKEY/);
   assert.match(html, /192\.0\.2\.1/);
+  assert.match(html, /Warnings and recommendations/);
+  assert.match(html, /The RRSIG expires in 2 days\./);
+  assert.match(html, /status-box warning/);
+  assert.match(html, /status-box info/);
 
   context.renderDnssec('bad.example.com', 'A', {
     status: 'bogus',

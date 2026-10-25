@@ -66,6 +66,7 @@ function cp1251(bytes) {
 
 function installFetch(t) {
   const original = global.fetch;
+  const now = Math.floor(Date.now() / 1000);
   global.__dohQueries = [];
   global.fetch = async (url, options = {}) => {
     const parsed = new URL(String(url));
@@ -78,7 +79,9 @@ function installFetch(t) {
       global.__dohQueries.push({
         name,
         type,
-        dnssec: parsed.searchParams.get('do') === 'true'
+        resolver: parsed.hostname,
+        dnssec: parsed.searchParams.get('do') === 'true',
+        cd: parsed.searchParams.get('cd') === 'true'
       });
 
       if (name === 'indeterminate.example.com') {
@@ -86,7 +89,94 @@ function installFetch(t) {
       }
 
       if (name === 'servfail.example.com') {
-        return Response.json({ Status: type === 'A' ? 2 : 0, AD: false, Answer: [] });
+        return Response.json({ Status: 2, AD: false, Answer: [] });
+      }
+
+      if (name === 'cd-success.example.com') {
+        const cd = parsed.searchParams.get('cd') === 'true';
+        if (!cd) return Response.json({ Status: 2, AD: false, Answer: [] });
+        return Response.json({
+          Status: 0,
+          AD: false,
+          Answer: [
+            { name: 'cd-success.example.com.', type: 1, TTL: 300, data: '192.0.2.12' },
+            { name: 'cd-success.example.com.', type: 46, TTL: 300, data: 'A 13 3 300 1792997346 1792817346 2371 example.com. sig' }
+          ]
+        });
+      }
+
+      if (name === 'cname-unsigned.example.com') {
+        if (type === 'SOA') {
+          return Response.json({
+            Status: 0,
+            AD: false,
+            Answer: [{ name: 'example.com.', type: 6, TTL: 300, data: 'ns1.example.com. hostmaster.example.com. 1 7200 3600 1209600 3600' }]
+          });
+        }
+        return Response.json({
+          Status: 0,
+          AD: false,
+          Answer: [
+            { name: 'cname-unsigned.example.com.', type: 5, TTL: 300, data: 'cdn.unsigned-target.com.' },
+            { name: 'cname-unsigned.example.com.', type: 46, TTL: 300, data: 'CNAME 13 3 300 1792997346 1792817346 2371 example.com. sig' },
+            { name: 'cdn.unsigned-target.com.', type: 1, TTL: 300, data: '192.0.2.20' }
+          ]
+        });
+      }
+
+      if (name === 'cdn.unsigned-target.com' && type === 'SOA') {
+        return Response.json({
+          Status: 0,
+          AD: false,
+          Answer: [{ name: 'unsigned-target.com.', type: 6, TTL: 300, data: 'ns1.unsigned-target.com. hostmaster.unsigned-target.com. 1 7200 3600 1209600 3600' }]
+        });
+      }
+
+      if (name === 'legacy.example.com') {
+        if (type === 'DS') {
+          return Response.json({
+            Status: 0,
+            AD: true,
+            Answer: [{ name: 'legacy.example.com.', type: 43, TTL: 3600, data: '1234 5 1 ABCD' }]
+          });
+        }
+        if (type === 'DNSKEY') {
+          return Response.json({
+            Status: 0,
+            AD: true,
+            Answer: [
+              { name: 'legacy.example.com.', type: 48, TTL: 3600, data: '257 3 5 base64key' },
+              { name: 'legacy.example.com.', type: 46, TTL: 3600, data: 'DNSKEY 5 3 3600 ' + (now + 2 * 86400) + ' ' + (now - 3600) + ' 1234 legacy.example.com. sig' }
+            ]
+          });
+        }
+        return Response.json({
+          Status: 0,
+          AD: true,
+          Answer: [
+            { name: 'legacy.example.com.', type: 1, TTL: 300, data: '192.0.2.11' },
+            { name: 'legacy.example.com.', type: 46, TTL: 300, data: 'A 5 3 300 ' + (now + 2 * 86400) + ' ' + (now - 3600) + ' 1234 legacy.example.com. sig' }
+          ]
+        });
+      }
+
+      if (name === 'no-ad.example.com' && type === 'SOA') {
+        return Response.json({
+          Status: 0,
+          AD: false,
+          Answer: [{ name: 'example.com.', type: 6, TTL: 300, data: 'ns1.example.com. hostmaster.example.com. 1 7200 3600 1209600 3600' }]
+        });
+      }
+
+      if (name === 'no-ad.example.com') {
+        return Response.json({
+          Status: 0,
+          AD: false,
+          Answer: [
+            { name: 'no-ad.example.com.', type: 1, TTL: 300, data: '192.0.2.13' },
+            { name: 'no-ad.example.com.', type: 46, TTL: 300, data: 'A 13 3 300 1792997346 1792817346 2371 example.com. sig' }
+          ]
+        });
       }
 
       if (name === 'signed.example.com') {
@@ -380,15 +470,41 @@ test('worker classifies Secure, Insecure, Bogus and Indeterminate DNSSEC states'
   assert.equal(broken.data.zones[0].name, 'broken.example.com');
   assert.equal(broken.data.zones[0].dnskey.length, 0);
 
+  const noAd = await run({ type: 'dnssec', host: 'no-ad.example.com', recordType: 'A' });
+  assert.equal(noAd.data.status, 'indeterminate');
+  assert.match(noAd.data.detail, /did not set the AD bit/);
+
+  const cdBogus = await run({ type: 'dnssec', host: 'cd-success.example.com', recordType: 'A' });
+  assert.equal(cdBogus.data.status, 'bogus');
+  assert.match(cdBogus.data.detail, /CD bit succeeded/);
+  assert.ok(global.__dohQueries.some(q =>
+    q.name === 'cd-success.example.com' && q.type === 'A' && q.cd === true
+  ));
+
   const servfail = await run({ type: 'dnssec', host: 'servfail.example.com', recordType: 'A' });
-  assert.equal(servfail.data.status, 'bogus');
-  assert.match(servfail.data.detail, /SERVFAIL/);
+  assert.equal(servfail.data.status, 'indeterminate');
+  assert.match(servfail.data.detail, /SERVFAIL both with and without the CD bit/);
+  assert.ok(global.__dohQueries.some(q =>
+    q.name === 'servfail.example.com' && q.type === 'A' && q.cd === true
+  ));
+
+  const cnameInsecure = await run({ type: 'dnssec', host: 'cname-unsigned.example.com', recordType: 'A' });
+  assert.equal(cnameInsecure.data.status, 'insecure');
+  assert.equal(cnameInsecure.data.ad, false);
+  assert.match(cnameInsecure.data.detail, /CNAME chain crosses unsigned-target\.com/);
+
+  const legacy = await run({ type: 'dnssec', host: 'legacy.example.com', recordType: 'A' });
+  assert.equal(legacy.data.status, 'secure');
+  assert.ok(legacy.data.warnings.some(w => w.code === 'rrsig-expiry' && w.level === 'warning'));
+  assert.ok(legacy.data.warnings.some(w => w.code === 'deprecated-algorithm'));
+  assert.ok(legacy.data.warnings.some(w => w.code === 'ds-sha1'));
 
   const indeterminate = await run({ type: 'dnssec', host: 'indeterminate.example.com', recordType: 'A' });
   assert.equal(indeterminate.response.status, 200);
   assert.equal(indeterminate.data.status, 'indeterminate');
   assert.equal(indeterminate.data.ad, null);
   assert.match(indeterminate.data.detail, /unavailable/);
+  assert.ok(global.__dohQueries.every(q => q.resolver !== 'dns.adguard-dns.com'));
 });
 
 test('worker composes the email check from MX, SPF, DMARC and DKIM', async (t) => {

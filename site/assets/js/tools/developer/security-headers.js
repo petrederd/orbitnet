@@ -160,23 +160,6 @@ function nginxSnippet(map) {
   }).join('\n') + '\n';
 }
 
-async function copyText(text) {
-  try {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(text);
-    } else {
-      const area = document.createElement('textarea');
-      area.value = text;
-      document.body.appendChild(area);
-      area.select();
-      document.execCommand('copy');
-      document.body.removeChild(area);
-    }
-  } catch (error) {
-    // Clipboard access is optional.
-  }
-}
-
 function copyCodeBlock() {
   const index = Number(this.dataset.codeIndex);
   const block = document.querySelectorAll('.code-block')[index];

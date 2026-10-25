@@ -247,6 +247,11 @@ test('normalizes DNSSEC status, zones and records', () => {
     }],
     answer: [{ name: 'example.com', type: 'A', ttl: 300, data: '192.0.2.1' }],
     rrsig: [{ name: 'example.com', typeCovered: 'A', algorithm: 13, keyTag: 2371, signer: 'example.com' }],
+    warnings: [
+      { level: 'warning', code: 'rrsig-expiry', message: 'The RRSIG expires in 2 days.' },
+      { level: 'bogus', code: 'unexpected', message: 'Unknown level is downgraded to info.' },
+      { level: 'info', code: 'empty', message: '' }
+    ],
     detail: 'The resolver set AD.',
     resolver: 'Cloudflare 1.1.1.1',
     source: 'Cloudflare Worker'
@@ -260,6 +265,7 @@ test('normalizes DNSSEC status, zones and records', () => {
   assert.equal(result.zones[0].rrsig[0].typeCovered, 'DNSKEY');
   assert.equal(result.answer[0].type, 'A');
   assert.equal(result.rrsig[0].signer, 'example.com');
+  assert.deepEqual(result.warnings.map(item => item.level), ['warning', 'info']);
   assert.equal(result.source, 'worker');
 
   const unknown = checker.normalizeDnssecResponse({
@@ -648,6 +654,7 @@ test('DNSSEC API always calls the worker, caches results and validates the type'
       zones: [{ name: 'example.com', ds: [], dnskey: [], rrsig: [], dsOk: true, dnskeyOk: true }],
       answer: [],
       rrsig: [],
+      warnings: [{ level: 'warning', code: 'ds-sha1', message: 'All DS records use SHA-1.' }],
       detail: 'No DS record.',
       resolver: 'Cloudflare 1.1.1.1',
       source: 'Cloudflare Worker'
@@ -670,6 +677,7 @@ test('DNSSEC API always calls the worker, caches results and validates the type'
   assert.equal(firstResponse.status, 200);
   assert.equal(first.status, 'insecure');
   assert.equal(first.source, 'worker');
+  assert.equal(first.warnings[0].code, 'ds-sha1');
   assert.equal(second.status, 'insecure');
   assert.equal(calls, 1);
 

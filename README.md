@@ -32,7 +32,7 @@ OrbitNet — открытый набор небольших инструмент
 | IP Lookup | Публичный IP, reverse DNS, геолокация и провайдер |
 | IP & Domain Info | DNS, PTR, whois, геолокация и ASN |
 | DNS Lookup | Записи A, AAAA, MX, TXT, NS, CNAME, SOA, CAA |
-| DNSSEC Checker | DS, DNSKEY и RRSIG, бит AD и состояния Secure / Insecure / Bogus / Indeterminate |
+| DNSSEC Checker | DS, DNSKEY и RRSIG, бит AD, состояния Secure / Insecure / Bogus / Indeterminate и предупреждения о сроках и устаревших алгоритмах |
 | Reverse IP Lookup | PTR-запись для IP-адреса |
 | Port Checker | Проверка TCP-порта на доступность |
 | Site Info | HTTP-статус, сервер, заголовок и время ответа |
@@ -265,7 +265,7 @@ DNS-over-HTTPS резолверам Cloudflare, Google и AdGuard; для HTTP �
 | `GET /api/ip` | IP клиента, версия, reverse DNS, геолокация, ASN |
 | `GET /api/geo?ip=` / `?host=` | Геолокация и провайдер; для домена при сбое локального DNS — fallback в Worker |
 | `GET /api/dns?host=&type=` | DNS-записи; при сетевой ошибке — fallback в Worker (`source`) |
-| `GET /api/dnssec?host=&type=` | DNSSEC-проверка через Worker: DS, DNSKEY, RRSIG, бит AD; состояние `secure`, `insecure`, `bogus` или `indeterminate`; поддерживаются A, AAAA, CNAME, MX, TXT, NS, SOA, CAA |
+| `GET /api/dnssec?host=&type=` | DNSSEC-проверка через Worker: DS, DNSKEY, RRSIG, бит AD; состояние `secure`, `insecure`, `bogus` или `indeterminate`; предупреждения о сроке подписи и устаревших алгоритмах; поддерживаются A, AAAA, CNAME, MX, TXT, NS, SOA, CAA |
 | `GET /api/captcha` | Одноразовая числовая капча (нужна для каждой третьей проверки порта) |
 | `POST /api/port` | Проверка TCP-порта; `host`, `port`, `captcha`, `answer` передаются в JSON-теле (не более 3 проверок в минуту с одного IP) |
 | `GET /api/whois?host=` | whois для домена или IP |
@@ -306,7 +306,7 @@ Spam Blacklist Check (`/api/spam`) опрашивает публичные DNSBL
 - deep-режим `/api/tls` делает отдельный handshake на каждую версию и шифр, поэтому дополнительно ограничен 8 запросами в минуту с одного IP; устаревшие версии и шифры, которые не умеет предлагать собственный OpenSSL бэкенда, помечаются как `unknown`, а не как отклонённые;
 - при локальном `Cannot resolve` или сетевой ошибке `/api/tls` получает A/AAAA из Worker (со всех DoH-резолверов) и пробует несколько адресов параллельно, чтобы обойти блокировку части anycast-адресов; `/api/geo` получает A/AAAA из Worker при `Cannot resolve`; подключаются только адреса, прошедшие локальную проверку публичности;
 - `/api/dns` и `/api/propagation` возвращают HTTP 400 на неподдерживаемый тип записи вместо молчаливой подмены на A;
-- `/api/dnssec` всегда использует Worker (локальный Unbound занят DNSBL) и возвращает HTTP 400 на неподдерживаемый тип записи;
+- `/api/dnssec` всегда использует Worker (локальный Unbound занят DNSBL), проверяет только через Cloudflare/Google, повторяет SERVFAIL с `CD=1` и возвращает HTTP 400 на неподдерживаемый тип записи;
 - `/api/anonymity/ports` дополнительно разрешает проверку только того IP, с которого пришёл запрос; сканировать произвольные адреса через него нельзя;
 - действуют таймауты и rate limiting; у исходящих HTTP-запросов есть общий дедлайн и лимит размера тела, после которого сокет закрывается, — слоу-сервер не может удерживать слот лимитера;
 - каждая третья проверка `/api/port` требует одноразовую капчу: ответ хранится только на сервере, привязан к IP, живёт 5 минут и не может быть использован повторно;

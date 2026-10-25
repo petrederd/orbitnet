@@ -56,9 +56,9 @@ function generate() {
 function copyOut(btn) {
   const text = document.getElementById('out').textContent;
   if (!text) return;
-  navigator.clipboard.writeText(text).then(() => {
+  copyText(text).then(copied => {
     const old = btn.textContent;
-    btn.textContent = 'Copied';
+    btn.textContent = copied ? 'Copied' : 'Copy failed';
     setTimeout(() => { btn.textContent = old; }, 1200);
   });
 }

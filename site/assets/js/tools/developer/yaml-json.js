@@ -74,22 +74,14 @@ function loadYamlExample() {
   convertYamlToJson();
 }
 
-async function copyText(id) {
+async function copyField(id) {
   const el = document.getElementById(id);
   el.select();
-  try {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(el.value);
-    } else {
-      document.execCommand('copy');
-    }
-    setStatus('Copied to clipboard.');
-  } catch (error) {
-    setStatus('Copy failed; select the text manually.');
-  }
+  const copied = await copyText(el.value);
+  setStatus(copied ? 'Copied to clipboard.' : 'Copy failed; select the text manually.');
 }
-function copyJson() { copyText('jsonInput'); }
-function copyYaml() { copyText('yamlInput'); }
+function copyJson() { copyField('jsonInput'); }
+function copyYaml() { copyField('yamlInput'); }
 
 function clearAll() {
   document.getElementById('yamlInput').value = '';

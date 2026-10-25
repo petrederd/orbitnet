@@ -111,10 +111,8 @@ function copyPlain() {
     return;
   }
   
-  navigator.clipboard.writeText(text).then(() => {
-    showStatus('plainStatus', 'success', 'Plain text copied to clipboard!');
-  }).catch(() => {
-    showStatus('plainStatus', 'error', 'Failed to copy to clipboard');
+  copyText(text).then(copied => {
+    showStatus('plainStatus', copied ? 'success' : 'error', copied ? 'Plain text copied to clipboard!' : 'Failed to copy to clipboard');
   });
 }
 
@@ -126,10 +124,8 @@ function copyBase64() {
     return;
   }
   
-  navigator.clipboard.writeText(text).then(() => {
-    showStatus('base64Status', 'success', 'Base64 copied to clipboard!');
-  }).catch(() => {
-    showStatus('base64Status', 'error', 'Failed to copy to clipboard');
+  copyText(text).then(copied => {
+    showStatus('base64Status', copied ? 'success' : 'error', copied ? 'Base64 copied to clipboard!' : 'Failed to copy to clipboard');
   });
 }
 

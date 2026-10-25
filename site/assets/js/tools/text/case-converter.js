@@ -90,7 +90,7 @@ function updateStats(input, out) {
 function copyOutput(btn) {
   const out = document.getElementById('output');
   if (!out.value) return;
-  navigator.clipboard.writeText(out.value).then(() => flash(btn, 'Copied'));
+  copyText(out.value).then(copied => flash(btn, copied ? 'Copied' : 'Copy failed'));
 }
 
 function useOutput() {

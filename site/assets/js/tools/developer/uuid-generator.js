@@ -44,14 +44,16 @@ function copySingle() {
     return;
   }
   
-  navigator.clipboard.writeText(uuid).then(() => {
+  copyText(uuid).then(copied => {
+    if (!copied) {
+      alert('Failed to copy. Please select and copy manually.');
+      return;
+    }
     document.getElementById('singleStatus').innerHTML = 
       '<div class="status-box success"> UUID copied to clipboard!</div>';
     setTimeout(() => {
       document.getElementById('singleStatus').innerHTML = '';
     }, 3000);
-  }).catch(() => {
-    alert('Failed to copy. Please select and copy manually.');
   });
 }
 
@@ -87,8 +89,8 @@ function displayBulkUUIDs() {
 
 function copyUUID(index, btn) {
   const uuid = currentUUIDs[index];
-  navigator.clipboard.writeText(uuid).then(() => {
-    btn.textContent = ' Copied!';
+  copyText(uuid).then(copied => {
+    btn.textContent = copied ? ' Copied!' : ' Copy failed';
     setTimeout(() => {
       btn.textContent = 'Copy';
     }, 2000);
@@ -103,14 +105,16 @@ function copyAll() {
   }
   
   const text = currentUUIDs.join('\n');
-  navigator.clipboard.writeText(text).then(() => {
+  copyText(text).then(copied => {
+    if (!copied) {
+      alert('Failed to copy. Please select and copy manually.');
+      return;
+    }
     document.getElementById('bulkStatus').innerHTML = 
       '<div class="status-box success"> All UUIDs copied to clipboard!</div>';
     setTimeout(() => {
       document.getElementById('bulkStatus').innerHTML = '';
     }, 3000);
-  }).catch(() => {
-    alert('Failed to copy. Please select and copy manually.');
   });
 }
 
