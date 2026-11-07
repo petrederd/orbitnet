@@ -386,10 +386,11 @@ IP клиента берётся из `X-Real-IP`, который выставл
 
 ## SEO и индексация
 
-- `site/sitemap.xml` содержит главную, `about.html`, `privacy.html` и все 56 инструментов.
+- `site/sitemap.xml` содержит главную, `about.html`, `privacy.html`, пять страниц категорий и все 56 инструментов.
 - `site/robots.txt` разрешает индексацию и указывает на sitemap.
 - У всех страниц есть canonical и Open Graph.
 - У инструментов есть JSON-LD `SoftwareApplication`; на главной — `WebSite`, `SearchAction` (`/?q=`) и `FAQPage`.
+- У категорий есть отдельные индексируемые страницы `/networks/`, `/developer/`, `/math/`, `/text/`, `/electricity/` с `CollectionPage`, `BreadcrumbList` и `ItemList`.
 - Общее превью — `site/assets/og-image.png` (1200×630).
 
 При добавлении страницы:

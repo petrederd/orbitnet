@@ -400,7 +400,9 @@ orbitnet.ru {
 - Twitter Card;
 - общий `site/sitemap.xml`, включённый в `robots.txt`.
 
-При добавлении страницы обновите `sitemap.xml` и используйте блок метатегов из `site/tools/_template.html`.
+Пять категорий также имеют собственные индексируемые страницы: `/networks/`,
+`/developer/`, `/math/`, `/text/` и `/electricity/`. При добавлении страницы
+обновите `sitemap.xml` и используйте блок метатегов из `site/tools/_template.html`.
 
 ## Разработка
 

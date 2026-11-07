@@ -66,6 +66,7 @@ button { cursor: pointer; }
 .page-head { padding: 34px 0 8px; }
 .page-head h1 { font-size: 1.9rem; margin: 8px 0; line-height: 1.2; }
 .page-head p { color: var(--muted); margin: 0; max-width: 680px; }
+.page-head .tagline strong { color: var(--accent); }
 
 /* Your IP widget */
 .ip-card {
@@ -123,6 +124,9 @@ button { cursor: pointer; }
 section#tools { margin-top: 34px; }
 .section-head h2 { font-size: 1.4rem; margin: 0 0 6px; }
 .section-head p { color: var(--muted); margin: 0 0 16px; max-width: 640px; }
+.category-links { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0 0 16px; font-size: .88rem; }
+.category-links a { color: var(--accent); text-decoration: none; }
+.category-links a:hover { text-decoration: underline; }
 
 .layout { display: grid; grid-template-columns: 220px 1fr; gap: 20px; align-items: start; }
 

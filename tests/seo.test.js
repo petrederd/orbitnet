@@ -26,7 +26,9 @@ function pages() {
 
 function urlFor(file) {
   const rel = path.relative(SITE, file).split(path.sep).join('/');
-  return rel === 'index.html' ? BASE + '/' : BASE + '/' + rel;
+  if (rel === 'index.html') return BASE + '/';
+  if (rel.endsWith('/index.html')) return BASE + '/' + rel.slice(0, -'index.html'.length);
+  return BASE + '/' + rel;
 }
 
 function attr(html, pattern) {
