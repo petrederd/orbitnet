@@ -124,9 +124,29 @@ button { cursor: pointer; }
 section#tools { margin-top: 34px; }
 .section-head h2 { font-size: 1.4rem; margin: 0 0 6px; }
 .section-head p { color: var(--muted); margin: 0 0 16px; max-width: 640px; }
-.category-links { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0 0 16px; font-size: .88rem; }
-.category-links a { color: var(--accent); text-decoration: none; }
-.category-links a:hover { text-decoration: underline; }
+.category-links { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px; }
+.category-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink);
+  text-decoration: none;
+  font-size: .85rem;
+  transition: border-color .2s ease, background-color .2s ease, color .2s ease;
+}
+.category-links a:hover,
+.category-links a:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--accent);
+  outline: none;
+}
+.category-links a:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+.category-links .filter-icon { font-size: .9rem; line-height: 1; }
 
 .layout { display: grid; grid-template-columns: 220px 1fr; gap: 20px; align-items: start; }
 
