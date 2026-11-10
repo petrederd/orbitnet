@@ -267,15 +267,16 @@ function isPublicIp(ip) {
   return false;
 }
 
-// IPv6 clients are normally delegated a whole /64. Keying limits by the exact
+// IPv6 clients usually control at least a /48. Keying limits by the exact
 // address lets one host rotate through millions of addresses and escape every
-// per-client bucket, so IPv6 is bucketed by its /64 prefix instead.
+// per-client bucket, while a /64 key still lets a single /48 fill tens of
+// thousands of buckets and evict active clients. Bucket IPv6 by /48 instead.
 function rateLimitKey(input) {
   const ip = normalizeIp(input);
   if (net.isIPv6(ip)) {
     const groups = parseIpv6Groups(ip);
     if (groups && groups.length === 8) {
-      return groups.slice(0, 4).map(group => group.toString(16)).join(':') + '::/64';
+      return groups.slice(0, 3).map(group => group.toString(16)).join(':') + '::/48';
     }
   }
   return ip || 'unknown';
@@ -453,8 +454,10 @@ async function resolvePublic(host) {
   }
   for (const ip of ips) {
     if (!isPublicIp(ip)) {
+      // Use the same message as an unresolved name so a caller cannot use this
+      // endpoint to distinguish an existing internal service from a missing one.
       throw Object.assign(
-        httpError(400, 'Blocked: ' + host + ' resolves to a non-public address'),
+        httpError(400, 'Cannot resolve ' + host),
         { blocked: true }
       );
     }
@@ -873,13 +876,16 @@ const rateHits = new Map();
 const portHits = new Map();
 const tlsDeepHits = new Map();
 const securityHits = new Map();
-// Expensive checks are also limited per target host, so one popular or
-// attacker-controlled target cannot consume the shared outbound pool.
+// Expensive checks are limited per client and target, plus a much higher
+// process-wide target quota. A single client therefore cannot keep a popular
+// host in 429 for everyone else.
 const targetHits = new Map();
+const clientTargetHits = new Map();
 const PORT_RATE_MAX = 3;
 const TLS_DEEP_RATE_MAX = 8;
 const SECURITY_RATE_MAX = 10;
 const TARGET_RATE_MAX = positiveIntEnv('TARGET_RATE_MAX', 30);
+const TARGET_GLOBAL_RATE_MAX = positiveIntEnv('TARGET_GLOBAL_RATE_MAX', 300);
 // Only paths that actually run an expensive check on a target consume the
 // per-target quota. Other limited endpoints must not be able to poison the
 // bucket for a host they do not touch.
@@ -890,34 +896,49 @@ const TARGET_RATE_PATHS = new Set([
 ]);
 // A single client may only hold a few outbound-heavy requests at once. Without
 // this, a handful of clients could occupy every outbound slot with slow
-// (tarpitted) targets and return 503 to everyone else.
-const CLIENT_CONCURRENT_MAX = positiveIntEnv('CLIENT_CONCURRENT_MAX', 4);
+// (tarpitted) targets and return 503 to everyone else. The default leaves room
+// for tools that fan out several checks in parallel.
+const CLIENT_CONCURRENT_MAX = positiveIntEnv('CLIENT_CONCURRENT_MAX', 8);
 const clientInFlight = new Map();
 let lastRatePrune = Date.now();
 function isRateLimited(ip, store = rateHits, max = RATE_MAX) {
   const now = Date.now();
   if (now - lastRatePrune > RATE_WINDOW_MS) {
-    for (const map of [rateHits, portHits, tlsDeepHits, securityHits, spamHits, targetHits]) {
+    for (const map of [
+      rateHits, portHits, tlsDeepHits, securityHits, spamHits,
+      targetHits, clientTargetHits
+    ]) {
       for (const [key, rec] of map) {
         if (now - rec.start > RATE_WINDOW_MS) map.delete(key);
       }
     }
     lastRatePrune = now;
   }
-  if (store.size >= RATE_MAX_ENTRIES) {
-    for (const [key, rec] of store) {
-      if (now - rec.start > RATE_WINDOW_MS) store.delete(key);
-    }
-  }
   const rec = rateRecord(store, rateLimitKey(ip), now);
   rec.count++;
   return rec.count > max;
 }
 
-function isTargetRateLimited(target) {
+function isTargetRateLimited(target, clientIp) {
   const key = String(target || '').trim().toLowerCase().replace(/\.$/, '');
   if (!key) return false;
-  return isRateLimited(key, targetHits, TARGET_RATE_MAX);
+  const clientKey = rateLimitKey(clientIp || 'unknown') + '|' + rateLimitKey(key);
+  const clientLimited = isRateLimited(clientKey, clientTargetHits, TARGET_RATE_MAX);
+  const globalLimited = isRateLimited(key, targetHits, TARGET_GLOBAL_RATE_MAX);
+  return clientLimited || globalLimited;
+}
+
+function targetForRequest(path, query) {
+  if (path === '/api/spam') {
+    const parsed = parseSpamTarget(query.get('target') || '');
+    return parsed ? (parsed.ip || parsed.host || '') : '';
+  }
+  if (path === '/api/anonymity/ports') return query.get('ip') || '';
+  if (path === '/api/geo') {
+    const literal = normalizeIp(query.get('ip') || '');
+    return net.isIP(literal) ? literal : (query.get('host') || '');
+  }
+  return query.get('host') || '';
 }
 
 function acquireClientSlot(ip) {
@@ -4167,8 +4188,8 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (TARGET_RATE_PATHS.has(path)) {
-      const target = query.get('host') || query.get('target') || query.get('ip') || '';
-      if (target && isTargetRateLimited(target)) {
+      const target = targetForRequest(path, query);
+      if (target && isTargetRateLimited(target, ip)) {
         return send(res, 429, { error: 'Too many checks for this target, wait a minute' });
       }
     }
@@ -4182,7 +4203,9 @@ const server = http.createServer(async (req, res) => {
       const hostParam = (query.get('host') || '').trim();
       let target = ipParam;
       if (!net.isIP(target)) {
-        if (!isValidHost(hostParam)) return bad(res, 'Provide a valid IP address or hostname');
+        if (!isPublicHostname(hostParam)) {
+          return bad(res, 'Provide a valid public IP address or hostname');
+        }
         const resolved = await resolvePublicWithWorker(hostParam, externalContext);
         target = pickAddress(resolved.ips);
       }
@@ -4284,7 +4307,11 @@ const server = http.createServer(async (req, res) => {
         source = 'worker';
       }
       if (type === 'A' || type === 'AAAA') {
-        records = (Array.isArray(records) ? records : []).filter(ip => isPublicIp(ip));
+        const original = Array.isArray(records) ? records : [];
+        records = original.filter(ip => isPublicIp(ip));
+        // A name that only has private answers must look the same as a missing
+        // name, otherwise the response confirms that an internal service exists.
+        if (original.length && !records.length) nxdomain = true;
       }
       const response = { host, type, records, source };
       if (nxdomain) response.nxdomain = true;
@@ -4315,9 +4342,11 @@ const server = http.createServer(async (req, res) => {
       const captchaAnswer = String(body.answer || '');
       if (!/^\d{1,5}$/.test(portStr)) return bad(res, 'Port must be 1-65535');
       const port = parseInt(portStr, 10);
-      if (!isValidHost(host) && !net.isIP(normalizeIp(host))) return bad(res, 'Invalid hostname');
+      if (!isPublicHostname(host) && !net.isIP(normalizeIp(host))) {
+        return bad(res, 'Provide a public fully-qualified hostname or IP address');
+      }
       if (port < 1 || port > 65535) return bad(res, 'Port must be 1-65535');
-      if (isTargetRateLimited(host)) {
+      if (isTargetRateLimited(host, ip)) {
         return send(res, 429, { error: 'Too many checks for this target, wait a minute' });
       }
 
@@ -4353,7 +4382,9 @@ const server = http.createServer(async (req, res) => {
 
     if (path === '/api/whois') {
       const host = query.get('host') || '';
-      if (!isValidHost(host)) return bad(res, 'Invalid hostname');
+      if (!isPublicHostname(host)) {
+        return bad(res, 'Provide a public fully-qualified hostname');
+      }
       const cacheKey = host.toLowerCase().replace(/\.$/, '');
       const cached = whoisCacheGet(cacheKey);
       if (cached !== null) {
@@ -4369,21 +4400,27 @@ const server = http.createServer(async (req, res) => {
 
     if (path === '/api/site') {
       const host = query.get('host') || '';
-      if (!isValidHost(host)) return bad(res, 'Invalid hostname');
+      if (!isPublicHostname(host)) {
+        return bad(res, 'Provide a public fully-qualified hostname');
+      }
       const result = await siteInfo(host, externalContext);
       return send(res, 200, result);
     }
 
     if (path === '/api/headers') {
       const host = query.get('host') || '';
-      if (!isValidHost(host)) return bad(res, 'Invalid hostname');
+      if (!isPublicHostname(host)) {
+        return bad(res, 'Provide a public fully-qualified hostname');
+      }
       return send(res, 200, await headersInfo(host, externalContext));
     }
 
     if (path === '/api/tls') {
       const host = query.get('host') || '';
       const portStr = query.get('port') || '443';
-      if (!isValidHost(host)) return bad(res, 'Invalid hostname');
+      if (!isPublicHostname(host)) {
+        return bad(res, 'Provide a public fully-qualified hostname');
+      }
       if (!/^\d{1,5}$/.test(portStr)) return bad(res, 'Port must be 1-65535');
       const port = parseInt(portStr, 10);
       if (!TLS_PORTS.has(port)) {
@@ -4412,7 +4449,9 @@ const server = http.createServer(async (req, res) => {
       const host = query.get('host') || '';
       const type = parseType(query.get('type'), PROPAGATION_TYPES);
       if (!type) return bad(res, 'Unsupported record type');
-      if (!isValidHost(host)) return bad(res, 'Invalid hostname');
+      if (!isPublicHostname(host)) {
+        return bad(res, 'Provide a public fully-qualified hostname');
+      }
       let resolvers = await propagation(host, type);
       let source = 'local';
       const allFailed = resolvers.length && resolvers.every(r => r.error);
@@ -4442,13 +4481,17 @@ const server = http.createServer(async (req, res) => {
 
     if (path === '/api/redirect') {
       const host = query.get('host') || '';
-      if (!isValidHost(host)) return bad(res, 'Invalid hostname');
+      if (!isPublicHostname(host)) {
+        return bad(res, 'Provide a public fully-qualified hostname');
+      }
       return send(res, 200, await redirectChain(host, externalContext));
     }
 
     if (path === '/api/security') {
       const host = query.get('host') || '';
-      if (!isValidHost(host)) return bad(res, 'Invalid hostname');
+      if (!isPublicHostname(host)) {
+        return bad(res, 'Provide a public fully-qualified hostname');
+      }
       if (isRateLimited(ip, securityHits, SECURITY_RATE_MAX)) {
         return send(res, 429, { error: 'Too many security audits, wait a minute' });
       }
@@ -4506,7 +4549,8 @@ module.exports = {
   normalizeIp, isPublicIp, clientIp, server, siteInfo, tlsInfo, headersInfo, emailInfo,
   resolvePublicWithWorker,
   rateLimitKey, isRateLimited, RATE_MAX_ENTRIES,
-  isTargetRateLimited, targetHits, TARGET_RATE_MAX,
+  isTargetRateLimited, targetForRequest, targetHits, clientTargetHits,
+  TARGET_RATE_MAX, TARGET_GLOBAL_RATE_MAX,
   acquireClientSlot, releaseClientSlot, CLIENT_CONCURRENT_MAX,
   createCaptcha, captchas, captchaIdsByKey, CAPTCHA_PER_KEY_MAX,
   decodeHtml, propagation, redirectChain, anonymityInfo, anonymityPorts, torStatus,

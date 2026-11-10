@@ -171,9 +171,10 @@ orbitnet/
 ├── cloudflare-ips.conf            # Диапазоны Cloudflare (автообновление)
 ├── deploy/
 │   ├── Caddyfile.example          # trusted_proxies + перезапись CF-Connecting-IP
+│   ├── cloudflare-trusted-proxies.caddy # Диапазоны Cloudflare для Caddy (автообновление)
 │   └── unbound.conf               # Рекурсивный резолвер для DNSBL (без forward-zone)
 ├── scripts/
-│   └── update-cloudflare-ips.sh   # Обновление cloudflare-ips.conf
+│   └── update-cloudflare-ips.sh   # Обновление cloudflare-ips.conf и Caddy-сниппета
 ├── docker-compose.yml             # site + api + geoip-updater (profile)
 ├── .env.example                   # Шаблон ключей MaxMind и Worker
 ├── .gitignore
@@ -375,7 +376,7 @@ IP клиента берётся из `X-Real-IP`, который выставл
 2. устанавливает Chromium (`npx playwright install --with-deps chromium`);
 3. запускает тесты с `REQUIRE_BROWSER_TESTS=1`;
 4. подключается к серверу по SSH;
-5. обновляет `cloudflare-ips.conf` (при наличии сети);
+5. обновляет `cloudflare-ips.conf` и `deploy/cloudflare-trusted-proxies.caddy` (при наличии сети);
 6. делает `git pull --ff-only`;
 7. пересобирает контейнеры и ждёт готовности сайта до live-проверки;
 8. запускает `geoip-updater`, если в `.env` есть ключи MaxMind.

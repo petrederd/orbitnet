@@ -5,7 +5,8 @@ const assert = require('node:assert/strict');
 const http = require('node:http');
 const {
   server, isRateLimited, rateLimitKey, RATE_MAX_ENTRIES,
-  isTargetRateLimited, targetHits, TARGET_RATE_MAX,
+  isTargetRateLimited, targetForRequest, targetHits, clientTargetHits,
+  TARGET_RATE_MAX, TARGET_GLOBAL_RATE_MAX,
   acquireClientSlot, releaseClientSlot, CLIENT_CONCURRENT_MAX,
   createCaptcha, captchas, captchaIdsByKey, CAPTCHA_PER_KEY_MAX
 } = require('../backend/server');
@@ -51,12 +52,37 @@ test('DNS and email endpoints reject single-label and private targets', async ()
   }
 });
 
-test('IPv6 rate limiting is shared by the whole /64 instead of per address', async () => {
+test('DNS hides whether a private-only name exists', async () => {
+  const dns = require('node:dns').promises;
+  const originalResolve = dns.resolve;
+  const port = await listen();
+  try {
+    dns.resolve = async (host, type) => {
+      if (host === 'private.orbitnet-test.example') return ['10.0.0.5'];
+      const error = new Error('not found');
+      error.code = 'ENOTFOUND';
+      throw error;
+    };
+    const clientIp = '93.184.216.35';
+    const privateOnly = await get(port, '/api/dns?host=private.orbitnet-test.example&type=A', clientIp);
+    const missing = await get(port, '/api/dns?host=missing.orbitnet-test.example&type=A', clientIp);
+
+    assert.equal(privateOnly.status, 200);
+    assert.deepEqual(privateOnly.body.records, []);
+    assert.equal(privateOnly.body.nxdomain, true);
+    assert.equal(missing.body.nxdomain, true);
+  } finally {
+    dns.resolve = originalResolve;
+    await close();
+  }
+});
+
+test('IPv6 rate limiting is shared by the whole /48 instead of per /64', async () => {
   const port = await listen();
   try {
     const first = '2a01:4f8:1:2::1';
-    const sameSubnet = '2a01:4f8:1:2::abcd';
-    const otherSubnet = '2a01:4f8:1:3::1';
+    const sameSubnet = '2a01:4f8:1:3::abcd';
+    const otherSubnet = '2a01:4f8:2:1::1';
 
     for (let i = 0; i < 60; i++) {
       const response = await get(port, '/api/dns', first);
@@ -89,14 +115,24 @@ test('a full rate-limit table evicts the oldest client instead of rejecting new 
 
 test('per-target checks and per-client concurrency are bounded', () => {
   targetHits.clear();
+  clientTargetHits.clear();
   try {
+    const clientA = '203.0.113.10';
+    const clientB = '203.0.113.11';
     for (let i = 0; i < TARGET_RATE_MAX; i++) {
-      assert.equal(isTargetRateLimited('Example.COM.'), false);
+      assert.equal(isTargetRateLimited('Example.COM.', clientA), false);
     }
-    assert.equal(isTargetRateLimited('example.com'), true);
-    assert.equal(isTargetRateLimited('other.example.com'), false);
+    assert.equal(isTargetRateLimited('example.com', clientA), true);
+    assert.equal(isTargetRateLimited('example.com', clientB), false);
+    assert.equal(isTargetRateLimited('other.example.com', clientA), false);
+
+    for (let i = 0; i < TARGET_GLOBAL_RATE_MAX; i++) {
+      isTargetRateLimited('global.example', '2001:db8:' + i.toString(16) + '::1');
+    }
+    assert.equal(isTargetRateLimited('global.example', clientB), true);
   } finally {
     targetHits.clear();
+    clientTargetHits.clear();
   }
 
   const ip = '2a01:4f8:abcd:1::1';
@@ -109,7 +145,7 @@ test('per-target checks and per-client concurrency are bounded', () => {
     }
     assert.equal(acquireClientSlot(ip), null);
 
-    const other = acquireClientSlot('2a01:4f8:abcd:2::1');
+    const other = acquireClientSlot('2a01:4f8:abce:1::1');
     assert.ok(other);
     releaseClientSlot(other);
 
@@ -122,7 +158,17 @@ test('per-target checks and per-client concurrency are bounded', () => {
   }
 });
 
-test('captcha storage is capped per /64 so one prefix cannot evict every challenge', () => {
+test('target selection follows the endpoint instead of query parameter order', () => {
+  const query = values => new URLSearchParams(values);
+  assert.equal(targetForRequest('/api/spam', query({ target: 'user@example.com' })), 'example.com');
+  assert.equal(targetForRequest('/api/spam', query({ target: '203.0.113.9' })), '203.0.113.9');
+  assert.equal(targetForRequest('/api/geo', query({ host: 'example.com', ip: '203.0.113.9' })), '203.0.113.9');
+  assert.equal(targetForRequest('/api/geo', query({ host: 'example.com', ip: 'not-an-ip' })), 'example.com');
+  assert.equal(targetForRequest('/api/anonymity/ports', query({ host: 'example.com', ip: '203.0.113.9' })), '203.0.113.9');
+  assert.equal(targetForRequest('/api/site', query({ host: 'example.com', ip: '203.0.113.9' })), 'example.com');
+});
+
+test('captcha storage is capped per /48 so one prefix cannot evict every challenge', () => {
   captchas.clear();
   captchaIdsByKey.clear();
   try {

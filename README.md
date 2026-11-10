@@ -312,7 +312,7 @@ Spam Blacklist Check (`/api/spam`) опрашивает публичные DNSBL
 - каждая третья проверка `/api/port` требует одноразовую капчу: ответ хранится только на сервере, привязан к IP, живёт 5 минут и не может быть использован повторно;
 - `/api/port` принимает параметры только через POST и JSON-тело, поэтому ответ и идентификатор капчи не попадают в URL и access-логи.
 
-IP посетителя определяется по `X-Real-IP`, который выставляет nginx. В продакшене цепочка выглядит так: `Cloudflare → Caddy → nginx → API`. nginx доверяет `CF-Connecting-IP` только от диапазонов Cloudflare и локальных прокси. Список диапазонов Cloudflare вынесен в `cloudflare-ips.conf` и автоматически обновляется при деплое (`scripts/update-cloudflare-ips.sh`).
+IP посетителя определяется по `X-Real-IP`, который выставляет nginx. В продакшене цепочка выглядит так: `Cloudflare → Caddy → nginx → API`. nginx доверяет `CF-Connecting-IP` только от диапазонов Cloudflare и локальных прокси. Список диапазонов Cloudflare вынесен в `cloudflare-ips.conf`, а для Caddy генерируется `deploy/cloudflare-trusted-proxies.caddy`; оба файла обновляются при деплое одним скриптом `scripts/update-cloudflare-ips.sh`.
 
 Caddy обязан перезаписывать `CF-Connecting-IP` перед передачей в nginx: `header_up CF-Connecting-IP {client_ip}` внутри `reverse_proxy` (пример в `deploy/Caddyfile.example`). При включённых `trusted_proxies` и `trusted_proxies_strict` это адрес реального клиента Cloudflare для edge-соединений и адрес непосредственного пира при прямом заходе. Поэтому подставленный клиентом заголовок не доходит до nginx.
 

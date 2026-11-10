@@ -53,8 +53,9 @@ services:
       - TLS_DEEP_GLOBAL_MAX=${TLS_DEEP_GLOBAL_MAX:-2}
       # Per-client concurrency and per-target check quotas keep one client or
       # one slow target from occupying the shared outbound pool.
-      - CLIENT_CONCURRENT_MAX=${CLIENT_CONCURRENT_MAX:-4}
+      - CLIENT_CONCURRENT_MAX=${CLIENT_CONCURRENT_MAX:-8}
       - TARGET_RATE_MAX=${TARGET_RATE_MAX:-30}
+      - TARGET_GLOBAL_RATE_MAX=${TARGET_GLOBAL_RATE_MAX:-300}
       # WHOIS is cached and kept under a small registry-friendly global budget.
       - WHOIS_CACHE_TTL_MS=${WHOIS_CACHE_TTL_MS:-600000}
       - WHOIS_CACHE_MAX=${WHOIS_CACHE_MAX:-1000}

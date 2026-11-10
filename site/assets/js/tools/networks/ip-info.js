@@ -11,6 +11,21 @@ function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 function isIp(s) { return /^\d{1,3}(\.\d{1,3}){3}$/.test(s) || s.includes(':'); }
+function mapBatched(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  function worker() {
+    if (next >= items.length) return Promise.resolve();
+    const index = next++;
+    return Promise.resolve(fn(items[index])).then(value => {
+      results[index] = value;
+      return worker();
+    });
+  }
+  const workers = [];
+  for (let i = 0; i < Math.min(limit, items.length); i++) workers.push(worker());
+  return Promise.all(workers).then(() => results);
+}
 
 function box(label, value, small) {
   return '<div class="result-box"><div class="result-label">' + esc(label) + '</div>' +
@@ -98,12 +113,12 @@ function loadDns(q) {
     return;
   }
   const types = ['A', 'AAAA', 'MX', 'NS', 'TXT'];
-  Promise.all(types.map(t =>
+  mapBatched(types, 3, t =>
     fetch('/api/dns?host=' + encodeURIComponent(q) + '&type=' + t)
       .then(r => r.json())
       .then(d => ({ type: t, records: d.records || [], error: d.error, nxdomain: d.nxdomain, nodata: d.nodata }))
       .catch(() => ({ type: t, records: [], error: 'failed' }))
-  )).then(results => {
+  ).then(results => {
     let html = '<div class="grid-2">';
     results.forEach(res => {
       html += '<div class="result-box"><div class="result-label">' + res.type + '</div>';

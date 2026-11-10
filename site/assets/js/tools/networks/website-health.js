@@ -11,6 +11,21 @@ function showError(m) {
 }
 function clearError() { document.getElementById('errorMsg').innerHTML = ''; }
 function get(url) { return fetch(url).then(r => r.json()).catch(() => ({ error: 'request failed' })); }
+function mapBatched(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  function worker() {
+    if (next >= items.length) return Promise.resolve();
+    const index = next++;
+    return Promise.resolve(fn(items[index])).then(value => {
+      results[index] = value;
+      return worker();
+    });
+  }
+  const workers = [];
+  for (let i = 0; i < Math.min(limit, items.length); i++) workers.push(worker());
+  return Promise.all(workers).then(() => results);
+}
 function checkRow(state, label, detail) {
   const cls = state === 'ok' ? 'success' : (state === 'warn' ? 'info' : 'error');
   const icon = state === 'ok' ? 'OK' : (state === 'warn' ? '!' : 'X');
@@ -26,14 +41,16 @@ function run() {
   document.getElementById('checks').innerHTML = '<div class="loading">Running checks...</div>';
   document.getElementById('details').innerHTML = '<div class="loading">Loading...</div>';
 
-  Promise.all([
-    get('/api/dns?host=' + encodeURIComponent(host) + '&type=A'),
-    get('/api/dns?host=' + encodeURIComponent(host) + '&type=NS'),
-    get('/api/dns?host=' + encodeURIComponent(host) + '&type=MX'),
-    get('/api/site?host=' + encodeURIComponent(host)),
-    get('/api/tls?host=' + encodeURIComponent(host)),
-    get('/api/headers?host=' + encodeURIComponent(host))
-  ]).then(([a, ns, mx, site, tlsR, hdr]) => render(host, { a, ns, mx, site, tlsR, hdr }));
+  const urls = [
+    '/api/dns?host=' + encodeURIComponent(host) + '&type=A',
+    '/api/dns?host=' + encodeURIComponent(host) + '&type=NS',
+    '/api/dns?host=' + encodeURIComponent(host) + '&type=MX',
+    '/api/site?host=' + encodeURIComponent(host),
+    '/api/tls?host=' + encodeURIComponent(host),
+    '/api/headers?host=' + encodeURIComponent(host)
+  ];
+  mapBatched(urls, 3, get)
+    .then(([a, ns, mx, site, tlsR, hdr]) => render(host, { a, ns, mx, site, tlsR, hdr }));
 }
 
 function render(host, r) {
