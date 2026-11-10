@@ -10,7 +10,8 @@ const {
   acquireClientSlot, releaseClientSlot, CLIENT_CONCURRENT_MAX,
   whoisCacheKey, whoisCache, whoisCacheGet, storeWhoisResult,
   WHOIS_CLIENT_MAX, WHOIS_TEXT_MAX, whoisHits,
-  createCaptcha, captchas, captchaIdsByKey, CAPTCHA_PER_KEY_MAX
+  createCaptcha, captchas, captchaIdsByKey, CAPTCHA_PER_KEY_MAX,
+  formatFatalError
 } = require('../backend/server');
 
 function listen() {
@@ -215,6 +216,7 @@ test('WHOIS accepts a cached public IP and rejects private addresses', async () 
     const publicIp = await get(port, '/api/whois?host=' + encodeURIComponent(ip), '93.184.216.40');
     assert.equal(publicIp.status, 200);
     assert.equal(publicIp.body.cached, true);
+    assert.equal(publicIp.body.queried, ip);
     assert.match(publicIp.body.raw, /NetRange/);
 
     const privateIp = await get(port, '/api/whois?host=10.0.0.5', '93.184.216.41');
@@ -247,6 +249,7 @@ test('WHOIS queries the registrable domain and caches under the same key', async
     };
     const result = await get(port, '/api/whois?host=www.example.com', '93.184.216.45');
     assert.equal(result.status, 200);
+    assert.equal(result.body.queried, 'example.com');
     assert.equal(queries.length, 1);
     assert.equal(queries[0].command, 'example.com');
     assert.equal(whoisCacheGet('example.com'), 'No match for "EXAMPLE.COM".');
@@ -276,24 +279,100 @@ test('WHOIS has a per-client budget before hitting the registry', async () => {
   }
 });
 
-test('unhandled API errors return a generic message instead of internal details', async () => {
+test('expected DNS failures keep a safe upstream status and message', async () => {
   const dns = require('node:dns').promises;
   const originalResolve = dns.resolve;
+  const savedCheckerUrl = process.env.CHECKER_URL;
+  const port = await listen();
+  try {
+    delete process.env.CHECKER_URL;
+    dns.resolve = async () => {
+      const error = new Error('queryA leak-secret-resolver.internal');
+      error.code = 'ESERVFAIL';
+      throw error;
+    };
+    const servfail = await get(port, '/api/dns?host=servfail.orbitnet-test.example&type=A', '93.184.216.43');
+    assert.equal(servfail.status, 502);
+    assert.equal(servfail.body.error, 'DNS error: ESERVFAIL');
+    assert.equal(JSON.stringify(servfail.body).includes('leak-secret'), false);
+
+    dns.resolve = async () => {
+      const error = new Error('queryA timeout.orbitnet-test.example');
+      error.code = 'ETIMEOUT';
+      throw error;
+    };
+    const timeout = await get(port, '/api/dns?host=timeout.orbitnet-test.example&type=A', '93.184.216.46');
+    assert.equal(timeout.status, 504);
+    assert.equal(timeout.body.error, 'DNS error: ETIMEOUT');
+    assert.equal(JSON.stringify(timeout.body).includes('timeout.orbitnet-test.example'), false);
+  } finally {
+    dns.resolve = originalResolve;
+    if (savedCheckerUrl === undefined) delete process.env.CHECKER_URL;
+    else process.env.CHECKER_URL = savedCheckerUrl;
+    await close();
+  }
+});
+
+test('unexpected API errors return a generic message and log only the code', async () => {
+  const dns = require('node:dns').promises;
+  const originalResolveSoa = dns.resolveSoa;
   const originalError = console.error;
   const logs = [];
   const port = await listen();
   try {
-    dns.resolve = async () => { throw new Error('leak-secret-resolver.internal'); };
+    dns.resolveSoa = async () => {
+      const circular = {};
+      circular.self = circular;
+      return circular;
+    };
     console.error = (...args) => logs.push(args.join(' '));
-    const result = await get(port, '/api/dns?host=leak.orbitnet-test.example&type=A', '93.184.216.43');
+    const result = await get(port, '/api/dns?host=circular.orbitnet-test.example&type=SOA', '93.184.216.47');
     assert.equal(result.status, 500);
     assert.equal(result.body.error, 'Internal server error');
-    assert.equal(JSON.stringify(result.body).includes('leak-secret'), false);
-    assert.equal(logs.some(line => line.includes('leak-secret')), false);
-    assert.equal(logs.some(line => line.includes('/api/dns failed: ERROR')), true);
+    assert.equal(logs.some(line => line.includes('/api/dns failed: ERR_UNEXPECTED')), true);
   } finally {
-    dns.resolve = originalResolve;
+    dns.resolveSoa = originalResolveSoa;
     console.error = originalError;
+    await close();
+  }
+});
+
+test('fatal error logging omits the message and stack first line', () => {
+  const error = new Error('queryA ENOTFOUND secret.orbitnet-test.example');
+  error.code = 'ENOTFOUND';
+  const formatted = formatFatalError(error);
+  assert.match(formatted, /^Error code=ENOTFOUND/);
+  assert.match(formatted, /\n\s+at /);
+  assert.equal(formatted.includes('secret.orbitnet-test.example'), false);
+});
+
+test('WHOIS registry failures return a safe 502 instead of an internal error', async () => {
+  const { EventEmitter } = require('node:events');
+  const net = require('node:net');
+  const originalConnect = net.connect;
+  whoisCache.clear();
+  whoisHits.clear();
+  const port = await listen();
+  try {
+    net.connect = () => {
+      const sock = new EventEmitter();
+      sock.destroy = () => {};
+      sock.write = () => {};
+      process.nextTick(() => {
+        const error = new Error('connect ECONNREFUSED whois.secret.example');
+        error.code = 'ECONNREFUSED';
+        sock.emit('error', error);
+      });
+      return sock;
+    };
+    const result = await get(port, '/api/whois?host=unavailable.example', '93.184.216.48');
+    assert.equal(result.status, 502);
+    assert.equal(result.body.error, 'WHOIS server unavailable');
+    assert.equal(JSON.stringify(result.body).includes('whois.secret.example'), false);
+  } finally {
+    net.connect = originalConnect;
+    whoisHits.clear();
+    whoisCache.clear();
     await close();
   }
 });

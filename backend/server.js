@@ -1451,10 +1451,13 @@ async function dnsLookup(host, type) {
     }
     throw new Error('Unsupported record type: ' + type);
   } catch (e) {
-    const error = new Error(e.code === 'ENODATA'
-      ? 'No records found for ' + type
-      : (e.code || 'ERROR') + ': ' + e.message);
-    error.code = e.code || 'ERROR';
+    const code = e.code || 'ERROR';
+    // DNS failures are expected upstream events, not internal bugs. Return a
+    // safe message without the requested host and let the catch handler keep
+    // the status instead of masking it as a 500.
+    const error = new Error('DNS error: ' + code);
+    error.code = code;
+    error.status = code === 'ETIMEOUT' ? 504 : 502;
     throw error;
   }
 }
@@ -1569,7 +1572,10 @@ function queryWhois(host, server, port) {
   return new Promise((resolvePort, rejectPort) => {
     const sock = net.connect(port, server);
     let data = '';
-    const timer = setTimeout(() => { try { sock.destroy(); } catch (e) {} rejectPort(new Error('whois timeout')); }, 8000);
+    const timer = setTimeout(() => {
+      try { sock.destroy(); } catch (e) {}
+      rejectPort(httpError(504, 'WHOIS server timeout'));
+    }, 8000);
     sock.on('connect', () => sock.write(host + '\r\n'));
     sock.on('data', (d) => {
       data += d.toString('utf8');
@@ -1578,7 +1584,12 @@ function queryWhois(host, server, port) {
     });
     sock.on('end', () => { clearTimeout(timer); resolvePort(data); });
     sock.on('close', () => { clearTimeout(timer); if (data) resolvePort(data); });
-    sock.on('error', (e) => { clearTimeout(timer); rejectPort(new Error(e.message)); });
+    sock.on('error', (e) => {
+      clearTimeout(timer);
+      const error = httpError(502, 'WHOIS server unavailable');
+      error.code = e && e.code;
+      rejectPort(error);
+    });
   });
 }
 
@@ -4431,7 +4442,7 @@ const server = http.createServer(async (req, res) => {
       const cacheKey = whoisCacheKey(host);
       const cached = whoisCacheGet(cacheKey);
       if (cached !== null) {
-        return send(res, 200, { host, raw: cached, cached: true });
+        return send(res, 200, { host, queried: cacheKey, raw: cached, cached: true });
       }
       if (isRateLimited(ip, whoisHits, WHOIS_CLIENT_MAX)) {
         return send(res, 429, { error: 'Too many WHOIS lookups, wait a minute' });
@@ -4443,7 +4454,7 @@ const server = http.createServer(async (req, res) => {
       // for www.example.com usually returns "No match", and caching that answer
       // under example.com would poison the parent-domain entry.
       const raw = await whoisLimiter(() => whoisLookup(cacheKey));
-      return send(res, 200, { host, raw: storeWhoisResult(cacheKey, raw) });
+      return send(res, 200, { host, queried: cacheKey, raw: storeWhoisResult(cacheKey, raw) });
     }
 
     if (path === '/api/site') {
@@ -4593,17 +4604,29 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+// A stack's first line repeats the message, which can contain the requested
+// host. Keep the type, code and call frames only.
+function formatFatalError(error) {
+  if (!error || typeof error !== 'object') return String(error);
+  const name = error.name || 'Error';
+  const code = error.code ? ' code=' + error.code : '';
+  const stack = typeof error.stack === 'string'
+    ? error.stack.split('\n').slice(1).join('\n')
+    : '';
+  return name + code + (stack ? '\n' + stack : '');
+}
+
 if (require.main === module) {
   // Keep the service alive and log details locally when a stray promise or
   // callback throws. The API must not expose these details to clients.
   process.on('uncaughtException', error => {
-    console.error('uncaughtException:', error && (error.stack || error.message) || error);
+    console.error('uncaughtException:', formatFatalError(error));
     // The process state is unknown after an uncaught exception. Restart it
     // instead of continuing to serve requests in a broken state.
     process.exit(1);
   });
   process.on('unhandledRejection', reason => {
-    console.error('unhandledRejection:', reason && (reason.stack || reason.message) || reason);
+    console.error('unhandledRejection:', formatFatalError(reason));
   });
   server.listen(PORT, () => {
     console.log('OrbitNet backend listening on :' + PORT);
@@ -4615,6 +4638,7 @@ if (require.main === module) {
 
 module.exports = {
   normalizeIp, isPublicIp, clientIp, server, siteInfo, tlsInfo, headersInfo, emailInfo,
+  formatFatalError,
   resolvePublicWithWorker,
   rateLimitKey, isRateLimited, RATE_MAX_ENTRIES,
   isTargetRateLimited, targetForRequest, targetHits, clientTargetHits,

@@ -27,7 +27,7 @@ nginx  ──► site/ (статические HTML, CSS, JS)
 ```
 orbitnet/
 ├── .github/
-│   ├── dependabot.yml             # Обновление Docker-образов и GitHub Actions
+│   ├── dependabot.yml             # Обновление compose/Docker, npm и GitHub Actions
 │   └── workflows/
 │       └── deploy.yml             # Тесты → деплой по push в main → live-проверка
 │
@@ -206,7 +206,7 @@ npm run hooks:install
 
 - `tests/calculators.test.js` проверяет timestamp (секунды/миллисекунды, UTC/local), color (современный синтаксис, clamp, мусор после `)`), scientific notation (запятые, 2^53), statistics (hex, малые числа), unit converter (абсолютный ноль), Base64 (UTF-8/эмодзи) и regex worker (лимит совпадений, ошибки).
 - `tests/tools-extra.test.js` проверяет cron, URL encode/parse, YAML ↔ JSON, JSON → CSV, JSON diff, redirect/robots/security headers generators, IPv6, Unicode, JWT HS256 verification и отрисовку DNSSEC.
-- `tests/api-security.test.js` проверяет лимиты по IPv6 `/64`, вытеснение активных ключей, per-client и per-target квоты, выбор target по endpoint, WHOIS-кэш по registrable domain и бюджет, а также generic-ответ на внутренние 5xx.
+- `tests/api-security.test.js` проверяет лимиты по IPv6 `/64`, вытеснение активных ключей, per-client и per-target квоты, выбор target по endpoint, WHOIS-кэш по registrable domain, поле `queried`, безопасные 502/504 для DNS/WHOIS и generic-ответ только на непредвиденные 5xx.
 - `tests/cloudflare-ranges.test.js` и `tests/frontend-batching.test.js` следят, чтобы nginx/Caddy использовали одинаковый список Cloudflare и чтобы тяжёлые проверки не открывали все запросы сразу.
 - `tests/deployment.test.js` проверяет `read_only`, `cap_drop`, `no-new-privileges`, лимиты и digest-pinned образы в `docker-compose.yml`; для Unbound отдельно закреплены capabilities, нужные entrypoint и chroot.
 - `tests/smoke.test.js` поднимает статический сервер с CSP из `nginx.conf`, открывает все страницы, проверяет отсутствие console/page errors, строгий `script-src 'self'`, реальный Web Worker, `?q=`, избранное и serious/critical нарушения axe. Без Chromium тест пропускается; в CI `REQUIRE_BROWSER_TESTS=1` делает его обязательным.
@@ -368,7 +368,7 @@ IP клиента берётся из `X-Real-IP`, который выставл
 - `orbitnet-unbound` — приватный рекурсивный DNS-резолвер для DNSBL по умолчанию (Spamhaus/SURBL не принимают публичные резолверы).
 - `geoip-updater` — профиль `geoip`, обновляет базы раз в 24 часа; сохраняет `DAC_OVERRIDE`, чтобы писать в `./data/geoip`, даже если каталог принадлежит другому UID.
 - Все сервисы работают с `read_only`, `cap_drop: ALL`, `no-new-privileges`, лимитами памяти/PID и tmpfs с явным `size=64m`.
-- Образы закреплены по digest; `.github/dependabot.yml` еженедельно обновляет Docker-образы в корне и `backend/`, а также GitHub Actions.
+- Образы закреплены по digest; `.github/dependabot.yml` еженедельно обновляет `docker-compose.yml` в корне, `Dockerfile` в `backend/`, npm-зависимости в корне и `backend/`, а также GitHub Actions.
 
 `nginx.conf`:
 
