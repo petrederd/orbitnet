@@ -96,10 +96,16 @@ if [ "${CADDY_SKIP_RELOAD:-0}" != "1" ]; then
       fi
     fi
 
-    # The Caddyfile may be the only bind mount. Copy the fragment into the
-    # container's config directory too, bypassing host path permissions.
+    # A read-only bind mount already exposes the updated host copy. Only copy
+    # into the container when its config path is not mounted from this host;
+    # this also keeps working when the whole Caddy config directory is mounted.
     container_config_dir="$(dirname "$caddy_config_path")"
-    docker cp "$caddy_out" "$caddy_container:$container_config_dir/$caddy_fragment"
+    container_fragment="$container_config_dir/$caddy_fragment"
+    host_sha="$(sha256sum "$caddy_out" | cut -d' ' -f1)"
+    container_sha="$(docker exec "$caddy_container" sha256sum "$container_fragment" 2>/dev/null | cut -d' ' -f1 || true)"
+    if [ "$host_sha" != "$container_sha" ]; then
+      docker cp "$caddy_out" "$caddy_container:$container_fragment"
+    fi
     docker exec "$caddy_container" caddy reload --config "$caddy_config_path"
     echo "reloaded Caddy in $caddy_container"
   elif [ -n "$caddy_config_dir" ]; then

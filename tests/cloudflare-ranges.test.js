@@ -44,6 +44,7 @@ test('deploy resets both generated files and reloads Caddy', () => {
 
   const script = read('scripts/update-cloudflare-ips.sh');
   assert.match(script, /install -m 0644/);
+  assert.match(script, /sha256sum/);
   assert.match(script, /docker cp/);
   assert.match(script, /caddy reload/);
 });
