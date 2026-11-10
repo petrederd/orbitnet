@@ -207,7 +207,7 @@ npm run hooks:install
 - `tests/calculators.test.js` проверяет timestamp (секунды/миллисекунды, UTC/local), color (современный синтаксис, clamp, мусор после `)`), scientific notation (запятые, 2^53), statistics (hex, малые числа), unit converter (абсолютный ноль), Base64 (UTF-8/эмодзи) и regex worker (лимит совпадений, ошибки).
 - `tests/tools-extra.test.js` проверяет cron, URL encode/parse, YAML ↔ JSON, JSON → CSV, JSON diff, redirect/robots/security headers generators, IPv6, Unicode, JWT HS256 verification и отрисовку DNSSEC.
 - `tests/api-security.test.js` проверяет лимиты по IPv6 `/64`, вытеснение активных ключей, per-client и per-target квоты, выбор target по endpoint, WHOIS-кэш по registrable domain, поле `queried`, безопасные 502/504 для DNS/WHOIS и generic-ответ только на непредвиденные 5xx.
-- `tests/cloudflare-ranges.test.js` и `tests/frontend-batching.test.js` следят, чтобы nginx/Caddy использовали одинаковый список Cloudflare и чтобы тяжёлые проверки не открывали все запросы сразу.
+- `tests/cloudflare-ranges.test.js` и `tests/frontend-batching.test.js` следят, чтобы nginx/Caddy использовали одинаковый список Cloudflare, деплой откатывал оба сгенерированных файла и перезагружал Caddy, а тяжёлые проверки не открывали все запросы сразу.
 - `tests/deployment.test.js` проверяет `read_only`, `cap_drop`, `no-new-privileges`, лимиты и digest-pinned образы в `docker-compose.yml`; для Unbound отдельно закреплены capabilities, нужные entrypoint и chroot.
 - `tests/smoke.test.js` поднимает статический сервер с CSP из `nginx.conf`, открывает все страницы, проверяет отсутствие console/page errors, строгий `script-src 'self'`, реальный Web Worker, `?q=`, избранное и serious/critical нарушения axe. Без Chromium тест пропускается; в CI `REQUIRE_BROWSER_TESTS=1` делает его обязательным.
 - `tests/csp.test.js` статически проверяет, что в `nginx.conf` нет `unsafe-inline`/`unsafe-eval` в `script-src`, а на страницах нет inline-скриптов и inline-обработчиков; все внешние скрипты существуют.
@@ -386,8 +386,8 @@ IP клиента берётся из `X-Real-IP`, который выставл
 2. устанавливает Chromium (`npx playwright install --with-deps chromium`);
 3. запускает тесты с `REQUIRE_BROWSER_TESTS=1`;
 4. подключается к серверу по SSH;
-5. обновляет `cloudflare-ips.conf` и `deploy/cloudflare-trusted-proxies.caddy` (при наличии сети);
-6. делает `git pull --ff-only`;
+5. откатывает локальные изменения `cloudflare-ips.conf` и `deploy/cloudflare-trusted-proxies.caddy` и делает `git pull --ff-only`;
+6. обновляет оба файла (при наличии сети), устанавливает Caddy-сниппет рядом с активным `Caddyfile`/в контейнер и перезагружает Caddy;
 7. пересобирает контейнеры и ждёт готовности сайта до live-проверки;
 8. запускает `geoip-updater`, если в `.env` есть ключи MaxMind.
 

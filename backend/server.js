@@ -1377,6 +1377,15 @@ function publicHostnameMessage(host) {
   return 'Provide a public fully-qualified hostname';
 }
 
+// Every redirect hop is user-controlled, so apply the same public-target rule
+// as the initial address. Single-label Docker service names must never reach
+// dns.lookup(): the resolver would answer existing names but not missing ones.
+function isPublicRedirectTarget(host) {
+  const literal = normalizeIp(host);
+  if (net.isIP(literal)) return isPublicIp(literal);
+  return isPublicHostname(host);
+}
+
 // Public-suffix aware helpers. DNSBLs and CAA expect a registrable domain, not
 // an arbitrary subdomain or a public suffix such as co.uk.
 function registrableDomain(host) {
@@ -3200,6 +3209,9 @@ async function followChain(startUrl, deadline) {
     const limit = Math.min(OUTBOUND_TIMEOUT, remaining);
     let result;
     try {
+      if (!isPublicRedirectTarget(host)) {
+        throw Object.assign(httpError(400, 'Cannot resolve ' + host), { blocked: true });
+      }
       const ips = await withTimeout(resolvePublic(host), limit, 'timeout');
       const ip = pickAddress(ips);
       result = await outbound(() => fetchOnce(ip, host, path, secure, limit));
@@ -4647,7 +4659,7 @@ module.exports = {
   whoisCacheKey, whoisCache, whoisCacheGet, storeWhoisResult,
   WHOIS_CLIENT_MAX, WHOIS_TEXT_MAX, whoisHits,
   createCaptcha, captchas, captchaIdsByKey, CAPTCHA_PER_KEY_MAX,
-  decodeHtml, propagation, redirectChain, anonymityInfo, anonymityPorts, torStatus,
+  decodeHtml, propagation, followChain, redirectChain, anonymityInfo, anonymityPorts, torStatus,
   hostingSignals, hostnameSignals, proxyHeaderSignals, externalImproves, looksLikeBlockPage,
   spamCheck, parseSpamTarget, parseDnsblRecords, reverseIpName, spamCodeInfo,
   SPAM_IP_LISTS, SPAM_DOMAIN_LISTS, SPAM_CACHE_TTL, SPAM_BLOCKED_CACHE_TTL,

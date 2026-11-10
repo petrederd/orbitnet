@@ -11,7 +11,7 @@ const {
   whoisCacheKey, whoisCache, whoisCacheGet, storeWhoisResult,
   WHOIS_CLIENT_MAX, WHOIS_TEXT_MAX, whoisHits,
   createCaptcha, captchas, captchaIdsByKey, CAPTCHA_PER_KEY_MAX,
-  formatFatalError
+  formatFatalError, followChain
 } = require('../backend/server');
 
 function listen() {
@@ -81,6 +81,54 @@ test('DNS hides whether a private-only name exists', async () => {
   } finally {
     dns.resolve = originalResolve;
     await close();
+  }
+});
+
+test('redirect hops reject internal names before DNS and hide their existence', async () => {
+  const dns = require('node:dns').promises;
+  const http = require('node:http');
+  const { EventEmitter } = require('node:events');
+  const originalLookup = dns.lookup;
+  const originalRequest = http.request;
+  const lookups = [];
+  let location = '';
+  const results = [];
+  try {
+    dns.lookup = async (host) => {
+      lookups.push(host);
+      return [{ address: '93.184.216.34', family: 4 }];
+    };
+    http.request = (options, callback) => {
+      const req = new EventEmitter();
+      req.destroy = () => {};
+      req.end = () => {
+        process.nextTick(() => {
+          const res = new EventEmitter();
+          res.statusCode = 302;
+          res.headers = { location };
+          res.resume = () => {};
+          callback(res);
+        });
+      };
+      return req;
+    };
+
+    for (const name of ['orbitnet-api', 'orbitnet-missing']) {
+      location = 'http://' + name + '/';
+      const result = await followChain('http://start.orbitnet-test.example/', Date.now() + 5000);
+      assert.equal(result.chain.length, 2);
+      const hop = result.chain[1];
+      assert.equal(hop.status, null);
+      assert.equal(hop.blocked, true);
+      assert.equal(hop.error, 'Cannot resolve ' + name);
+      results.push({ blocked: hop.blocked, error: hop.error.replace(name, '<host>') });
+    }
+
+    assert.deepEqual(results[0], results[1]);
+    assert.deepEqual(lookups, ['start.orbitnet-test.example', 'start.orbitnet-test.example']);
+  } finally {
+    dns.lookup = originalLookup;
+    http.request = originalRequest;
   }
 });
 

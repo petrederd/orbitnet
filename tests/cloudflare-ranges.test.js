@@ -34,3 +34,16 @@ test('the Caddy example imports the generated range snippet', () => {
   assert.match(caddyfile, /^\s*import cloudflare-trusted-proxies\.caddy$/m);
   assert.equal(caddyfile.includes('173.245.48.0/20'), false);
 });
+
+test('deploy resets both generated files and reloads Caddy', () => {
+  const workflow = read('.github/workflows/deploy.yml');
+  assert.match(
+    workflow,
+    /git checkout -- cloudflare-ips\.conf deploy\/cloudflare-trusted-proxies\.caddy/
+  );
+
+  const script = read('scripts/update-cloudflare-ips.sh');
+  assert.match(script, /install -m 0644/);
+  assert.match(script, /docker cp/);
+  assert.match(script, /caddy reload/);
+});

@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 # Regenerates cloudflare-ips.conf and the Caddy trusted_proxies fragment from
 # Cloudflare's published ranges. Both files are committed so local builds work
-# offline; the deploy workflow runs this before rebuilding so the ranges never
-# go stale.
+# offline; the deploy workflow runs this after the pull and before rebuilding
+# so the ranges never go stale.
+#
+# The Caddy fragment is installed next to the active Caddyfile and, for a
+# container that mounts only that file, copied into /etc/caddy as well. Caddy is
+# then reloaded so it stops using the ranges cached in memory. Set
+# CADDY_SKIP_RELOAD=1 to skip this optional step.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -61,3 +66,48 @@ mapfile -t ranges < <(printf '%s\n%s\n' "$v4" "$v6" | sed '/^$/d')
 mv "$tmp_caddy" "$caddy_out"
 chmod 644 "$caddy_out"
 echo "updated $caddy_out"
+
+# Publish the fragment where Caddy actually reads it. Importing the repository
+# path directly is fragile: a host Caddy user may not be able to traverse
+# /home/<deploy-user>, and a container often mounts only the Caddyfile itself.
+caddy_fragment="cloudflare-trusted-proxies.caddy"
+caddy_config_path="${CADDY_CONFIG_PATH:-/etc/caddy/Caddyfile}"
+caddy_container="${CADDY_CONTAINER:-}"
+caddy_config_dir="${CADDY_CONFIG_DIR:-}"
+
+if [ "${CADDY_SKIP_RELOAD:-0}" != "1" ]; then
+  if [ -z "$caddy_container" ] && command -v docker >/dev/null 2>&1; then
+    caddy_container="$(docker ps --format '{{.Names}}' 2>/dev/null | grep -E '(^|[-_])caddy([-_.]|$)' | head -n 1 || true)"
+  fi
+
+  if [ -n "$caddy_container" ]; then
+    if [ -z "$caddy_config_dir" ]; then
+      host_caddyfile="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "'"$caddy_config_path"'"}}{{.Source}}{{end}}{{end}}' "$caddy_container" 2>/dev/null || true)"
+      if [ -n "$host_caddyfile" ]; then
+        caddy_config_dir="$(dirname "$host_caddyfile")"
+      fi
+    fi
+
+    if [ -n "$caddy_config_dir" ]; then
+      if install -m 0644 "$caddy_out" "$caddy_config_dir/$caddy_fragment"; then
+        echo "installed $caddy_config_dir/$caddy_fragment"
+      else
+        echo "warning: could not install Caddy fragment in $caddy_config_dir; using the container copy" >&2
+      fi
+    fi
+
+    # The Caddyfile may be the only bind mount. Copy the fragment into the
+    # container's config directory too, bypassing host path permissions.
+    container_config_dir="$(dirname "$caddy_config_path")"
+    docker cp "$caddy_out" "$caddy_container:$container_config_dir/$caddy_fragment"
+    docker exec "$caddy_container" caddy reload --config "$caddy_config_path"
+    echo "reloaded Caddy in $caddy_container"
+  elif [ -n "$caddy_config_dir" ]; then
+    install -m 0644 "$caddy_out" "$caddy_config_dir/$caddy_fragment"
+    echo "installed $caddy_config_dir/$caddy_fragment"
+    if [ -n "${CADDY_RELOAD_CMD:-}" ]; then
+      sh -c "$CADDY_RELOAD_CMD"
+      echo "reloaded Caddy with CADDY_RELOAD_CMD"
+    fi
+  fi
+fi

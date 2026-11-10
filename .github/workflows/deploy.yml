@@ -67,9 +67,10 @@ jobs:
             set -e
             cd "${DEPLOY_PATH:-/home/user/orbitnet-site}"
 
-            # The previous run may have rewritten cloudflare-ips.conf; discard
-            # that local change so `git pull --ff-only` stays clean.
-            git checkout -- cloudflare-ips.conf 2>/dev/null || true
+            # The previous run rewrites both generated Cloudflare files;
+            # discard those local changes so `git pull --ff-only` stays clean
+            # even when the incoming commit changes either one.
+            git checkout -- cloudflare-ips.conf deploy/cloudflare-trusted-proxies.caddy 2>/dev/null || true
             git pull --ff-only origin main
 
             # Refresh Cloudflare edge ranges after the pull (falls back to the
