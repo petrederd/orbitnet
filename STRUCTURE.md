@@ -37,6 +37,10 @@ orbitnet/
 │   ├── helpers.js                 # Загрузка внешних скриптов инструментов в vm
 │   ├── calculators.test.js        # timestamp, color, scientific, statistics, unit, Base64, regex worker
 │   ├── tools-extra.test.js        # cron, URL, YAML/JSON/CSV, diff, redirects, robots, headers, IPv6, Unicode, JWT
+│   ├── api-security.test.js       # rate limit, target-квоты, WHOIS, generic 5xx
+│   ├── cloudflare-ranges.test.js  # nginx- и Caddy-диапазоны Cloudflare совпадают
+│   ├── frontend-batching.test.js  # батчинг website-health и ip-info
+│   ├── deployment.test.js         # Docker hardening и digest-pinned образы
 │   ├── smoke.test.js              # Playwright: все страницы, CSP, Worker, избранное, axe
 │   ├── csp.test.js                # Нет inline-скриптов/обработчиков, строгий CSP в nginx
 │   ├── health.test.js             # /health + метрики, публичный /api/health
@@ -201,6 +205,9 @@ npm run hooks:install
 
 - `tests/calculators.test.js` проверяет timestamp (секунды/миллисекунды, UTC/local), color (современный синтаксис, clamp, мусор после `)`), scientific notation (запятые, 2^53), statistics (hex, малые числа), unit converter (абсолютный ноль), Base64 (UTF-8/эмодзи) и regex worker (лимит совпадений, ошибки).
 - `tests/tools-extra.test.js` проверяет cron, URL encode/parse, YAML ↔ JSON, JSON → CSV, JSON diff, redirect/robots/security headers generators, IPv6, Unicode, JWT HS256 verification и отрисовку DNSSEC.
+- `tests/api-security.test.js` проверяет лимиты по IPv6 `/64`, вытеснение активных ключей, per-client и per-target квоты, выбор target по endpoint, WHOIS-кэш по registrable domain и бюджет, а также generic-ответ на внутренние 5xx.
+- `tests/cloudflare-ranges.test.js` и `tests/frontend-batching.test.js` следят, чтобы nginx/Caddy использовали одинаковый список Cloudflare и чтобы тяжёлые проверки не открывали все запросы сразу.
+- `tests/deployment.test.js` проверяет `read_only`, `cap_drop`, `no-new-privileges`, лимиты и digest-pinned образы в `docker-compose.yml`; для Unbound отдельно закреплены capabilities, нужные entrypoint и chroot.
 - `tests/smoke.test.js` поднимает статический сервер с CSP из `nginx.conf`, открывает все страницы, проверяет отсутствие console/page errors, строгий `script-src 'self'`, реальный Web Worker, `?q=`, избранное и serious/critical нарушения axe. Без Chromium тест пропускается; в CI `REQUIRE_BROWSER_TESTS=1` делает его обязательным.
 - `tests/csp.test.js` статически проверяет, что в `nginx.conf` нет `unsafe-inline`/`unsafe-eval` в `script-src`, а на страницах нет inline-скриптов и inline-обработчиков; все внешние скрипты существуют.
 - `tests/health.test.js` проверяет подробный внутренний `/health` и минимальный публичный `/api/health`.

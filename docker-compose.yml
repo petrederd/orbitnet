@@ -9,9 +9,25 @@ x-logging: &default-logging
 services:
   orbitnet-site:
     logging: *default-logging
-    image: nginx:alpine
+    image: nginx:alpine@sha256:713fc2ebfd92e8217db451477182ee91944b123d2b1ee9fd5a8c6e91ca6c3a11
     container_name: orbitnet-site
     restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+      - SETGID
+      - SETUID
+      - CHOWN
+    mem_limit: 128m
+    pids_limit: 128
+    tmpfs:
+      - /var/cache/nginx
+      - /run
+      - /tmp
     volumes:
       - ./site:/usr/share/nginx/html:ro
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
@@ -29,6 +45,15 @@ services:
       dockerfile: backend/Dockerfile
     container_name: orbitnet-api
     restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 512m
+    pids_limit: 256
+    tmpfs:
+      - /tmp
     depends_on:
       orbitnet-unbound:
         condition: service_started
@@ -60,6 +85,7 @@ services:
       - WHOIS_CACHE_TTL_MS=${WHOIS_CACHE_TTL_MS:-600000}
       - WHOIS_CACHE_MAX=${WHOIS_CACHE_MAX:-1000}
       - WHOIS_GLOBAL_MAX=${WHOIS_GLOBAL_MAX:-30}
+      - WHOIS_CLIENT_MAX=${WHOIS_CLIENT_MAX:-5}
       - WHOIS_MAX_CONCURRENT=${WHOIS_MAX_CONCURRENT:-2}
       - WHOIS_MAX_QUEUE=${WHOIS_MAX_QUEUE:-20}
     volumes:
@@ -71,9 +97,27 @@ services:
   # by Spamhaus/SURBL, so the API talks to Unbound over the Compose network.
   orbitnet-unbound:
     logging: *default-logging
-    image: mvance/unbound:1.22.0
+    image: mvance/unbound:1.22.0@sha256:76906da36d1806f3387338f15dcf8b357c51ce6897fb6450d6ce010460927e90
     container_name: orbitnet-unbound
     restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+      - SETGID
+      - SETUID
+      - CHOWN
+      - MKNOD
+      - SYS_CHROOT
+    mem_limit: 128m
+    pids_limit: 128
+    tmpfs:
+      - /opt/unbound/etc/unbound/dev
+      - /opt/unbound/etc/unbound/var
+      - /tmp
     volumes:
       - ./deploy/unbound.conf:/opt/unbound/etc/unbound/unbound.conf:ro
     expose:
@@ -95,10 +139,19 @@ services:
   #   2. docker compose --profile geoip up -d
   geoip-updater:
     logging: *default-logging
-    image: ghcr.io/maxmind/geoipupdate
+    image: ghcr.io/maxmind/geoipupdate@sha256:51e70dd6f16cd3e4d845ac02d09940b10772a75b9d741427d235a78570923c1d
     container_name: orbitnet-geoip
     restart: unless-stopped
     profiles: ["geoip"]
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 128m
+    pids_limit: 64
+    tmpfs:
+      - /tmp
     environment:
       - GEOIPUPDATE_EDITION_IDS=GeoLite2-ASN GeoLite2-City
       - GEOIPUPDATE_FREQUENCY=24

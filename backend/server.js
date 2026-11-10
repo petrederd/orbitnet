@@ -267,32 +267,42 @@ function isPublicIp(ip) {
   return false;
 }
 
-// IPv6 clients usually control at least a /48. Keying limits by the exact
-// address lets one host rotate through millions of addresses and escape every
-// per-client bucket, while a /64 key still lets a single /48 fill tens of
-// thousands of buckets and evict active clients. Bucket IPv6 by /48 instead.
+// IPv6 clients are normally delegated at least a /64 and often a /56. Keying
+// limits by the exact address lets one host rotate through millions of
+// addresses, so use the /64 prefix. A /48 would be too coarse: it can cover
+// many subscribers on mobile and ISP networks, who would then share limits.
 function rateLimitKey(input) {
   const ip = normalizeIp(input);
   if (net.isIPv6(ip)) {
     const groups = parseIpv6Groups(ip);
     if (groups && groups.length === 8) {
-      return groups.slice(0, 3).map(group => group.toString(16)).join(':') + '::/48';
+      return groups.slice(0, 4).map(group => group.toString(16)).join(':') + '::/64';
     }
   }
   return ip || 'unknown';
 }
 
-// Fixed-window counter with a hard size cap. When the table is full the oldest
-// entry is dropped instead of rejecting every new client, otherwise a flood of
-// spoofed addresses can fill it and take the API down for everyone.
+// Fixed-window counter with a hard size cap. When the table is full, drop a
+// low-activity entry instead of rejecting every new client, otherwise a flood
+// of spoofed addresses can fill it and take the API down for everyone.
+// Entries that have already made more than one request in the window are
+// evicted last, so a single-request-per-key flood cannot displace active
+// clients as easily.
 function rateRecord(store, key, now, maxEntries = RATE_MAX_ENTRIES) {
   let rec = store.get(key);
   if (rec && now - rec.start <= RATE_WINDOW_MS) return rec;
   if (!rec) {
     while (store.size >= maxEntries) {
-      const oldest = store.keys().next().value;
-      if (oldest === undefined) break;
-      store.delete(oldest);
+      let victim;
+      for (const [candidate, value] of store) {
+        if (value.count <= 1) {
+          victim = candidate;
+          break;
+        }
+      }
+      if (victim === undefined) victim = store.keys().next().value;
+      if (victim === undefined) break;
+      store.delete(victim);
     }
   }
   rec = { start: now, count: 0 };
@@ -906,7 +916,7 @@ function isRateLimited(ip, store = rateHits, max = RATE_MAX) {
   if (now - lastRatePrune > RATE_WINDOW_MS) {
     for (const map of [
       rateHits, portHits, tlsDeepHits, securityHits, spamHits,
-      targetHits, clientTargetHits
+      targetHits, clientTargetHits, whoisHits
     ]) {
       for (const [key, rec] of map) {
         if (now - rec.start > RATE_WINDOW_MS) map.delete(key);
@@ -1360,6 +1370,13 @@ function isPublicHostname(host) {
     !net.isIP(normalizeIp(host)) && isValidHost(host);
 }
 
+function publicHostnameMessage(host) {
+  if (net.isIP(normalizeIp(host))) {
+    return 'This endpoint requires a hostname, not an IP address';
+  }
+  return 'Provide a public fully-qualified hostname';
+}
+
 // Public-suffix aware helpers. DNSBLs and CAA expect a registrable domain, not
 // an arbitrary subdomain or a public suffix such as co.uk.
 function registrableDomain(host) {
@@ -1490,12 +1507,25 @@ function checkPort(ip, port, timeout) {
 const WHOIS_CACHE_TTL = positiveIntEnv('WHOIS_CACHE_TTL_MS', 10 * 60 * 1000);
 const WHOIS_CACHE_MAX = positiveIntEnv('WHOIS_CACHE_MAX', 1000);
 const WHOIS_GLOBAL_MAX = positiveIntEnv('WHOIS_GLOBAL_MAX', 30);
+const WHOIS_CLIENT_MAX = positiveIntEnv('WHOIS_CLIENT_MAX', 5);
+const WHOIS_TEXT_MAX = 64 * 1024;
 const whoisLimiter = createLimiter(
   positiveIntEnv('WHOIS_MAX_CONCURRENT', 2),
   positiveIntEnv('WHOIS_MAX_QUEUE', 20)
 );
 const whoisCache = new Map();
+const whoisHits = new Map();
 let whoisGlobal = { start: Date.now(), count: 0 };
+
+// Whois registration data is per registrable domain, not per subdomain. Using
+// the full host would let x1.example.com, x2.example.com and so on bypass the
+// cache. IP addresses are their own key.
+function whoisCacheKey(host) {
+  const value = String(host || '').trim().toLowerCase().replace(/\.$/, '');
+  const literal = normalizeIp(value);
+  if (net.isIP(literal)) return literal;
+  return registrableDomain(value) || value;
+}
 
 function whoisCacheGet(key) {
   const record = whoisCache.get(key);
@@ -1513,6 +1543,16 @@ function whoisCacheSet(key, value) {
     if (oldest !== undefined) whoisCache.delete(oldest);
   }
   whoisCache.set(key, { value, expires: Date.now() + WHOIS_CACHE_TTL });
+}
+
+// Registries may return long referral chains. Keep the stored/returned text
+// bounded, and do not cache an empty answer for the full TTL.
+function storeWhoisResult(key, raw) {
+  if (typeof raw !== 'string') return '';
+  const text = raw.slice(0, WHOIS_TEXT_MAX);
+  if (!text.trim()) return '';
+  whoisCacheSet(key, text);
+  return text;
 }
 
 function takeWhoisToken() {
@@ -4262,7 +4302,7 @@ const server = http.createServer(async (req, res) => {
       }
       if (type === 'PTR') return bad(res, 'PTR lookup requires an IP address');
       if (!isPublicHostname(host)) {
-        return bad(res, 'Provide a public fully-qualified hostname');
+        return bad(res, publicHostnameMessage(host));
       }
       let records;
       let nxdomain = false;
@@ -4381,27 +4421,32 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (path === '/api/whois') {
-      const host = query.get('host') || '';
-      if (!isPublicHostname(host)) {
-        return bad(res, 'Provide a public fully-qualified hostname');
+      const requested = query.get('host') || '';
+      const literal = normalizeIp(requested);
+      const isIp = net.isIP(literal);
+      if (!isPublicHostname(requested) && !(isIp && isPublicIp(literal))) {
+        return bad(res, 'Provide a public fully-qualified hostname or IP address');
       }
-      const cacheKey = host.toLowerCase().replace(/\.$/, '');
+      const host = isIp ? literal : requested;
+      const cacheKey = whoisCacheKey(host);
       const cached = whoisCacheGet(cacheKey);
       if (cached !== null) {
         return send(res, 200, { host, raw: cached, cached: true });
+      }
+      if (isRateLimited(ip, whoisHits, WHOIS_CLIENT_MAX)) {
+        return send(res, 429, { error: 'Too many WHOIS lookups, wait a minute' });
       }
       if (!takeWhoisToken()) {
         return send(res, 429, { error: 'WHOIS lookup limit reached, try again later' });
       }
       const raw = await whoisLimiter(() => whoisLookup(host));
-      whoisCacheSet(cacheKey, raw);
-      return send(res, 200, { host, raw });
+      return send(res, 200, { host, raw: storeWhoisResult(cacheKey, raw) });
     }
 
     if (path === '/api/site') {
       const host = query.get('host') || '';
       if (!isPublicHostname(host)) {
-        return bad(res, 'Provide a public fully-qualified hostname');
+        return bad(res, publicHostnameMessage(host));
       }
       const result = await siteInfo(host, externalContext);
       return send(res, 200, result);
@@ -4410,7 +4455,7 @@ const server = http.createServer(async (req, res) => {
     if (path === '/api/headers') {
       const host = query.get('host') || '';
       if (!isPublicHostname(host)) {
-        return bad(res, 'Provide a public fully-qualified hostname');
+        return bad(res, publicHostnameMessage(host));
       }
       return send(res, 200, await headersInfo(host, externalContext));
     }
@@ -4419,7 +4464,7 @@ const server = http.createServer(async (req, res) => {
       const host = query.get('host') || '';
       const portStr = query.get('port') || '443';
       if (!isPublicHostname(host)) {
-        return bad(res, 'Provide a public fully-qualified hostname');
+        return bad(res, publicHostnameMessage(host));
       }
       if (!/^\d{1,5}$/.test(portStr)) return bad(res, 'Port must be 1-65535');
       const port = parseInt(portStr, 10);
@@ -4437,7 +4482,7 @@ const server = http.createServer(async (req, res) => {
       const host = query.get('host') || '';
       const selector = (query.get('selector') || '').trim();
       if (!isPublicHostname(host)) {
-        return bad(res, 'Provide a public fully-qualified hostname');
+        return bad(res, publicHostnameMessage(host));
       }
       if (selector && !/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/i.test(selector)) {
         return bad(res, 'Invalid DKIM selector');
@@ -4450,7 +4495,7 @@ const server = http.createServer(async (req, res) => {
       const type = parseType(query.get('type'), PROPAGATION_TYPES);
       if (!type) return bad(res, 'Unsupported record type');
       if (!isPublicHostname(host)) {
-        return bad(res, 'Provide a public fully-qualified hostname');
+        return bad(res, publicHostnameMessage(host));
       }
       let resolvers = await propagation(host, type);
       let source = 'local';
@@ -4482,7 +4527,7 @@ const server = http.createServer(async (req, res) => {
     if (path === '/api/redirect') {
       const host = query.get('host') || '';
       if (!isPublicHostname(host)) {
-        return bad(res, 'Provide a public fully-qualified hostname');
+        return bad(res, publicHostnameMessage(host));
       }
       return send(res, 200, await redirectChain(host, externalContext));
     }
@@ -4490,7 +4535,7 @@ const server = http.createServer(async (req, res) => {
     if (path === '/api/security') {
       const host = query.get('host') || '';
       if (!isPublicHostname(host)) {
-        return bad(res, 'Provide a public fully-qualified hostname');
+        return bad(res, publicHostnameMessage(host));
       }
       if (isRateLimited(ip, securityHits, SECURITY_RATE_MAX)) {
         return send(res, 429, { error: 'Too many security audits, wait a minute' });
@@ -4530,13 +4575,26 @@ const server = http.createServer(async (req, res) => {
 
     return send(res, 404, { error: 'Not found' });
   } catch (e) {
-    return send(res, e.status || 500, { error: e.message || 'Server error' });
+    const status = e.status || 500;
+    if (status >= 500) {
+      console.error('[api] ' + path + ' failed: ' + (e.stack || e.message));
+      return send(res, status, { error: 'Internal server error' });
+    }
+    return send(res, status, { error: e.message || 'Server error' });
   } finally {
     if (clientSlot) releaseClientSlot(clientSlot);
   }
 });
 
 if (require.main === module) {
+  // Keep the service alive and log details locally when a stray promise or
+  // callback throws. The API must not expose these details to clients.
+  process.on('uncaughtException', error => {
+    console.error('uncaughtException:', error && (error.stack || error.message) || error);
+  });
+  process.on('unhandledRejection', reason => {
+    console.error('unhandledRejection:', reason && (reason.stack || reason.message) || reason);
+  });
   server.listen(PORT, () => {
     console.log('OrbitNet backend listening on :' + PORT);
     // Warm the Tor exit-list cache in the background so the first request does
@@ -4552,6 +4610,8 @@ module.exports = {
   isTargetRateLimited, targetForRequest, targetHits, clientTargetHits,
   TARGET_RATE_MAX, TARGET_GLOBAL_RATE_MAX,
   acquireClientSlot, releaseClientSlot, CLIENT_CONCURRENT_MAX,
+  whoisCacheKey, whoisCache, whoisCacheGet, storeWhoisResult,
+  WHOIS_CLIENT_MAX, WHOIS_TEXT_MAX, whoisHits,
   createCaptcha, captchas, captchaIdsByKey, CAPTCHA_PER_KEY_MAX,
   decodeHtml, propagation, redirectChain, anonymityInfo, anonymityPorts, torStatus,
   hostingSignals, hostnameSignals, proxyHeaderSignals, externalImproves, looksLikeBlockPage,
