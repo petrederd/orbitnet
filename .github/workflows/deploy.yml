@@ -14,9 +14,14 @@ permissions:
   contents: read
 
 env:
-  # Override with a repository variable named DEPLOY_PATH; defaults to the
-  # historical location.
+  # Override these with repository variables; DEPLOY_PATH has a historical
+  # default. CADDY_* are passed into the SSH session below.
   DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+  CADDY_CONTAINER: ${{ vars.CADDY_CONTAINER }}
+  CADDY_CONFIG_PATH: ${{ vars.CADDY_CONFIG_PATH }}
+  CADDY_CONFIG_DIR: ${{ vars.CADDY_CONFIG_DIR }}
+  CADDY_RELOAD_CMD: ${{ vars.CADDY_RELOAD_CMD }}
+  CADDY_SKIP_RELOAD: ${{ vars.CADDY_SKIP_RELOAD }}
 
 jobs:
   deploy:
@@ -62,7 +67,7 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          envs: DEPLOY_PATH
+          envs: DEPLOY_PATH,CADDY_CONTAINER,CADDY_CONFIG_PATH,CADDY_CONFIG_DIR,CADDY_RELOAD_CMD,CADDY_SKIP_RELOAD
           script: |
             set -e
             cd "${DEPLOY_PATH:-/home/user/orbitnet-site}"
@@ -73,10 +78,12 @@ jobs:
             git checkout -- cloudflare-ips.conf deploy/cloudflare-trusted-proxies.caddy 2>/dev/null || true
             git pull --ff-only origin main
 
-            # Refresh Cloudflare edge ranges after the pull (falls back to the
-            # committed file if the network call fails).
+            # Refresh Cloudflare ranges and publish the Caddy fragment. The
+            # script keeps the committed files on a network failure, but fails
+            # loudly when an imported fragment is not mounted or Caddy cannot
+            # reload.
             if [ -x ./scripts/update-cloudflare-ips.sh ]; then
-              ./scripts/update-cloudflare-ips.sh || echo "warning: could not refresh cloudflare-ips.conf"
+              ./scripts/update-cloudflare-ips.sh
             fi
 
             docker compose up -d --build --force-recreate
