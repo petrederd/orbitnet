@@ -48,6 +48,8 @@ test('deploy resets both generated files and reloads Caddy', () => {
   assert.match(workflow, /caddy_status=0/);
   assert.match(workflow, /update-cloudflare-ips\.sh \|\| caddy_status=\$\?/);
   assert.match(workflow, /exit "\$caddy_status"/);
+  assert.match(workflow, /id: deploy/);
+  assert.match(workflow, /if: success\(\) \|\| steps\.deploy\.outcome == 'failure'/);
 
   const script = read('scripts/update-cloudflare-ips.sh');
   assert.match(script, /cat "\$caddy_out" > "\$dest"/);
