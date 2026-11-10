@@ -4439,7 +4439,10 @@ const server = http.createServer(async (req, res) => {
       if (!takeWhoisToken()) {
         return send(res, 429, { error: 'WHOIS lookup limit reached, try again later' });
       }
-      const raw = await whoisLimiter(() => whoisLookup(host));
+      // Query the same name that is used as the cache key. Asking the registry
+      // for www.example.com usually returns "No match", and caching that answer
+      // under example.com would poison the parent-domain entry.
+      const raw = await whoisLimiter(() => whoisLookup(cacheKey));
       return send(res, 200, { host, raw: storeWhoisResult(cacheKey, raw) });
     }
 
@@ -4575,12 +4578,16 @@ const server = http.createServer(async (req, res) => {
 
     return send(res, 404, { error: 'Not found' });
   } catch (e) {
-    const status = e.status || 500;
-    if (status >= 500) {
-      console.error('[api] ' + path + ' failed: ' + (e.stack || e.message));
-      return send(res, status, { error: 'Internal server error' });
+    if (e.status) {
+      // Intentional httpError responses (busy, upstream unavailable, bad input)
+      // already carry a safe message. Do not replace them with a generic 500.
+      return send(res, e.status, { error: e.message || 'Server error' });
     }
-    return send(res, status, { error: e.message || 'Server error' });
+    // Unexpected exception: log only the path and error code. Messages and
+    // stacks can contain the requested host, and README promises no per-request
+    // logging.
+    console.error('[api] ' + path + ' failed: ' + (e.code || 'ERR_UNEXPECTED'));
+    return send(res, 500, { error: 'Internal server error' });
   } finally {
     if (clientSlot) releaseClientSlot(clientSlot);
   }
@@ -4591,6 +4598,9 @@ if (require.main === module) {
   // callback throws. The API must not expose these details to clients.
   process.on('uncaughtException', error => {
     console.error('uncaughtException:', error && (error.stack || error.message) || error);
+    // The process state is unknown after an uncaught exception. Restart it
+    // instead of continuing to serve requests in a broken state.
+    process.exit(1);
   });
   process.on('unhandledRejection', reason => {
     console.error('unhandledRejection:', reason && (reason.stack || reason.message) || reason);

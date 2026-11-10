@@ -37,3 +37,23 @@ test('the private resolver keeps the capabilities its entrypoint needs', () => {
     assert.ok(caps.includes(cap), 'orbitnet-unbound must keep ' + cap);
   }
 });
+
+test('tmpfs mounts are bounded and the geoip updater can write its volume', () => {
+  const compose = yaml.load(read('docker-compose.yml'));
+  for (const [name, service] of Object.entries(compose.services)) {
+    for (const mount of service.tmpfs || []) {
+      assert.match(mount, /(^|[:,])size=\d+[kmg]?$/, name + ' tmpfs must set an explicit size: ' + mount);
+    }
+  }
+  const caps = compose.services['geoip-updater'].cap_add || [];
+  assert.ok(caps.includes('DAC_OVERRIDE'), 'geoip-updater must be able to write a volume owned by another UID');
+});
+
+test('Dependabot keeps pinned Docker images and actions updated', () => {
+  const config = yaml.load(read('.github/dependabot.yml'));
+  assert.equal(config.version, 2);
+  const updates = config.updates.map(item => item['package-ecosystem'] + ':' + item.directory);
+  for (const expected of ['docker:/', 'docker:/backend', 'github-actions:/']) {
+    assert.ok(updates.includes(expected), 'missing Dependabot update for ' + expected);
+  }
+});

@@ -25,9 +25,9 @@ services:
     mem_limit: 128m
     pids_limit: 128
     tmpfs:
-      - /var/cache/nginx
-      - /run
-      - /tmp
+      - /var/cache/nginx:size=64m
+      - /run:size=64m
+      - /tmp:size=64m
     volumes:
       - ./site:/usr/share/nginx/html:ro
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
@@ -53,7 +53,7 @@ services:
     mem_limit: 512m
     pids_limit: 256
     tmpfs:
-      - /tmp
+      - /tmp:size=64m
     depends_on:
       orbitnet-unbound:
         condition: service_started
@@ -115,9 +115,9 @@ services:
     mem_limit: 128m
     pids_limit: 128
     tmpfs:
-      - /opt/unbound/etc/unbound/dev
-      - /opt/unbound/etc/unbound/var
-      - /tmp
+      - /opt/unbound/etc/unbound/dev:size=64m
+      - /opt/unbound/etc/unbound/var:size=64m
+      - /tmp:size=64m
     volumes:
       - ./deploy/unbound.conf:/opt/unbound/etc/unbound/unbound.conf:ro
     expose:
@@ -148,10 +148,12 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    cap_add:
+      - DAC_OVERRIDE
     mem_limit: 128m
     pids_limit: 64
     tmpfs:
-      - /tmp
+      - /tmp:size=64m
     environment:
       - GEOIPUPDATE_EDITION_IDS=GeoLite2-ASN GeoLite2-City
       - GEOIPUPDATE_FREQUENCY=24

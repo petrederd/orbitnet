@@ -225,6 +225,40 @@ test('WHOIS accepts a cached public IP and rejects private addresses', async () 
   }
 });
 
+test('WHOIS queries the registrable domain and caches under the same key', async () => {
+  const { EventEmitter } = require('node:events');
+  const net = require('node:net');
+  const originalConnect = net.connect;
+  const queries = [];
+  whoisCache.clear();
+  whoisHits.clear();
+  const port = await listen();
+  try {
+    net.connect = (portNumber, server) => {
+      const sock = new EventEmitter();
+      sock.destroy = () => {};
+      sock.write = data => queries.push({ server, command: String(data).trim() });
+      process.nextTick(() => {
+        sock.emit('connect');
+        sock.emit('data', Buffer.from('No match for "EXAMPLE.COM".'));
+        sock.emit('end');
+      });
+      return sock;
+    };
+    const result = await get(port, '/api/whois?host=www.example.com', '93.184.216.45');
+    assert.equal(result.status, 200);
+    assert.equal(queries.length, 1);
+    assert.equal(queries[0].command, 'example.com');
+    assert.equal(whoisCacheGet('example.com'), 'No match for "EXAMPLE.COM".');
+    assert.equal(whoisCacheGet('www.example.com'), null);
+  } finally {
+    net.connect = originalConnect;
+    whoisHits.clear();
+    whoisCache.clear();
+    await close();
+  }
+});
+
 test('WHOIS has a per-client budget before hitting the registry', async () => {
   whoisCache.clear();
   whoisHits.clear();
@@ -245,15 +279,41 @@ test('WHOIS has a per-client budget before hitting the registry', async () => {
 test('unhandled API errors return a generic message instead of internal details', async () => {
   const dns = require('node:dns').promises;
   const originalResolve = dns.resolve;
+  const originalError = console.error;
+  const logs = [];
   const port = await listen();
   try {
     dns.resolve = async () => { throw new Error('leak-secret-resolver.internal'); };
+    console.error = (...args) => logs.push(args.join(' '));
     const result = await get(port, '/api/dns?host=leak.orbitnet-test.example&type=A', '93.184.216.43');
     assert.equal(result.status, 500);
     assert.equal(result.body.error, 'Internal server error');
     assert.equal(JSON.stringify(result.body).includes('leak-secret'), false);
+    assert.equal(logs.some(line => line.includes('leak-secret')), false);
+    assert.equal(logs.some(line => line.includes('/api/dns failed: ERROR')), true);
   } finally {
     dns.resolve = originalResolve;
+    console.error = originalError;
+    await close();
+  }
+});
+
+test('intentional 5xx responses keep their message and are not logged', async () => {
+  const savedCheckerUrl = process.env.CHECKER_URL;
+  const originalError = console.error;
+  const logs = [];
+  const port = await listen();
+  try {
+    delete process.env.CHECKER_URL;
+    console.error = (...args) => logs.push(args.join(' '));
+    const result = await get(port, '/api/dnssec?host=example.com&type=A', '93.184.216.44');
+    assert.equal(result.status, 503);
+    assert.equal(result.body.error, 'External check unavailable');
+    assert.deepEqual(logs, []);
+  } finally {
+    if (savedCheckerUrl === undefined) delete process.env.CHECKER_URL;
+    else process.env.CHECKER_URL = savedCheckerUrl;
+    console.error = originalError;
     await close();
   }
 });

@@ -27,6 +27,7 @@ nginx  ──► site/ (статические HTML, CSS, JS)
 ```
 orbitnet/
 ├── .github/
+│   ├── dependabot.yml             # Обновление Docker-образов и GitHub Actions
 │   └── workflows/
 │       └── deploy.yml             # Тесты → деплой по push в main → live-проверка
 │
@@ -365,7 +366,9 @@ IP клиента берётся из `X-Real-IP`, который выставл
 - `orbitnet-site` — nginx, статика из `./site`, порт `127.0.0.1:8081`.
 - `orbitnet-api` — Node.js, внутренний порт `3000`; получает `CHECKER_URL`, `CHECKER_SECRET`, `CHECKER_TIMEOUT`, `EXTERNAL_RATE_MAX`, `EXTERNAL_GLOBAL_MAX`, `EXTERNAL_NXDOMAIN_RATE_MAX`, `EXTERNAL_NXDOMAIN_GLOBAL_MAX`, `REQUEST_BUDGET_MS`, `DNSBL_RESOLVER`, `DNSBL_MAX_CONCURRENT`, `DNSBL_MAX_QUEUE` и `TLS_DEEP_GLOBAL_MAX` из серверного `.env`.
 - `orbitnet-unbound` — приватный рекурсивный DNS-резолвер для DNSBL по умолчанию (Spamhaus/SURBL не принимают публичные резолверы).
-- `geoip-updater` — профиль `geoip`, обновляет базы раз в 24 часа.
+- `geoip-updater` — профиль `geoip`, обновляет базы раз в 24 часа; сохраняет `DAC_OVERRIDE`, чтобы писать в `./data/geoip`, даже если каталог принадлежит другому UID.
+- Все сервисы работают с `read_only`, `cap_drop: ALL`, `no-new-privileges`, лимитами памяти/PID и tmpfs с явным `size=64m`.
+- Образы закреплены по digest; `.github/dependabot.yml` еженедельно обновляет Docker-образы в корне и `backend/`, а также GitHub Actions.
 
 `nginx.conf`:
 
