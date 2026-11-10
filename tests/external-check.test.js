@@ -603,7 +603,7 @@ test('DNS API falls back on ENOTFOUND and caches the worker answer', async (t) =
       type: 'dns',
       host: payload.host,
       recordType: payload.recordType,
-      records: ['192.0.2.77'],
+      records: ['93.184.216.34'],
       resolver: 'Cloudflare 1.1.1.1',
       source: 'Cloudflare Worker'
     });
@@ -631,8 +631,8 @@ test('DNS API falls back on ENOTFOUND and caches the worker answer', async (t) =
   const first = await fetch(apiUrl).then(r => r.json());
   const second = await fetch(apiUrl).then(r => r.json());
   assert.equal(first.source, 'worker');
-  assert.deepEqual(first.records, ['192.0.2.77']);
-  assert.deepEqual(second.records, ['192.0.2.77']);
+  assert.deepEqual(first.records, ['93.184.216.34']);
+  assert.deepEqual(second.records, ['93.184.216.34']);
   assert.equal(calls, 1);
 });
 
@@ -755,7 +755,7 @@ test('DNS, email and redirect wrappers fall back on transport errors', async (t)
       type: 'dns',
       host: payload.host,
       recordType: payload.recordType,
-      records: ['192.0.2.55'],
+      records: ['93.184.216.35'],
       resolver: 'Cloudflare 1.1.1.1',
       source: 'Cloudflare Worker'
     });
@@ -790,5 +790,5 @@ test('DNS, email and redirect wrappers fall back on transport errors', async (t)
   const response = await fetch(apiUrl);
   const dns = await response.json();
   assert.equal(dns.source, 'worker');
-  assert.deepEqual(dns.records, ['192.0.2.55']);
+  assert.deepEqual(dns.records, ['93.184.216.35']);
 });

@@ -267,6 +267,38 @@ function isPublicIp(ip) {
   return false;
 }
 
+// IPv6 clients are normally delegated a whole /64. Keying limits by the exact
+// address lets one host rotate through millions of addresses and escape every
+// per-client bucket, so IPv6 is bucketed by its /64 prefix instead.
+function rateLimitKey(input) {
+  const ip = normalizeIp(input);
+  if (net.isIPv6(ip)) {
+    const groups = parseIpv6Groups(ip);
+    if (groups && groups.length === 8) {
+      return groups.slice(0, 4).map(group => group.toString(16)).join(':') + '::/64';
+    }
+  }
+  return ip || 'unknown';
+}
+
+// Fixed-window counter with a hard size cap. When the table is full the oldest
+// entry is dropped instead of rejecting every new client, otherwise a flood of
+// spoofed addresses can fill it and take the API down for everyone.
+function rateRecord(store, key, now, maxEntries = RATE_MAX_ENTRIES) {
+  let rec = store.get(key);
+  if (rec && now - rec.start <= RATE_WINDOW_MS) return rec;
+  if (!rec) {
+    while (store.size >= maxEntries) {
+      const oldest = store.keys().next().value;
+      if (oldest === undefined) break;
+      store.delete(oldest);
+    }
+  }
+  rec = { start: now, count: 0 };
+  store.set(key, rec);
+  return rec;
+}
+
 // ---------- GeoIP (MaxMind GeoLite2) ----------
 // Databases live outside the image (mounted read-only) so they can be kept
 // fresh by the geoipupdate service without rebuilding the backend.
@@ -855,19 +887,12 @@ function isRateLimited(ip, store = rateHits, max = RATE_MAX) {
     }
     lastRatePrune = now;
   }
-  if (store.size > RATE_MAX_ENTRIES) {
+  if (store.size >= RATE_MAX_ENTRIES) {
     for (const [key, rec] of store) {
       if (now - rec.start > RATE_WINDOW_MS) store.delete(key);
     }
   }
-  let rec = store.get(ip);
-  if (!rec || now - rec.start > RATE_WINDOW_MS) {
-    // Keep the table bounded: once it is full of active clients, shed new ones
-    // instead of wiping every counter at once.
-    if (!rec && store.size >= RATE_MAX_ENTRIES) return true;
-    rec = { start: now, count: 0 };
-    store.set(ip, rec);
-  }
+  const rec = rateRecord(store, rateLimitKey(ip), now);
   rec.count++;
   return rec.count > max;
 }
@@ -883,7 +908,7 @@ let externalNxGlobal = { start: Date.now(), count: 0 };
 let lastExternalPrune = Date.now();
 
 function takeExternalToken(clientIp, nxdomain = false) {
-  const key = clientIp || 'unknown';
+  const key = rateLimitKey(clientIp || 'unknown');
   const now = Date.now();
   if (now - lastExternalPrune > RATE_WINDOW_MS) {
     for (const [itemKey, rec] of externalHits) {
@@ -901,12 +926,7 @@ function takeExternalToken(clientIp, nxdomain = false) {
     }
     if (externalNxGlobal.count >= EXTERNAL_NXDOMAIN_GLOBAL_MAX) return false;
 
-    let rec = externalNxHits.get(key);
-    if (!rec || now - rec.start > RATE_WINDOW_MS) {
-      if (!rec && externalNxHits.size >= RATE_MAX_ENTRIES) return false;
-      rec = { start: now, count: 0 };
-      externalNxHits.set(key, rec);
-    }
+    const rec = rateRecord(externalNxHits, key, now);
     if (rec.count >= EXTERNAL_NXDOMAIN_RATE_MAX) return false;
     rec.count++;
     externalNxGlobal.count++;
@@ -918,12 +938,7 @@ function takeExternalToken(clientIp, nxdomain = false) {
   }
   if (externalGlobal.count >= EXTERNAL_GLOBAL_MAX) return false;
 
-  let rec = externalHits.get(key);
-  if (!rec || now - rec.start > RATE_WINDOW_MS) {
-    if (!rec && externalHits.size >= RATE_MAX_ENTRIES) return false;
-    rec = { start: now, count: 0 };
-    externalHits.set(key, rec);
-  }
+  const rec = rateRecord(externalHits, key, now);
   if (rec.count >= EXTERNAL_RATE_MAX) return false;
   rec.count++;
   externalGlobal.count++;
@@ -1025,10 +1040,15 @@ function externalFailure(local, error) {
 // ---------- captcha ----------
 // A self-contained numeric captcha. The answer never leaves the server: the
 // client only receives an image and an opaque id. Answers are single-use,
-// expire after five minutes and are tied to the requesting IP.
+// expire after five minutes and are tied to the requesting client bucket
+// (the /64 prefix for IPv6, matching the rate limiter).
 const CAPTCHA_TTL = 5 * 60 * 1000;
 const CAPTCHA_MAX_ENTRIES = 5000;
+// One /64 must not be able to fill the captcha store and evict everyone else's
+// pending challenges.
+const CAPTCHA_PER_KEY_MAX = 20;
 const captchas = new Map();
+const captchaIdsByKey = new Map();
 let lastCaptchaPrune = Date.now();
 
 // Every third port check requires a captcha. The counter only advances after
@@ -1038,20 +1058,22 @@ const PORT_ATTEMPT_EVERY = 3;
 const PORT_ATTEMPT_TTL = 60 * 60 * 1000;
 
 function getPortAttempt(ip) {
+  const key = rateLimitKey(ip);
   const now = Date.now();
-  if (portAttempts.size > 10000) {
-    for (const [key, rec] of portAttempts) {
-      if (now - rec.updated > PORT_ATTEMPT_TTL) portAttempts.delete(key);
+  if (portAttempts.size >= RATE_MAX_ENTRIES) {
+    for (const [itemKey, rec] of portAttempts) {
+      if (now - rec.updated > PORT_ATTEMPT_TTL) portAttempts.delete(itemKey);
     }
-    if (portAttempts.size > 10000) {
+    while (portAttempts.size >= RATE_MAX_ENTRIES) {
       const oldest = portAttempts.keys().next().value;
-      if (oldest) portAttempts.delete(oldest);
+      if (oldest === undefined) break;
+      portAttempts.delete(oldest);
     }
   }
-  let rec = portAttempts.get(ip);
+  let rec = portAttempts.get(key);
   if (!rec || now - rec.updated > PORT_ATTEMPT_TTL) {
     rec = { count: 0, updated: now };
-    portAttempts.set(ip, rec);
+    portAttempts.set(key, rec);
   }
   return rec;
 }
@@ -1206,22 +1228,47 @@ function captchaPng(digits) {
   return encodePng(width, height, buf);
 }
 
+function removeCaptcha(id) {
+  const rec = captchas.get(id);
+  if (!rec) return;
+  captchas.delete(id);
+  const ids = captchaIdsByKey.get(rec.key);
+  if (ids) {
+    ids.delete(id);
+    if (!ids.size) captchaIdsByKey.delete(rec.key);
+  }
+}
+
 function createCaptcha(ip) {
   const now = Date.now();
+  const key = rateLimitKey(ip);
   if (now - lastCaptchaPrune > 60000 || captchas.size >= CAPTCHA_MAX_ENTRIES) {
-    for (const [key, rec] of captchas) {
-      if (rec.expires <= now) captchas.delete(key);
+    for (const [id, rec] of captchas) {
+      if (rec.expires <= now) removeCaptcha(id);
     }
     lastCaptchaPrune = now;
   }
-  if (captchas.size >= CAPTCHA_MAX_ENTRIES) {
+  while (captchas.size >= CAPTCHA_MAX_ENTRIES) {
     const oldest = captchas.keys().next().value;
-    if (oldest) captchas.delete(oldest);
+    if (oldest === undefined) break;
+    removeCaptcha(oldest);
+  }
+
+  let keyIds = captchaIdsByKey.get(key);
+  if (!keyIds) {
+    keyIds = new Set();
+    captchaIdsByKey.set(key, keyIds);
+  }
+  while (keyIds.size >= CAPTCHA_PER_KEY_MAX) {
+    const oldest = keyIds.values().next().value;
+    if (oldest === undefined) break;
+    removeCaptcha(oldest);
   }
 
   const answer = String(crypto.randomInt(1000, 10000));
   const id = crypto.randomBytes(16).toString('hex');
-  captchas.set(id, { answer, ip, expires: now + CAPTCHA_TTL });
+  captchas.set(id, { answer, key, expires: now + CAPTCHA_TTL });
+  keyIds.add(id);
   const png = captchaPng(answer);
 
   return {
@@ -1235,9 +1282,9 @@ function verifyCaptcha(id, answer, ip) {
   if (!/^[a-f0-9]{32}$/.test(id || '')) return false;
   const rec = captchas.get(id);
   if (!rec) return false;
-  captchas.delete(id);
+  removeCaptcha(id);
   if (rec.expires <= Date.now()) return false;
-  if (rec.ip !== ip) return false;
+  if (rec.key !== rateLimitKey(ip)) return false;
   return rec.answer === String(answer || '');
 }
 
@@ -1245,6 +1292,14 @@ function verifyCaptcha(id, answer, ip) {
 const HOSTNAME_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/i;
 function isValidHost(host) {
   return typeof host === 'string' && host.length <= 253 && HOSTNAME_RE.test(host);
+}
+
+// Endpoints that resolve through the local resolver must only accept fully
+// qualified public names. Single-label names such as "orbitnet-unbound" are
+// answered by Docker's DNS and would expose internal services.
+function isPublicHostname(host) {
+  return typeof host === 'string' && host.includes('.') &&
+    !net.isIP(normalizeIp(host)) && isValidHost(host);
 }
 
 // Public-suffix aware helpers. DNSBLs and CAA expect a registrable domain, not
@@ -2898,9 +2953,10 @@ async function emailInfoLocal(host, selector) {
   if (result.mx.length) {
     try {
       const ips = await withTimeout(dns.resolve(result.mx[0].host, 'A'), DNS_TIMEOUT, 'timeout');
-      if (ips.length) {
-        const names = await withTimeout(dns.reverse(ips[0]), DNS_TIMEOUT, 'timeout');
-        result.mxPtr = { ip: ips[0], hostnames: names };
+      const publicIps = (Array.isArray(ips) ? ips : []).filter(ip => isPublicIp(ip));
+      if (publicIps.length) {
+        const names = await withTimeout(dns.reverse(publicIps[0]), DNS_TIMEOUT, 'timeout');
+        result.mxPtr = { ip: publicIps[0], hostnames: names };
       }
     } catch (e) { /* optional */ }
   }
@@ -4050,6 +4106,7 @@ const server = http.createServer(async (req, res) => {
       // allow IP lookups too (IPv4 and IPv6)
       if (net.isIP(literal)) {
         if (type === 'PTR') {
+          if (!isPublicIp(literal)) return bad(res, 'Only public IP addresses are allowed');
           let records = [];
           let err = null;
           let source = 'local';
@@ -4084,12 +4141,15 @@ const server = http.createServer(async (req, res) => {
           return send(res, 200, { host, type: 'PTR', records, error: err, source });
         }
         if (net.isIPv4(literal) && type === 'A') {
+          if (!isPublicIp(literal)) return bad(res, 'Only public IP addresses are allowed');
           return send(res, 200, { host, type: 'A', records: [literal], source: 'local' });
         }
         return bad(res, 'For an IP address use type=PTR (or type=A for IPv4)');
       }
       if (type === 'PTR') return bad(res, 'PTR lookup requires an IP address');
-      if (!isValidHost(host)) return bad(res, 'Invalid hostname');
+      if (!isPublicHostname(host)) {
+        return bad(res, 'Provide a public fully-qualified hostname');
+      }
       let records;
       let nxdomain = false;
       let source = 'local';
@@ -4131,6 +4191,9 @@ const server = http.createServer(async (req, res) => {
         records = external.records;
         nxdomain = external.nxdomain === true;
         source = 'worker';
+      }
+      if (type === 'A' || type === 'AAAA') {
+        records = (Array.isArray(records) ? records : []).filter(ip => isPublicIp(ip));
       }
       const response = { host, type, records, source };
       if (nxdomain) response.nxdomain = true;
@@ -4233,7 +4296,9 @@ const server = http.createServer(async (req, res) => {
     if (path === '/api/email') {
       const host = query.get('host') || '';
       const selector = (query.get('selector') || '').trim();
-      if (!isValidHost(host)) return bad(res, 'Invalid hostname');
+      if (!isPublicHostname(host)) {
+        return bad(res, 'Provide a public fully-qualified hostname');
+      }
       if (selector && !/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/i.test(selector)) {
         return bad(res, 'Invalid DKIM selector');
       }
