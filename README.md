@@ -314,7 +314,9 @@ Spam Blacklist Check (`/api/spam`) опрашивает публичные DNSBL
 
 IP посетителя определяется по `X-Real-IP`, который выставляет nginx. В продакшене цепочка выглядит так: `Cloudflare → Caddy → nginx → API`. nginx доверяет `CF-Connecting-IP` только от диапазонов Cloudflare и локальных прокси. Список диапазонов Cloudflare вынесен в `cloudflare-ips.conf` и автоматически обновляется при деплое (`scripts/update-cloudflare-ips.sh`).
 
-> **Важно: origin должен быть закрыт от прямых подключений.** Если к Caddy можно обратиться напрямую, в обход Cloudflare, клиент может сам задать `CF-Connecting-IP`. nginx доверяет этому заголовку (Caddy для него — локальный прокси), поэтому такой клиент подменяет свой IP и обходит rate limit, а также ограничение «только свой IP» в `/api/anonymity/ports`. Полностью это лечится на уровне инфраструктуры: закройте origin файрволом для всех, кроме [диапазонов Cloudflare](https://www.cloudflare.com/ips/), или включите Cloudflare Authenticated Origin Pulls. Дополнительно настройте Caddy так, чтобы он читал реальный IP из `CF-Connecting-IP` только для доверенных источников — пример в `deploy/Caddyfile.example`; в этом случае nginx нужно переключить на `real_ip_header X-Forwarded-For` (см. комментарий в примере).
+Caddy обязан перезаписывать `CF-Connecting-IP` перед передачей в nginx: `header_up CF-Connecting-IP {client_ip}` внутри `reverse_proxy` (пример в `deploy/Caddyfile.example`). При включённых `trusted_proxies` и `trusted_proxies_strict` это адрес реального клиента Cloudflare для edge-соединений и адрес непосредственного пира при прямом заходе. Поэтому подставленный клиентом заголовок не доходит до nginx.
+
+> **Важно:** если Caddy не перезаписывает `CF-Connecting-IP`, клиент может обратиться к origin напрямую, подставить любой IP и обойти rate limit, а также ограничение «только свой IP» в `/api/anonymity/ports`. Дополнительно рекомендуется закрыть origin файрволом для всех, кроме [диапазонов Cloudflare](https://www.cloudflare.com/ips/), или включить Cloudflare Authenticated Origin Pulls.
 
 ## Логи и приватность
 

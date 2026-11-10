@@ -170,7 +170,7 @@ orbitnet/
 ├── nginx.conf                     # Статика + proxy_pass /api/
 ├── cloudflare-ips.conf            # Диапазоны Cloudflare (автообновление)
 ├── deploy/
-│   ├── Caddyfile.example          # Пример trusted_proxies для Caddy
+│   ├── Caddyfile.example          # trusted_proxies + перезапись CF-Connecting-IP
 │   └── unbound.conf               # Рекурсивный резолвер для DNSBL (без forward-zone)
 ├── scripts/
 │   └── update-cloudflare-ips.sh   # Обновление cloudflare-ips.conf
@@ -341,7 +341,7 @@ npm run hooks:install
 - Worker не используется для TLS-сертификата, WHOIS и произвольных TCP-портов: для них нужен raw TCP.
 - `CHECKER_URL`/`CHECKER_SECRET` приходят из окружения Docker, секрет не попадает в клиентский код.
 
-IP клиента берётся из `X-Real-IP`, который выставляет nginx. nginx доверяет `CF-Connecting-IP` только от Cloudflare и локальных прокси.
+IP клиента берётся из `X-Real-IP`, который выставляет nginx. nginx доверяет `CF-Connecting-IP` только от Cloudflare и локальных прокси, а Caddy перезаписывает этот заголовок через `{client_ip}` (см. `deploy/Caddyfile.example`).
 
 ### GeoIP
 

@@ -61,24 +61,29 @@ orbitnet.ru {
 	# Caddy terminates TLS and forwards to nginx. With the provided
 	# docker-compose.yml, nginx is published on the host at 127.0.0.1:8081
 	# (there is no "nginx" DNS name unless Caddy runs in the compose network).
-	reverse_proxy 127.0.0.1:8081
+	reverse_proxy 127.0.0.1:8081 {
+		# Always overwrite CF-Connecting-IP before forwarding to nginx. With
+		# trusted_proxies_strict above, {client_ip} is the Cloudflare-resolved
+		# visitor address when the peer is a Cloudflare edge, and the direct peer
+		# address for every other connection. A client-supplied header therefore
+		# never reaches nginx.
+		header_up CF-Connecting-IP {client_ip}
+	}
 
 	# Let Caddy drive the forwarded-for headers itself (do not trust the
 	# client's X-Forwarded-For).
 	# (reverse_proxy already replaces X-Forwarded-For for trusted peers.)
 }
 
-# NOTE ON nginx: with the config above Caddy derives the real client IP and
-# sends it in X-Forwarded-For. nginx should then trust only the local Caddy:
+# NOTE ON nginx: Caddy overwrites CF-Connecting-IP with {client_ip}, so nginx
+# can keep using real_ip_header CF-Connecting-IP. It only needs to trust the
+# local Caddy (and the Cloudflare ranges, if nginx is ever exposed directly):
 #
 #   set_real_ip_from 127.0.0.1;
 #   set_real_ip_from 10.0.0.0/8;
 #   set_real_ip_from 172.16.0.0/12;
 #   set_real_ip_from 192.168.0.0/16;
-#   real_ip_header X-Forwarded-For;
-#   real_ip_recursive on;
-#   # and DROP the CF-Connecting-IP / cloudflare-ips.conf block, because the
-#   # value is already resolved by Caddy.
+#   real_ip_header CF-Connecting-IP;
 #
-# Do not switch nginx to X-Forwarded-For until the Caddy config above is in
-# place, otherwise every visitor appears as the Cloudflare edge address.
+# Do not rely on a client-supplied CF-Connecting-IP: the header_up line above
+# is what makes the direct-to-origin case safe.

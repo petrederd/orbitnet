@@ -873,14 +873,31 @@ const rateHits = new Map();
 const portHits = new Map();
 const tlsDeepHits = new Map();
 const securityHits = new Map();
+// Expensive checks are also limited per target host, so one popular or
+// attacker-controlled target cannot consume the shared outbound pool.
+const targetHits = new Map();
 const PORT_RATE_MAX = 3;
 const TLS_DEEP_RATE_MAX = 8;
 const SECURITY_RATE_MAX = 10;
+const TARGET_RATE_MAX = positiveIntEnv('TARGET_RATE_MAX', 30);
+// Only paths that actually run an expensive check on a target consume the
+// per-target quota. Other limited endpoints must not be able to poison the
+// bucket for a host they do not touch.
+const TARGET_RATE_PATHS = new Set([
+  '/api/geo', '/api/dns', '/api/whois', '/api/site', '/api/tls',
+  '/api/headers', '/api/email', '/api/propagation', '/api/dnssec',
+  '/api/redirect', '/api/spam', '/api/security', '/api/anonymity/ports'
+]);
+// A single client may only hold a few outbound-heavy requests at once. Without
+// this, a handful of clients could occupy every outbound slot with slow
+// (tarpitted) targets and return 503 to everyone else.
+const CLIENT_CONCURRENT_MAX = positiveIntEnv('CLIENT_CONCURRENT_MAX', 4);
+const clientInFlight = new Map();
 let lastRatePrune = Date.now();
 function isRateLimited(ip, store = rateHits, max = RATE_MAX) {
   const now = Date.now();
   if (now - lastRatePrune > RATE_WINDOW_MS) {
-    for (const map of [rateHits, portHits, tlsDeepHits, securityHits, spamHits]) {
+    for (const map of [rateHits, portHits, tlsDeepHits, securityHits, spamHits, targetHits]) {
       for (const [key, rec] of map) {
         if (now - rec.start > RATE_WINDOW_MS) map.delete(key);
       }
@@ -895,6 +912,26 @@ function isRateLimited(ip, store = rateHits, max = RATE_MAX) {
   const rec = rateRecord(store, rateLimitKey(ip), now);
   rec.count++;
   return rec.count > max;
+}
+
+function isTargetRateLimited(target) {
+  const key = String(target || '').trim().toLowerCase().replace(/\.$/, '');
+  if (!key) return false;
+  return isRateLimited(key, targetHits, TARGET_RATE_MAX);
+}
+
+function acquireClientSlot(ip) {
+  const key = rateLimitKey(ip);
+  const current = clientInFlight.get(key) || 0;
+  if (current >= CLIENT_CONCURRENT_MAX) return null;
+  clientInFlight.set(key, current + 1);
+  return key;
+}
+
+function releaseClientSlot(key) {
+  const current = (clientInFlight.get(key) || 1) - 1;
+  if (current <= 0) clientInFlight.delete(key);
+  else clientInFlight.set(key, current);
 }
 
 // Separate rolling-window limit for Cloudflare Worker calls. A single client
@@ -1427,6 +1464,46 @@ function checkPort(ip, port, timeout) {
 }
 
 // ---------- /api/whois ----------
+// Registries throttle or ban clients that query too often, so WHOIS is cached
+// and kept behind a small process-wide budget of its own.
+const WHOIS_CACHE_TTL = positiveIntEnv('WHOIS_CACHE_TTL_MS', 10 * 60 * 1000);
+const WHOIS_CACHE_MAX = positiveIntEnv('WHOIS_CACHE_MAX', 1000);
+const WHOIS_GLOBAL_MAX = positiveIntEnv('WHOIS_GLOBAL_MAX', 30);
+const whoisLimiter = createLimiter(
+  positiveIntEnv('WHOIS_MAX_CONCURRENT', 2),
+  positiveIntEnv('WHOIS_MAX_QUEUE', 20)
+);
+const whoisCache = new Map();
+let whoisGlobal = { start: Date.now(), count: 0 };
+
+function whoisCacheGet(key) {
+  const record = whoisCache.get(key);
+  if (!record) return null;
+  if (Date.now() > record.expires) {
+    whoisCache.delete(key);
+    return null;
+  }
+  return record.value;
+}
+
+function whoisCacheSet(key, value) {
+  if (whoisCache.size >= WHOIS_CACHE_MAX) {
+    const oldest = whoisCache.keys().next().value;
+    if (oldest !== undefined) whoisCache.delete(oldest);
+  }
+  whoisCache.set(key, { value, expires: Date.now() + WHOIS_CACHE_TTL });
+}
+
+function takeWhoisToken() {
+  const now = Date.now();
+  if (now - whoisGlobal.start > RATE_WINDOW_MS) {
+    whoisGlobal = { start: now, count: 0 };
+  }
+  if (whoisGlobal.count >= WHOIS_GLOBAL_MAX) return false;
+  whoisGlobal.count++;
+  return true;
+}
+
 function queryWhois(host, server, port) {
   return new Promise((resolvePort, rejectPort) => {
     const sock = net.connect(port, server);
@@ -4072,6 +4149,7 @@ const server = http.createServer(async (req, res) => {
     path === '/api/anonymity' || path === '/api/anonymity/ports' ||
     path === '/api/anonymity/ping';
 
+  let clientSlot = null;
   try {
     // /health is internal (Docker healthcheck, localhost only). The public
     // /api/health alias must not expose uptime or operational counters.
@@ -4080,6 +4158,19 @@ const server = http.createServer(async (req, res) => {
 
     if (limited && isRateLimited(ip)) {
       return send(res, 429, { error: 'Too many requests, slow down' });
+    }
+    if (limited) {
+      clientSlot = acquireClientSlot(ip);
+      if (!clientSlot) {
+        return send(res, 429, { error: 'Too many concurrent requests, wait for one to finish' });
+      }
+    }
+
+    if (TARGET_RATE_PATHS.has(path)) {
+      const target = query.get('host') || query.get('target') || query.get('ip') || '';
+      if (target && isTargetRateLimited(target)) {
+        return send(res, 429, { error: 'Too many checks for this target, wait a minute' });
+      }
     }
 
     if (path === '/api/ip') {
@@ -4226,6 +4317,9 @@ const server = http.createServer(async (req, res) => {
       const port = parseInt(portStr, 10);
       if (!isValidHost(host) && !net.isIP(normalizeIp(host))) return bad(res, 'Invalid hostname');
       if (port < 1 || port > 65535) return bad(res, 'Port must be 1-65535');
+      if (isTargetRateLimited(host)) {
+        return send(res, 429, { error: 'Too many checks for this target, wait a minute' });
+      }
 
       const attempt = getPortAttempt(ip);
       const needCaptcha = (attempt.count + 1) % PORT_ATTEMPT_EVERY === 0;
@@ -4260,7 +4354,16 @@ const server = http.createServer(async (req, res) => {
     if (path === '/api/whois') {
       const host = query.get('host') || '';
       if (!isValidHost(host)) return bad(res, 'Invalid hostname');
-      const raw = await outbound(() => whoisLookup(host));
+      const cacheKey = host.toLowerCase().replace(/\.$/, '');
+      const cached = whoisCacheGet(cacheKey);
+      if (cached !== null) {
+        return send(res, 200, { host, raw: cached, cached: true });
+      }
+      if (!takeWhoisToken()) {
+        return send(res, 429, { error: 'WHOIS lookup limit reached, try again later' });
+      }
+      const raw = await whoisLimiter(() => whoisLookup(host));
+      whoisCacheSet(cacheKey, raw);
       return send(res, 200, { host, raw });
     }
 
@@ -4385,6 +4488,8 @@ const server = http.createServer(async (req, res) => {
     return send(res, 404, { error: 'Not found' });
   } catch (e) {
     return send(res, e.status || 500, { error: e.message || 'Server error' });
+  } finally {
+    if (clientSlot) releaseClientSlot(clientSlot);
   }
 });
 
@@ -4400,6 +4505,10 @@ if (require.main === module) {
 module.exports = {
   normalizeIp, isPublicIp, clientIp, server, siteInfo, tlsInfo, headersInfo, emailInfo,
   resolvePublicWithWorker,
+  rateLimitKey, isRateLimited, RATE_MAX_ENTRIES,
+  isTargetRateLimited, targetHits, TARGET_RATE_MAX,
+  acquireClientSlot, releaseClientSlot, CLIENT_CONCURRENT_MAX,
+  createCaptcha, captchas, captchaIdsByKey, CAPTCHA_PER_KEY_MAX,
   decodeHtml, propagation, redirectChain, anonymityInfo, anonymityPorts, torStatus,
   hostingSignals, hostnameSignals, proxyHeaderSignals, externalImproves, looksLikeBlockPage,
   spamCheck, parseSpamTarget, parseDnsblRecords, reverseIpName, spamCodeInfo,
