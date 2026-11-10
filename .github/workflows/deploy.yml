@@ -78,12 +78,13 @@ jobs:
             git checkout -- cloudflare-ips.conf deploy/cloudflare-trusted-proxies.caddy 2>/dev/null || true
             git pull --ff-only origin main
 
-            # Refresh Cloudflare ranges and publish the Caddy fragment. The
-            # script keeps the committed files on a network failure, but fails
-            # loudly when an imported fragment is not mounted or Caddy cannot
-            # reload.
+            # Refresh Cloudflare ranges and publish the Caddy fragment. Keep
+            # its status instead of stopping here: a broken Caddy mount or a
+            # failed reload must not prevent a security fix from reaching the
+            # site and backend. The saved status fails the deploy at the end.
+            caddy_status=0
             if [ -x ./scripts/update-cloudflare-ips.sh ]; then
-              ./scripts/update-cloudflare-ips.sh
+              ./scripts/update-cloudflare-ips.sh || caddy_status=$?
             fi
 
             docker compose up -d --build --force-recreate
@@ -111,6 +112,11 @@ jobs:
 
             # Remove dangling images left behind by --build.
             docker image prune -f >/dev/null 2>&1 || true
+
+            if [ "$caddy_status" -ne 0 ]; then
+              echo "warning: Caddy range publish/reload failed; the site and backend were deployed anyway" >&2
+            fi
+            exit "$caddy_status"
 
       - name: Verify published site
         run: npm run test:live

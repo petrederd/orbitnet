@@ -45,6 +45,9 @@ test('deploy resets both generated files and reloads Caddy', () => {
   );
   assert.match(workflow, /envs:.*CADDY_CONTAINER.*CADDY_CONFIG_PATH/);
   assert.doesNotMatch(workflow, /could not refresh cloudflare-ips\.conf/);
+  assert.match(workflow, /caddy_status=0/);
+  assert.match(workflow, /update-cloudflare-ips\.sh \|\| caddy_status=\$\?/);
+  assert.match(workflow, /exit "\$caddy_status"/);
 
   const script = read('scripts/update-cloudflare-ips.sh');
   assert.match(script, /cat "\$caddy_out" > "\$dest"/);
@@ -52,6 +55,7 @@ test('deploy resets both generated files and reloads Caddy', () => {
   assert.match(script, /sha256sum/);
   assert.match(script, /caddy reload/);
   assert.match(script, /not mounted from the host/);
+  assert.doesNotMatch(script, /Caddy reload skipped/);
 });
 
 function caddyFixture() {
@@ -112,7 +116,10 @@ case "$1" in
       test) exit 0 ;;
       grep) exit 0 ;;
       sha256sum) sha256sum "$TEST_FRAGMENT" ;;
-      caddy) echo reload >> "$TEST_RELOAD_LOG" ;;
+      caddy)
+        echo reload >> "$TEST_RELOAD_LOG"
+        if [ "\${TEST_RELOAD_FAIL:-0}" = "1" ]; then exit 1; fi
+        ;;
       *) echo "unexpected docker exec in $container: $*" >&2; exit 1 ;;
     esac
     ;;
@@ -155,13 +162,27 @@ test('Caddy publishes into a single-file mount without replacing its inode', t =
   result = fixture.run();
   assert.equal(result.status, 0, result.stderr);
   assert.equal(fs.statSync(fixture.fragment).ino, inode);
-  assert.equal(fs.readFileSync(fixture.reloadLog, 'utf8').trim(), 'reload', 'unchanged fragment must not reload');
+  assert.equal(fs.readFileSync(fixture.reloadLog, 'utf8').trim(), 'reload\nreload', 'unchanged fragment must still reload');
 
   fs.writeFileSync(fixture.v4, '198.51.100.0/24\n203.0.113.0/24\n');
   result = fixture.run();
   assert.equal(result.status, 0, result.stderr);
   assert.equal(fs.statSync(fixture.fragment).ino, inode);
   assert.match(fs.readFileSync(fixture.fragment, 'utf8'), /203\.0\.113\.0\/24/);
+  assert.equal(fs.readFileSync(fixture.reloadLog, 'utf8').trim(), 'reload\nreload\nreload');
+});
+
+test('a failed Caddy reload is retried even when the fragment is current', t => {
+  const fixture = caddyFixture();
+  t.after(() => fs.rmSync(fixture.tmp, { recursive: true, force: true }));
+
+  let result = fixture.run({ TEST_RELOAD_FAIL: '1' });
+  assert.notEqual(result.status, 0);
+  assert.match(fs.readFileSync(fixture.fragment, 'utf8'), /198\.51\.100\.0\/24/);
+  assert.equal(fs.readFileSync(fixture.reloadLog, 'utf8').trim(), 'reload');
+
+  result = fixture.run();
+  assert.equal(result.status, 0, result.stderr);
   assert.equal(fs.readFileSync(fixture.reloadLog, 'utf8').trim(), 'reload\nreload');
 });
 

@@ -8,7 +8,7 @@
 # which preserves the inode of a single-file bind mount. A container must mount
 # the fragment file or its config directory from the host; an ephemeral
 # docker-cp copy is refused because it disappears when the container is
-# recreated. Caddy is reloaded only when the fragment actually changes.
+# recreated. Caddy is reloaded on every run so a failed reload is retried.
 #
 # Optional environment:
 #   CADDY_CONTAINER     container name (auto-detected when unset)
@@ -103,7 +103,6 @@ caddy_config_path="${CADDY_CONFIG_PATH:-/etc/caddy/Caddyfile}"
 caddy_container="${CADDY_CONTAINER:-}"
 caddy_config_dir="${CADDY_CONFIG_DIR:-}"
 host_sha="$(sha256sum "$caddy_out" | cut -d' ' -f1)"
-caddy_changed=0
 
 sync_fragment() {
   local dest="$1"
@@ -128,7 +127,6 @@ sync_fragment() {
     fi
   fi
   chmod 0644 "$dest" 2>/dev/null || true
-  caddy_changed=1
   echo "updated $dest"
 }
 
@@ -177,24 +175,20 @@ if [ -n "$caddy_container" ]; then
     exit 1
   fi
 
-  if [ "$caddy_changed" = 1 ]; then
-    docker exec "$caddy_container" caddy reload --config "$caddy_config_path"
-    echo "reloaded Caddy in $caddy_container"
-  else
-    echo "Caddy reload skipped: $caddy_fragment is unchanged"
-  fi
+  # Always reload while Caddy is configured. A failed reload leaves the file
+  # new but the running config old; the next deploy must retry even when the
+  # file is already current. Reload is idempotent and cheap.
+  docker exec "$caddy_container" caddy reload --config "$caddy_config_path"
+  echo "reloaded Caddy in $caddy_container"
 elif [ -n "$caddy_config_dir" ]; then
   dest="$caddy_config_dir/$caddy_fragment"
   sync_fragment "$dest"
-  if [ "$caddy_changed" = 1 ]; then
-    if [ -n "${CADDY_RELOAD_CMD:-}" ]; then
-      sh -c "$CADDY_RELOAD_CMD"
-      echo "reloaded Caddy with CADDY_RELOAD_CMD"
-    else
-      echo "warning: updated $dest but CADDY_RELOAD_CMD is not set; Caddy still uses the old ranges" >&2
-    fi
+  if [ -n "${CADDY_RELOAD_CMD:-}" ]; then
+    # Same as above: retry on every deploy, not only when the file changes.
+    sh -c "$CADDY_RELOAD_CMD"
+    echo "reloaded Caddy with CADDY_RELOAD_CMD"
   else
-    echo "Caddy reload skipped: $caddy_fragment is unchanged"
+    echo "warning: $dest is current but CADDY_RELOAD_CMD is not set; Caddy may still use the old ranges" >&2
   fi
 else
   echo "warning: Caddy not detected; updated repository files only" >&2
