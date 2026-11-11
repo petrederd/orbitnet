@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Разбор URL — разделение URL на протокол, хост, путь, запрос и фрагмент с таблицей параметров запроса.">
+<meta name="theme-color" content="#16161a">
+<title>Разбор URL — OrbitNet</title>
+<link rel="canonical" href="https://orbitnet.ru/ru/tools/developer/url-parser.html">
+<!-- orbitnet:i18n:alternates -->
+<link rel="alternate" hreflang="en" href="https://orbitnet.ru/tools/developer/url-parser.html">
+<link rel="alternate" hreflang="ru" href="https://orbitnet.ru/ru/tools/developer/url-parser.html">
+<link rel="alternate" hreflang="x-default" href="https://orbitnet.ru/tools/developer/url-parser.html">
+<!-- /orbitnet:i18n:alternates -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OrbitNet">
+<meta property="og:title" content="Разбор URL — OrbitNet">
+<meta property="og:description" content="Разбор URL — разделение URL на протокол, хост, путь, запрос и фрагмент с таблицей параметров запроса.">
+<meta property="og:url" content="https://orbitnet.ru/ru/tools/developer/url-parser.html">
+<meta property="og:locale" content="ru_RU">
+<meta property="og:image" content="https://orbitnet.ru/assets/og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="OrbitNet — открытые инструменты без шума">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Разбор URL — OrbitNet">
+<meta name="twitter:description" content="Разбор URL — разделение URL на протокол, хост, путь, запрос и фрагмент с таблицей параметров запроса.">
+<meta name="twitter:image" content="https://orbitnet.ru/assets/og-image.png">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=3">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/favicon-192x192.png?v=3">
+<link rel="icon" type="image/png" sizes="96x96" href="/icons/favicon-96x96.png?v=3">
+<link rel="icon" type="image/png" sizes="48x48" href="/icons/favicon-48x48.png?v=3">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png?v=3">
+<link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png?v=3">
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=3">
+<link rel="manifest" href="/site.webmanifest">
+<style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>
+<link rel="stylesheet" href="/assets/css/style.css?v=7">
+<script type="application/ld+json" data-orbitnet-jsonld="software">{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Разбор URL",
+  "description": "Разбор URL — разделение URL на протокол, хост, путь, запрос и фрагмент с таблицей параметров запроса.",
+  "url": "https://orbitnet.ru/ru/tools/developer/url-parser.html",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Any",
+  "isAccessibleForFree": true,
+  "inLanguage": "ru",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  }
+}</script>
+<!-- orbitnet:i18n:scripts -->
+<script src="/assets/i18n/ru.js"></script>
+<script src="/assets/i18n/manifest.js"></script>
+<script src="/assets/js/i18n.js?v=1"></script>
+<script src="/assets/js/lang.js?v=1"></script>
+<!-- /orbitnet:i18n:scripts -->
+<meta content="en_US" property="og:locale:alternate"></head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="/ru/">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="/ru/#tools">Инструменты</a>
+    <a href="/ru/about.html">О проекте</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="/ru/">Главная</a> /
+      <a href="/ru/#tools">Инструменты</a> /
+      <span>Разбор URL</span>
+    </div>
+    <h1>Разбор URL</h1>
+    <p>Разбирает URL на компоненты и показывает параметры запроса в виде таблицы. Повторяющиеся ключи сохраняются, а значения декодируются для читаемости.</p>
+  </div>
+
+  <div class="tool-panel">
+    <h2>URL</h2>
+    <div id="errorMsg"></div>
+    <div class="input-group">
+      <label for="urlInput">Абсолютный URL</label>
+      <input type="text" id="urlInput" spellcheck="false" autocomplete="off" value="https://user:pass@example.com:8443/path/to/page?tag=a&tag=b&q=hello%20world#section-2">
+      <small>Отсутствующая схема <code>https://</code> добавляется автоматически для удобства.</small>
+    </div>
+    <div class="toolbar">
+      <button class="btn" data-action="render">Разобрать URL</button>
+      <button class="btn btn-secondary" data-action="loadExample">Пример</button>
+      <button class="btn btn-secondary" data-action="clearAll">Очистить</button>
+    </div>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Компоненты</h2>
+    <div id="results"><div style="text-align:center;padding:40px 20px;color:var(--muted);">Введите URL, чтобы разобрать его.</div></div>
+  </div>
+
+  <div class="info-section">
+    <h3>Что разбирается</h3>
+    <p>Инструмент использует встроенный парсер URL браузера, поэтому следует тем же правилам, что <code>fetch()</code> и <code>new URL()</code>. Он отдельно показывает нормализованный URL, origin, учётные данные, хост и порт, а также сегменты пути и каждый параметр запроса.</p>
+    <p>Значения запроса декодируются один раз. Если один и тот же ключ встречается несколько раз, каждая пара получает свою строку. Исходная строка запроса показывается отдельно для отладки.</p>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Открытый код. Без рекламы. Без отслеживания. ©<span id="year"></span></div>
+  <div class="footer-links"><a href="/ru/#tools">Все инструменты</a><a href="/ru/about.html">О проекте</a><a href="/privacy.html#ru">Конфиденциальность</a></div>
+</footer>
+
+<script src="/assets/js/tools/developer/url-parser.js?v=1"></script>
+<script src="/assets/js/site.js?v=1"></script>
+</body>
+</html>

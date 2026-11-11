@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Решение квадратных уравнений — решение уравнений вида ax² + bx + c = 0"><meta name="theme-color" content="#16161a">
+    <title>Решение квадратных уравнений — OrbitNet</title>
+<link rel="canonical" href="https://orbitnet.ru/ru/tools/math/quadratic-solver.html">
+<!-- orbitnet:i18n:alternates -->
+<link rel="alternate" hreflang="en" href="https://orbitnet.ru/tools/math/quadratic-solver.html">
+<link rel="alternate" hreflang="ru" href="https://orbitnet.ru/ru/tools/math/quadratic-solver.html">
+<link rel="alternate" hreflang="x-default" href="https://orbitnet.ru/tools/math/quadratic-solver.html">
+<!-- /orbitnet:i18n:alternates -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OrbitNet">
+<meta property="og:title" content="Решение квадратных уравнений — OrbitNet">
+<meta property="og:description" content="Решение квадратных уравнений — решение уравнений вида ax² + bx + c = 0">
+<meta property="og:url" content="https://orbitnet.ru/ru/tools/math/quadratic-solver.html">
+<meta property="og:locale" content="ru_RU">
+<meta property="og:image" content="https://orbitnet.ru/assets/og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="OrbitNet — открытые инструменты без шума">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Решение квадратных уравнений — OrbitNet">
+<meta name="twitter:description" content="Решение квадратных уравнений — решение уравнений вида ax² + bx + c = 0">
+<meta name="twitter:image" content="https://orbitnet.ru/assets/og-image.png">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=3">
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/favicon-192x192.png?v=3">
+    <link rel="icon" type="image/png" sizes="96x96" href="/icons/favicon-96x96.png?v=3">
+    <link rel="icon" type="image/png" sizes="48x48" href="/icons/favicon-48x48.png?v=3">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png?v=3">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png?v=3">
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=3">
+    <link rel="manifest" href="/site.webmanifest">
+    <style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>
+<link rel="stylesheet" href="/assets/css/style.css?v=7">
+  <script type="application/ld+json" data-orbitnet-jsonld="software">{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Решение квадратных уравнений",
+  "description": "Решение квадратных уравнений — решение уравнений вида ax² + bx + c = 0",
+  "url": "https://orbitnet.ru/ru/tools/math/quadratic-solver.html",
+  "applicationCategory": "EducationalApplication",
+  "applicationSubCategory": "math",
+  "operatingSystem": "Any",
+  "browserRequirements": "Требуется JavaScript и современный браузер.",
+  "isAccessibleForFree": true,
+  "inLanguage": "ru",
+  "publisher": {
+    "@type": "Organization",
+    "name": "OrbitNet",
+    "url": "https://orbitnet.ru/ru/"
+  },
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  }
+}</script>
+<!-- orbitnet:i18n:scripts -->
+<script src="/assets/i18n/ru.js"></script>
+<script src="/assets/i18n/manifest.js"></script>
+<script src="/assets/js/i18n.js?v=1"></script>
+<script src="/assets/js/lang.js?v=1"></script>
+<!-- /orbitnet:i18n:scripts -->
+<meta content="en_US" property="og:locale:alternate"></head>
+  <body>
+    <header class="wrap topbar">
+      <a class="brand" href="/ru/"><span class="brand-mark" aria-hidden="true"><i></i>
+      <i></i>
+      <i></i>
+      <i></i>
+      </span>
+      <span>orbitnet<span style="font-weight:500">.ru</span>
+      </span>
+      </a>
+      <nav class="nav">
+        <a href="/ru/#tools">Инструменты</a>
+        <a href="/ru/about.html">О проекте</a>
+      </nav>
+    </header>
+    <main class="wrap tool-page">
+      <div class="tool-header">
+        <div class="breadcrumb">
+          <a href="/ru/">Главная</a>
+          /<a href="/ru/#tools">Инструменты</a>
+          /<span>Решение квадратных уравнений</span>
+        </div>
+        <h1>Решение квадратных уравнений</h1>
+        <p style="color: var(--muted); max-width: 700px;">Решайте квадратные уравнения вида ax² + bx + c = 0. Находите действительные и комплексные корни с пошаговыми деталями расчёта.</p>
+      </div>
+      <div class="tool-layout">
+        <div class="tool-panel">
+          <h2>Параметры уравнения</h2>
+          <div class="equation-preview" id="equationPreview">ax² + bx + c = 0</div>
+          <div id="errorMsg">
+          </div>
+          <div class="input-group">
+            <label for="coeffA">Коэффициент a</label>
+            <input type="number" id="coeffA" placeholder="например, 1" step="any" data-action="updatePreview" data-event="input"><small>Коэффициент при x² (не должен быть равен нулю)</small>
+          </div>
+          <div class="input-group">
+            <label for="coeffB">Коэффициент b</label>
+            <input type="number" id="coeffB" placeholder="например, -5" step="any" data-action="updatePreview" data-event="input"><small>Коэффициент при x</small>
+          </div>
+          <div class="input-group">
+            <label for="coeffC">Коэффициент c</label>
+            <input type="number" id="coeffC" placeholder="например, 6" step="any" data-action="updatePreview" data-event="input"><small>Свободный член</small>
+          </div>
+          <button class="btn" data-action="solve">Решить</button>
+          <button class="btn btn-secondary" data-action="reset" style="margin-left: 10px;">Сбросить</button>
+        </div>
+        <div class="tool-panel">
+          <h2>Решение</h2>
+          <div id="results">
+            <div style="text-align: center; padding: 40px 20px; color: var(--muted);">Введите коэффициенты и нажмите «Решить»</div>
+          </div>
+        </div>
+      </div>
+      <div class="info-section">
+        <h3>О квадратных уравнениях</h3>
+        <p>Квадратное уравнение имеет вид <code>ax² + bx + c = 0</code>, где a ≠ 0.</p>
+        <h3 style="margin-top: 20px;">Формула корней</h3>
+        <p><code>x = (-b ± √(b² - 4ac)) / 2a</code></p>
+        <h3 style="margin-top: 20px;">Дискриминант</h3>
+        <p><code>D = b² - 4ac</code></p>
+        <ul>
+          <li><strong>D &gt; 0:</strong> два различных действительных корня</li>
+          <li><strong>D = 0:</strong> один корень (два равных корня)</li>
+          <li><strong>D &lt; 0:</strong> два комплексно-сопряжённых корня</li>
+          </ul>
+          <h3 style="margin-top: 20px;">Примеры</h3>
+          <ul>
+            <li><strong>x² - 5x + 6 = 0</strong> → a=1, b=-5, c=6 → x₁=3, x₂=2</li>
+            <li><strong>x² - 4x + 4 = 0</strong> → a=1, b=-4, c=4 → x=2 (двойной корень)</li>
+            <li><strong>x² + x + 1 = 0</strong> → a=1, b=1, c=1 → комплексные корни</li>
+          </ul>
+        </div>
+      </main>
+      <footer class="wrap footer">
+        <div>
+          <strong>OrbitNet</strong>
+          <br>Открытый код. Без рекламы. Без отслеживания. ©<span id="year"></span>
+        </div>
+        <div class="footer-links">
+          <a href="/ru/#tools">Все инструменты</a>
+          <a href="/ru/about.html">О проекте</a><a href="/privacy.html#ru">Конфиденциальность</a>
+        </div>
+      </footer>
+<script src="/assets/js/tools/math/quadratic-solver.js?v=1"></script>
+<script src="/assets/js/site.js?v=1"></script>
+</body>
+</html>

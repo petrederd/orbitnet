@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Информация об IP и домене — обратный DNS, DNS-записи и данные регистрации whois">
+<meta name="theme-color" content="#16161a">
+<title>Информация об IP и домене — OrbitNet</title>
+<link rel="canonical" href="https://orbitnet.ru/ru/tools/networks/ip-info.html">
+<!-- orbitnet:i18n:alternates -->
+<link rel="alternate" hreflang="en" href="https://orbitnet.ru/tools/networks/ip-info.html">
+<link rel="alternate" hreflang="ru" href="https://orbitnet.ru/ru/tools/networks/ip-info.html">
+<link rel="alternate" hreflang="x-default" href="https://orbitnet.ru/tools/networks/ip-info.html">
+<!-- /orbitnet:i18n:alternates -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OrbitNet">
+<meta property="og:title" content="Информация об IP и домене — OrbitNet">
+<meta property="og:description" content="Информация об IP и домене — обратный DNS, DNS-записи и данные регистрации whois">
+<meta property="og:url" content="https://orbitnet.ru/ru/tools/networks/ip-info.html">
+<meta property="og:locale" content="ru_RU">
+<meta property="og:image" content="https://orbitnet.ru/assets/og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="OrbitNet — открытые инструменты без шума">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Информация об IP и домене — OrbitNet">
+<meta name="twitter:description" content="Информация об IP и домене — обратный DNS, DNS-записи и данные регистрации whois">
+<meta name="twitter:image" content="https://orbitnet.ru/assets/og-image.png">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=3">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/favicon-192x192.png?v=3">
+<link rel="icon" type="image/png" sizes="96x96" href="/icons/favicon-96x96.png?v=3">
+<link rel="icon" type="image/png" sizes="48x48" href="/icons/favicon-48x48.png?v=3">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png?v=3">
+<link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png?v=3">
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=3">
+<link rel="manifest" href="/site.webmanifest">
+<style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>
+<link rel="stylesheet" href="/assets/css/style.css?v=7">
+<script type="application/ld+json" data-orbitnet-jsonld="software">{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "IP &amp; Domain Info",
+  "description": "Информация об IP и домене — обратный DNS, DNS-записи и данные регистрации whois",
+  "url": "https://orbitnet.ru/ru/tools/networks/ip-info.html",
+  "applicationCategory": "NetworkApplication",
+  "applicationSubCategory": "networks",
+  "operatingSystem": "Any",
+  "browserRequirements": "Требуется JavaScript и современный браузер.",
+  "isAccessibleForFree": true,
+  "inLanguage": "ru",
+  "publisher": {
+    "@type": "Organization",
+    "name": "OrbitNet",
+    "url": "https://orbitnet.ru/ru/"
+  },
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  }
+}</script>
+<!-- orbitnet:i18n:scripts -->
+<script src="/assets/i18n/ru.js"></script>
+<script src="/assets/i18n/manifest.js"></script>
+<script src="/assets/js/i18n.js?v=1"></script>
+<script src="/assets/js/lang.js?v=1"></script>
+<!-- /orbitnet:i18n:scripts -->
+<meta content="en_US" property="og:locale:alternate"></head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="/ru/">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="/ru/#tools">Инструменты</a>
+    <a href="/ru/about.html">О проекте</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="/ru/">Главная</a> /
+      <a href="/ru/#tools">Инструменты</a> /
+      <span>Информация об IP и домене</span>
+    </div>
+    <h1>Информация об IP и домене</h1>
+    <p>Найдите информацию об IP-адресе или домене: геолокация, сетевой провайдер, DNS-записи, обратный DNS и данные регистрации whois.</p>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Найти</h2>
+    <div id="errorMsg"></div>
+
+    <div class="input-group">
+      <label for="query">IP-адрес или домен</label>
+      <input type="text" id="query" placeholder="8.8.8.8 или example.com">
+    </div>
+
+    <button class="btn" data-action="lookup">Найти</button>
+  </div>
+
+  <div class="tool-panel">
+    <h2>DNS-записи</h2>
+    <div id="dnsResults">
+      <div style="text-align: center; padding: 40px 20px; color: var(--muted);">Введите IP или домен и нажмите «Найти»</div>
+    </div>
+  </div>
+
+  <div class="tool-panel" id="geoPanel" style="display:none;">
+    <h2>Геолокация и провайдер</h2>
+    <div id="geoResults"></div>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Регистрация Whois</h2>
+    <div id="whoisResults">
+      <div style="text-align: center; padding: 40px 20px; color: var(--muted);">Данные whois появятся здесь</div>
+    </div>
+  </div>
+
+  <div class="info-section">
+    <h3>Об инструменте</h3>
+    <p>Введите IP-адрес или доменное имя. Для домена мы разрешаем его DNS-записи и используем первый публичный адрес для разделов геолокации и whois. Обычно запросы выполняются на нашем сервере; если локальный DNS заблокирован, может использоваться внешняя проверка.</p>
+
+    <h3 style="margin-top: 20px;">Что означает каждое значение</h3>
+    <ul>
+      <li><strong>Геолокация и провайдер:</strong>
+        <ul>
+          <li><strong>Местоположение:</strong> приблизительные город, регион и страна регистрации адреса.</li>
+          <li><strong>Провайдер:</strong> организация (ISP или хостинг-компания) и номер её автономной системы (ASN).</li>
+          <li><strong>Часовой пояс:</strong> часовой пояс, связанный с определённым местоположением.</li>
+          <li><strong>Координаты / радиус точности:</strong> приблизительные широта и долгота, а также возможная погрешность оценки.</li>
+        </ul>
+      </li>
+      <li><strong>DNS-записи:</strong>
+        <ul>
+          <li><strong>A / AAAA:</strong> IPv4- и IPv6-адреса, на которые указывает имя.</li>
+          <li><strong>MX:</strong> почтовые серверы с их приоритетом (меньше — предпочтительнее).</li>
+          <li><strong>NS:</strong> авторитетные серверы имён для зоны.</li>
+          <li><strong>TXT:</strong> текстовые записи произвольной формы (SPF, токены подтверждения и т. п.).</li>
+          <li><strong>Обратный DNS (PTR):</strong> для IP-адреса — зарегистрированное за ним имя хоста.</li>
+        </ul>
+      </li>
+      <li><strong>Регистрация Whois:</strong> регистратор, даты создания и истечения, статус и серверы имён по данным реестра, а затем полный необработанный ответ.</li>
+    </ul>
+
+    <p style="margin-top: 14px; font-size: .82rem;">Продукт использует данные GeoLite2, созданные MaxMind, доступные на <a href="https://www.maxmind.com" target="_blank" rel="noopener">https://www.maxmind.com</a>.</p>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Открытый код. Без рекламы. Без отслеживания. ©<span id="year"></span></div>
+  <div class="footer-links"><a href="/ru/#tools">Все инструменты</a><a href="/ru/about.html">О проекте</a><a href="/privacy.html#ru">Конфиденциальность</a></div>
+</footer>
+
+<script src="/assets/js/tools/networks/ip-info.js?v=2"></script>
+<script src="/assets/js/site.js?v=1"></script>
+</body>
+</html>

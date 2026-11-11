@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Проверка SSL/TLS — цепочка сертификатов, проверка имени хоста и срока действия, стойкость ключа, SCT, OCSP, ALPN и оценка TLS A–F">
+<meta name="theme-color" content="#16161a">
+<title>Проверка SSL/TLS — OrbitNet</title>
+<link rel="canonical" href="https://orbitnet.ru/ru/tools/networks/ssl-checker.html">
+<!-- orbitnet:i18n:alternates -->
+<link rel="alternate" hreflang="en" href="https://orbitnet.ru/tools/networks/ssl-checker.html">
+<link rel="alternate" hreflang="ru" href="https://orbitnet.ru/ru/tools/networks/ssl-checker.html">
+<link rel="alternate" hreflang="x-default" href="https://orbitnet.ru/tools/networks/ssl-checker.html">
+<!-- /orbitnet:i18n:alternates -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OrbitNet">
+<meta property="og:title" content="Проверка SSL/TLS — OrbitNet">
+<meta property="og:description" content="Проверка SSL/TLS — цепочка сертификатов, проверка имени хоста и срока действия, стойкость ключа, SCT, OCSP, ALPN и оценка TLS A–F">
+<meta property="og:url" content="https://orbitnet.ru/ru/tools/networks/ssl-checker.html">
+<meta property="og:locale" content="ru_RU">
+<meta property="og:image" content="https://orbitnet.ru/assets/og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="OrbitNet — открытые инструменты без шума">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Проверка SSL/TLS — OrbitNet">
+<meta name="twitter:description" content="Проверка SSL/TLS — цепочка сертификатов, проверка имени хоста и срока действия, стойкость ключа, SCT, OCSP, ALPN и оценка TLS A–F">
+<meta name="twitter:image" content="https://orbitnet.ru/assets/og-image.png">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=3">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/favicon-192x192.png?v=3">
+<link rel="icon" type="image/png" sizes="96x96" href="/icons/favicon-96x96.png?v=3">
+<link rel="icon" type="image/png" sizes="48x48" href="/icons/favicon-48x48.png?v=3">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png?v=3">
+<link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png?v=3">
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=3">
+<link rel="manifest" href="/site.webmanifest">
+<style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+.grade-row{display:flex;flex-wrap:wrap;gap:18px;align-items:center;margin-bottom:14px}
+.grade-badge{flex:0 0 auto;width:84px;height:84px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:2.6rem;font-weight:800;border:2px solid currentColor}
+.grade-badge.A{color:var(--accent);background:rgba(110,207,160,.12)}
+.grade-badge.B{color:#8ab4f8;background:rgba(138,180,248,.12)}
+.grade-badge.C{color:#e7c65b;background:rgba(231,198,91,.12)}
+.grade-badge.D{color:var(--warning);background:rgba(245,198,107,.12)}
+.grade-badge.E{color:#e0a06b;background:rgba(224,160,107,.12)}
+.grade-badge.F{color:var(--danger);background:rgba(242,139,130,.12)}
+.grade-meta h3{margin:0 0 4px}
+.grade-meta p{margin:0;color:var(--muted);font-size:.86rem}
+.chain-table{width:100%;border-collapse:collapse;font-size:.82rem}
+.chain-table th,.chain-table td{text-align:left;vertical-align:top;padding:6px 8px;border-bottom:1px solid var(--line)}
+.chain-table th{color:var(--muted);font-weight:600}
+.rule-table{width:100%;border-collapse:collapse;font-size:.84rem}
+.rule-table th,.rule-table td{text-align:left;vertical-align:top;padding:6px 8px;border-bottom:1px solid var(--line)}
+.rule-table th{color:var(--muted);font-weight:600}</style>
+<link rel="stylesheet" href="/assets/css/style.css?v=7">
+<script type="application/ld+json" data-orbitnet-jsonld="software">{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Проверка SSL/TLS",
+  "description": "Проверка SSL/TLS — цепочка сертификатов, проверка имени хоста и срока действия, стойкость ключа, SCT, OCSP, ALPN и оценка TLS A–F",
+  "url": "https://orbitnet.ru/ru/tools/networks/ssl-checker.html",
+  "applicationCategory": "NetworkApplication",
+  "applicationSubCategory": "networks",
+  "operatingSystem": "Any",
+  "browserRequirements": "Требуется JavaScript и современный браузер.",
+  "isAccessibleForFree": true,
+  "inLanguage": "ru",
+  "publisher": {
+    "@type": "Organization",
+    "name": "OrbitNet",
+    "url": "https://orbitnet.ru/ru/"
+  },
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  }
+}</script>
+<!-- orbitnet:i18n:scripts -->
+<script src="/assets/i18n/ru.js"></script>
+<script src="/assets/i18n/manifest.js"></script>
+<script src="/assets/js/i18n.js?v=1"></script>
+<script src="/assets/js/lang.js?v=1"></script>
+<!-- /orbitnet:i18n:scripts -->
+<meta content="en_US" property="og:locale:alternate"></head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="/ru/">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="/ru/#tools">Инструменты</a>
+    <a href="/ru/about.html">О проекте</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="/ru/">Главная</a> /
+      <a href="/ru/#tools">Инструменты</a> /
+      <span>Проверка SSL/TLS</span>
+    </div>
+    <h1>Проверка SSL/TLS</h1>
+    <p>Проверьте TLS-конфигурацию сервера за одно рукопожатие: детали сертификата и цепочки, проверки имени хоста и срока действия, стойкость ключа, SCT, OCSP stapling, ALPN/HTTP/3 и оценку A–F с открыто показанными правилами.</p>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Проверить</h2>
+    <div id="errorMsg"></div>
+    <div class="input-group">
+      <label for="host">Хост</label>
+      <input type="text" id="host" placeholder="example.com">
+    </div>
+    <div class="input-group">
+      <label for="port">Порт</label>
+      <input type="text" id="port" inputmode="numeric" placeholder="например, 443">
+      <small>По умолчанию 443. Допустимые порты: 443, 465, 993, 995, 8443.</small>
+    </div>
+    <div class="input-group">
+      <label style="display:flex;align-items:center;gap:.5rem;font-weight:500;"><input type="checkbox" id="deep" style="width:auto;"> Глубокая проверка</label>
+      <small>Проверяет поддерживаемые версии TLS и наборы шифров, OCSP stapling и CAA-записи.</small>
+    </div>
+    <button class="btn" data-action="check">Проверить сертификат</button>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Результат</h2>
+    <div id="results">
+      <div style="text-align:center;padding:40px 20px;color:var(--muted);">Введите хост и нажмите «Проверить»</div>
+    </div>
+  </div>
+
+  <div class="info-section">
+    <h3>Что проверяется</h3>
+    <ul>
+      <li><strong>Сертификат и цепочка:</strong> субъект, издатель, даты действия, тип и размер ключа, признак самоподписи и порядок каждого сертификата, отправленного сервером.</li>
+      <li><strong>Неполная цепочка:</strong> определяется по <code>authorizationError</code> (например, <code>unable to get local issuer certificate</code>). Недостающие промежуточные сертификаты никогда не скачиваются через AIA, чтобы не добавлять поверхность SSRF.</li>
+      <li><strong>Лишний корневой сертификат / порядок:</strong> корневой сертификат, отправленный сервером, отмечается как информационное примечание, а не предупреждение; каждый сертификат всё равно должен быть выпущен следующим в цепочке.</li>
+      <li><strong>Имя хоста:</strong> <code>tls.checkServerIdentity()</code> сравнивает запрошенный хост с CN/SAN; при несовпадении перечисляются все записи SAN.</li>
+      <li><strong>Срок действия:</strong> предупреждение менее чем за 30 дней, ошибка менее чем за 14 дней и сбой после истечения. Для доверенных цепочек срок действия дольше текущего лимита CA/B Forum помечается: 398 дней до 2026-03-15, 200 дней с 2026-03-15, 100 дней с 2027-03-15 и 47 дней с 2029-03-15. Приватные и иные недоверенные УЦ не связаны этим лимитом, поэтому для них предупреждение не показывается.</li>
+      <li><strong>Стойкость ключа:</strong> RSA короче 2048 бит и устаревшие эллиптические кривые (P-192/P-224 и бинарные кривые) считаются ошибками.</li>
+      <li><strong>OCSP:</strong> «не stapled» — предупреждение, только если сертификат содержит URL OCSP в <code>infoAccess</code>. Let’s Encrypt убрал URL OCSP в мае 2025 и отключил сервис в августе 2025, поэтому отсутствие URL не считается проблемой.</li>
+      <li><strong>Certificate Transparency:</strong> в необработанном сертификате ищется встроенный OID SCT <code>1.3.6.1.4.1.11129.2.4.2</code>. Отсутствие SCT лишь снижает оценку и никогда не ограничивает итоговый балл, поскольку приватные корпоративные УЦ обычно не публикуют данные в CT-журналы.</li>
+      <li><strong>ALPN / HTTP/3:</strong> рукопожатие предлагает <code>h2</code> и <code>http/1.1</code>; Alt-Svc из HTTP-ответа (по тому же TLS-сокету) показывает, объявляется ли HTTP/3.</li>
+      <li><strong>CAA-записи:</strong> какие удостоверяющие центры вправе выпускать сертификаты для домена (RFC 8659).</li>
+    </ul>
+    <p>TLS-рукопожатие выполняет наш сервер, поэтому соединение всегда идёт только на разрешённый публичный IP введённого хоста. Устаревшие протоколы и шифры, которые наш OpenSSL отказывается предлагать, помечаются как «не проверяемо», а не «отклонено».</p>
+
+    <h3>Правила оценки TLS</h3>
+    <p>Это собственная шкала OrbitNet A–F. Оценка — взвешенное среднее проверок ниже; ограничения применяются после этого, чтобы серьёзная проблема не могла скрыться за хорошими оценками в других местах.</p>
+    <div style="overflow-x:auto;">
+      <table class="rule-table">
+        <thead><tr><th>Правило</th><th>Вес</th><th>Влияние</th></tr></thead>
+        <tbody>
+          <tr><td>Доверенная цепочка</td><td>25</td><td>Сбой, если цепочка недоверенная или неполная.</td></tr>
+          <tr><td>Совпадение имени хоста</td><td>20</td><td>Сбой, если сертификат не покрывает хост.</td></tr>
+          <tr><td>Срок действия</td><td>20</td><td>Предупреждение менее чем за 30 дней, сбой менее чем за 14 дней или истечение; для доверенных цепочек — предупреждение при превышении лимита CA/B.</td></tr>
+          <tr><td>Структура цепочки</td><td>10</td><td>Неполная цепочка — сбой; лишний корень — информационно; неверный порядок — предупреждение.</td></tr>
+          <tr><td>Стойкость открытого ключа</td><td>15</td><td>RSA короче 2048 бит или устаревшая кривая — сбой.</td></tr>
+          <tr><td>Certificate Transparency</td><td>5</td><td>Отсутствие встроенного SCT даёт предупреждение, но не ограничивает итоговый балл.</td></tr>
+          <tr><td>OCSP stapling</td><td>5</td><td>Оценивается только при наличии URL OCSP; тогда отсутствие staple даёт предупреждение.</td></tr>
+          <tr><td>ALPN</td><td>5</td><td>h2 проходит; HTTP/1.1 или отсутствие согласования дают предупреждение без ограничения итогового балла.</td></tr>
+          <tr><td>Объявление HTTP/3</td><td>3</td><td>Запись Alt-Svc h3 проходит; иначе предупреждение без ограничения итогового балла.</td></tr>
+          <tr><td>Версии TLS (глубоко)</td><td>15</td><td>TLS 1.0/1.1 — сбой; отсутствие TLS 1.3 — предупреждение.</td></tr>
+          <tr><td>Наборы шифров (глубоко)</td><td>10</td><td>Слабый набор вызывает сбой; устаревшие наборы дают предупреждение.</td></tr>
+          <tr><td><strong>Потолок F</strong></td><td>—</td><td>Истёк, несовпадение имени хоста, недоверенная/неполная цепочка или слабый ключ.</td></tr>
+          <tr><td><strong>Потолок C</strong></td><td>—</td><td>Принимается TLS 1.0/1.1 или слабый набор шифров.</td></tr>
+          <tr><td><strong>Потолок B</strong></td><td>—</td><td>Доверенный сертификат с чрезмерным сроком действия или неправильным порядком цепочки.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p><strong>A</strong> ≥ 90, <strong>B</strong> ≥ 80, <strong>C</strong> ≥ 70, <strong>D</strong> ≥ 60, <strong>E</strong> ≥ 50, иначе <strong>F</strong>. Строки с пометкой «не оценивалось» пропускаются, поэтому базовая проверка не штрафуется за проверки глубокого сканирования, которые не запрашивались.</p>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Открытый код. Без рекламы. Без отслеживания. ©<span id="year"></span></div>
+  <div class="footer-links"><a href="/ru/#tools">Все инструменты</a><a href="/ru/about.html">О проекте</a><a href="/privacy.html#ru">Конфиденциальность</a></div>
+</footer>
+
+<script src="/assets/js/tools/networks/ssl-checker.js?v=1"></script>
+<script src="/assets/js/site.js?v=1"></script>
+</body>
+</html>

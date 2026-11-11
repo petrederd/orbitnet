@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Санитайзер заголовков безопасности — проверка, очистка и валидация HTTP-заголовков безопасности с генерацией сниппета nginx.">
+<meta name="theme-color" content="#16161a">
+<title>Очистка заголовков безопасности — OrbitNet</title>
+<link rel="canonical" href="https://orbitnet.ru/ru/tools/developer/security-headers.html">
+<!-- orbitnet:i18n:alternates -->
+<link rel="alternate" hreflang="en" href="https://orbitnet.ru/tools/developer/security-headers.html">
+<link rel="alternate" hreflang="ru" href="https://orbitnet.ru/ru/tools/developer/security-headers.html">
+<link rel="alternate" hreflang="x-default" href="https://orbitnet.ru/tools/developer/security-headers.html">
+<!-- /orbitnet:i18n:alternates -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OrbitNet">
+<meta property="og:title" content="Очистка заголовков безопасности — OrbitNet">
+<meta property="og:description" content="Санитайзер заголовков безопасности — проверка, очистка и валидация HTTP-заголовков безопасности с генерацией сниппета nginx.">
+<meta property="og:url" content="https://orbitnet.ru/ru/tools/developer/security-headers.html">
+<meta property="og:locale" content="ru_RU">
+<meta property="og:image" content="https://orbitnet.ru/assets/og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="OrbitNet — открытые инструменты без шума">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Очистка заголовков безопасности — OrbitNet">
+<meta name="twitter:description" content="Санитайзер заголовков безопасности — проверка, очистка и валидация HTTP-заголовков безопасности с генерацией сниппета nginx.">
+<meta name="twitter:image" content="https://orbitnet.ru/assets/og-image.png">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=3">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/favicon-192x192.png?v=3">
+<link rel="icon" type="image/png" sizes="96x96" href="/icons/favicon-96x96.png?v=3">
+<link rel="icon" type="image/png" sizes="48x48" href="/icons/favicon-48x48.png?v=3">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png?v=3">
+<link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png?v=3">
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=3">
+<link rel="manifest" href="/site.webmanifest">
+<style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>
+<link rel="stylesheet" href="/assets/css/style.css?v=7">
+<script type="application/ld+json" data-orbitnet-jsonld="software">{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Очистка security-заголовков",
+  "description": "Санитайзер заголовков безопасности — проверка, очистка и валидация HTTP-заголовков безопасности с генерацией сниппета nginx.",
+  "url": "https://orbitnet.ru/ru/tools/developer/security-headers.html",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Any",
+  "isAccessibleForFree": true,
+  "inLanguage": "ru",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  }
+}</script>
+<!-- orbitnet:i18n:scripts -->
+<script src="/assets/i18n/ru.js"></script>
+<script src="/assets/i18n/manifest.js"></script>
+<script src="/assets/js/i18n.js?v=1"></script>
+<script src="/assets/js/lang.js?v=1"></script>
+<!-- /orbitnet:i18n:scripts -->
+<meta content="en_US" property="og:locale:alternate"></head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="/ru/">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="/ru/#tools">Инструменты</a>
+    <a href="/ru/about.html">О проекте</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="/ru/">Главная</a> /
+      <a href="/ru/#tools">Инструменты</a> /
+      <span>Очистка security-заголовков</span>
+    </div>
+    <h1>Очистка security-заголовков</h1>
+    <p>Вставьте заголовки HTTP-ответа, чтобы проверить важные заголовки безопасности, найти слабые или устаревшие значения и получить аккуратный блок nginx <code>add_header</code>.</p>
+  </div>
+
+  <div class="tool-layout">
+    <div class="tool-panel">
+      <h2>Заголовки</h2>
+      <div id="errorMsg"></div>
+      <div class="input-group">
+        <label for="headersInput">Одна строка <code>Name: value</code> на строку</label>
+        <textarea id="headersInput" spellcheck="false" style="min-height:330px;">Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Referrer-Policy: strict-origin-when-cross-origin
+Permissions-Policy: camera=(), microphone=(), geolocation=()
+X-XSS-Protection: 1; mode=block
+Server: nginx/1.27.0</textarea>
+      </div>
+      <div class="toolbar">
+        <button class="btn" data-action="analyze">Проанализировать заголовки</button>
+        <button class="btn btn-secondary" data-action="loadExample">Пример</button>
+        <button class="btn btn-secondary" data-action="clearAll">Очистить</button>
+      </div>
+    </div>
+
+    <div class="tool-panel">
+      <h2>Отчёт</h2>
+      <div id="results"><div style="text-align:center;padding:40px 20px;color:var(--muted);">Вставьте заголовки и проанализируйте их.</div></div>
+    </div>
+  </div>
+
+  <div class="info-section">
+    <h3>Что проверяется</h3>
+    <ul>
+      <li><strong>Content-Security-Policy</strong> — наличие политики по умолчанию или для скриптов и предупреждения о <code>unsafe-inline</code> / <code>unsafe-eval</code>.</li>
+      <li><strong>Strict-Transport-Security</strong> — длительный <code>max-age</code>; <code>includeSubDomains</code> и <code>preload</code> выводятся как рекомендации.</li>
+      <li><strong>X-Content-Type-Options</strong>, <strong>X-Frame-Options</strong>, <strong>Referrer-Policy</strong> и заголовки изоляции Cross-Origin.</li>
+      <li><strong>Отпечатки и устаревшие</strong> заголовки, такие как <code>Server</code>, <code>X-Powered-By</code> и <code>X-XSS-Protection</code>.</li>
+    </ul>
+    <p>Санитайзер нормализует имена, обрезает значения, удаляет дубликаты и пустые заголовки, сохраняя первое вхождение каждого заголовка.</p>
+    <p>nginx раскрывает <code>$name</code> внутри значений <code>add_header</code>. Отчёт предупреждает, если значение содержит <code>$</code>, потому что надёжного экранирования обратным слешем нет; переименуйте текст переменной или избегайте его в nginx.</p>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Открытый код. Без рекламы. Без отслеживания. ©<span id="year"></span></div>
+  <div class="footer-links"><a href="/ru/#tools">Все инструменты</a><a href="/ru/about.html">О проекте</a><a href="/privacy.html#ru">Конфиденциальность</a></div>
+</footer>
+
+<script src="/assets/js/security-header-rules.js"></script>
+<script src="/assets/js/tools/developer/security-headers.js?v=1"></script>
+<script src="/assets/js/site.js?v=1"></script>
+</body>
+</html>

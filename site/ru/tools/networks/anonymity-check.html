@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Проверка анонимности — анализ proxy-заголовков, признаков Tor и хостинга, несовпадения часовых поясов, утечек WebRTC и необязательная проверка портов прокси/VPN на вашем собственном IP.">
+<meta name="theme-color" content="#16161a">
+<title>Проверка анонимности — OrbitNet</title>
+<link rel="canonical" href="https://orbitnet.ru/ru/tools/networks/anonymity-check.html">
+<!-- orbitnet:i18n:alternates -->
+<link rel="alternate" hreflang="en" href="https://orbitnet.ru/tools/networks/anonymity-check.html">
+<link rel="alternate" hreflang="ru" href="https://orbitnet.ru/ru/tools/networks/anonymity-check.html">
+<link rel="alternate" hreflang="x-default" href="https://orbitnet.ru/tools/networks/anonymity-check.html">
+<!-- /orbitnet:i18n:alternates -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OrbitNet">
+<meta property="og:title" content="Проверка анонимности — OrbitNet">
+<meta property="og:description" content="Проверьте пассивные и необязательные активные признаки, которые могут указывать на прокси, VPN, Tor или хостинговую сеть.">
+<meta property="og:url" content="https://orbitnet.ru/ru/tools/networks/anonymity-check.html">
+<meta property="og:locale" content="ru_RU">
+<meta property="og:image" content="https://orbitnet.ru/assets/og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="OrbitNet — открытые инструменты без шума">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Проверка анонимности — OrbitNet">
+<meta name="twitter:description" content="Проверьте пассивные и необязательные активные признаки, которые могут указывать на прокси, VPN, Tor или хостинговую сеть.">
+<meta name="twitter:image" content="https://orbitnet.ru/assets/og-image.png">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=3">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/favicon-192x192.png?v=3">
+<link rel="icon" type="image/png" sizes="96x96" href="/icons/favicon-96x96.png?v=3">
+<link rel="icon" type="image/png" sizes="48x48" href="/icons/favicon-48x48.png?v=3">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png?v=3">
+<link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png?v=3">
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=3">
+<link rel="manifest" href="/site.webmanifest">
+<style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>
+<link rel="stylesheet" href="/assets/css/style.css?v=7">
+<style>
+  .anon-grid { display: grid; gap: 10px; }
+  .anon-check { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+  .anon-check .anon-badge { flex: 0 0 auto; min-width: 62px; text-align: center; border-radius: 999px; padding: 3px 8px; font-size: .72rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; border: 1px solid currentColor; }
+  .anon-check .anon-body { min-width: 0; }
+  .anon-check h4 { margin: 0 0 3px; font-size: .94rem; }
+  .anon-check p { margin: 0; color: var(--muted); font-size: .84rem; line-height: 1.5; }
+  .anon-badge.ok { color: var(--accent); background: rgba(110,207,160,.1); }
+  .anon-badge.warn { color: var(--warning); background: rgba(245,198,107,.1); }
+  .anon-badge.bad { color: var(--danger); background: rgba(242,139,130,.1); }
+  .anon-badge.unknown { color: var(--muted); background: rgba(154,154,162,.08); }
+  .score-bar { height: 9px; border-radius: 999px; background: var(--paper-2); border: 1px solid var(--line); overflow: hidden; margin-top: 12px; }
+  .score-bar span { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--warning), var(--danger)); transition: width .35s ease; }
+  .score-note { color: var(--muted); font-size: .82rem; margin: 8px 0 0; }
+  .mono { font-family: ui-monospace, Menlo, Consolas, monospace; word-break: break-all; }
+  .consent { display: flex; gap: 8px; align-items: flex-start; color: var(--muted); font-size: .84rem; max-width: 620px; margin-top: 10px; }
+  .consent input { margin-top: 3px; accent-color: var(--accent); }
+  .anon-list { margin: 10px 0 0; padding-left: 18px; color: var(--muted); font-size: .87rem; }
+  .anon-list li { margin: 3px 0; }
+</style>
+<script type="application/ld+json" data-orbitnet-jsonld="software">{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Проверка анонимности",
+  "description": "Проверка анонимности — анализ proxy-заголовков, признаков Tor и хостинга, несовпадения часовых поясов, утечек WebRTC и необязательная проверка портов прокси/VPN на вашем собственном IP.",
+  "url": "https://orbitnet.ru/ru/tools/networks/anonymity-check.html",
+  "applicationCategory": "NetworkApplication",
+  "applicationSubCategory": "networks",
+  "operatingSystem": "Any",
+  "browserRequirements": "Требуется JavaScript и современный браузер.",
+  "isAccessibleForFree": true,
+  "inLanguage": "ru",
+  "publisher": {
+    "@type": "Organization",
+    "name": "OrbitNet",
+    "url": "https://orbitnet.ru/ru/"
+  },
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  }
+}</script>
+<!-- orbitnet:i18n:scripts -->
+<script src="/assets/i18n/ru.js"></script>
+<script src="/assets/i18n/manifest.js"></script>
+<script src="/assets/js/i18n.js?v=1"></script>
+<script src="/assets/js/lang.js?v=1"></script>
+<!-- /orbitnet:i18n:scripts -->
+<meta content="en_US" property="og:locale:alternate"></head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="/ru/">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="/ru/#tools">Инструменты</a>
+    <a href="/ru/about.html">О проекте</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="/ru/">Главная</a> /
+      <a href="/ru/#tools">Инструменты</a> /
+      <span>Проверка анонимности</span>
+    </div>
+    <h1>Проверка анонимности</h1>
+    <p>Посмотрите, какие сетевые и браузерные признаки указывают на то, что соединение идёт через прокси, VPN, Tor или хостинг-провайдера. Пассивные проверки запускаются по кнопке. Активные проверки портов необязательны и всегда нацелены только на ваш собственный публичный IP.</p>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Запустить проверку</h2>
+    <p style="color:var(--muted);font-size:.9rem;margin-top:0;">Пассивный отчёт сравнивает заголовки запроса, обратный DNS, ASN и геолокацию с тем, что сообщает браузер. Он не доказывает анонимность — он только перечисляет наблюдаемые признаки.</p>
+    <div class="toolbar">
+      <button class="btn" id="runBtn" type="button">Запустить проверку</button>
+      <button class="btn btn-secondary" id="portsBtn" type="button" disabled>Проверить порты прокси/VPN</button>
+    </div>
+    <label class="consent"><input type="checkbox" id="consent"> <span>Я понимаю, что активная проверка заставит сервер OrbitNet подключаться к моему публичному IP по типичным TCP-портам прокси и VPN. Проверить можно только мой собственный IP.</span></label>
+    <label class="consent"><input type="checkbox" id="stunConsent"> <span>Использовать публичный STUN-сервер (<code>stun.l.google.com</code>) для проверки утечки реального публичного IP через WebRTC. Без этой опции можно увидеть только локальных кандидатов. Включение обращается к Google.</span></label>
+    <div id="status" class="status-box info" style="display:none;" role="status" aria-live="polite"></div>
+  </div>
+
+  <div id="summary" class="tool-panel" hidden>
+    <h2>Результат</h2>
+    <div id="summaryBox"></div>
+    <div class="grid-2" id="networkBox" style="margin-top:12px;"></div>
+  </div>
+
+  <div id="checksPanel" class="tool-panel" hidden>
+    <h2>Детали сигналов</h2>
+    <div class="anon-grid" id="checks"></div>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Что означает каждая проверка</h2>
+    <div class="info-section" style="margin-top:0;">
+      <h3>HTTP-заголовки прокси</h3>
+      <p>Некоторые прокси и CDN добавляют заголовки вроде <code>Via</code>, <code>Forwarded</code>, <code>Proxy-Connection</code> или <code>X-Proxy-*</code>. OrbitNet игнорирует заголовки собственной инфраструктуры (Cloudflare/Caddy/nginx), поэтому они не считаются признаком вашего прокси. CDN тоже может добавлять похожие заголовки, так что это подсказка, а не доказательство.</p>
+
+      <h3>Открытые порты прокси и VPN</h3>
+      <p>Активная проверка подключается к короткому списку TCP-портов, обычно используемых HTTP-прокси (3128, 8080, 8000, 8118, 8888, 8889, 8123), веб-прокси (80, 443, 8080, 8443, 3128) и VPN-сервисами (1194, 1723, 443, 4443, 51820). Закрытый порт ничего не доказывает: сервис может работать по UDP, быть закрыт файрволом или просто не запущен. Открытый порт тоже не доказывает наличие прокси — например, порт 443 может принадлежать обычному веб-серверу или роутеру. Сервисы только на UDP, такие как WireGuard и большинство IPsec VPN, нельзя обнаружить TCP-подключением. Если вы за carrier-grade NAT или корпоративным шлюзом, проверяется общий публичный шлюз, а не ваше устройство.</p>
+
+      <h3>Подозрительное имя хоста (PTR)</h3>
+      <p>Домашние провайдеры часто дают адресам имена вроде <code>ppp-203-0-113-7.dial.example.net</code>. Хостинги и провайдеры приватности часто используют слова <em>vps</em>, <em>server</em>, <em>cloud</em>, <em>vpn</em>, <em>proxy</em> или название провайдера. Отсутствие PTR нейтрально и не считается предупреждением.</p>
+
+      <h3>Разница часовых поясов</h3>
+      <p>Страница сравнивает часовой пояс IANA браузера с часовым поясом, который MaxMind связывает с вашим публичным IP. VPN-сервер в другой стране часто создаёт несовпадение. Поездка, неверный часовой пояс устройства или неточная база геолокации могут дать такой же результат.</p>
+
+      <h3>Принадлежность к сети Tor</h3>
+      <p>Ваш публичный IP сравнивается с публичным списком выходных узлов Tor Project. Список кэшируется на сервере на час. В списке только выходные узлы: использование Tor не всегда означает, что трафик выходит через узел, который есть в этом списке на момент проверки. Если список не удалось загрузить, результат показывается как неизвестный, а не «не Tor».</p>
+
+      <h3>Хостинг-провайдер / ASN</h3>
+      <p>Организация ASN из MaxMind сопоставляется со списком облачных, VPS-, датацентровых и privacy-провайдеров. Хостинговый ASN означает, что адрес принадлежит серверной сети, но не обязательно что посетитель что-то скрывает. Многие обычно используют VPS или корпоративный облачный выход.</p>
+
+      <h3>Утечка IP через WebRTC</h3>
+      <p>По умолчанию браузер собирает ICE-кандидаты без STUN-сервера. Современные браузеры обычно скрывают локальные адреса за mDNS, а без STUN, как правило, не могут обнаружить публичный адрес, который раскрыл бы прокси или VPN. Включите опцию STUN выше, чтобы обратиться к публичному STUN-серверу и получить публичный IP, который использует браузер; если этот публичный IP отличается от IP, увиденного сервером, это сильный признак прокси, VPN или split-tunnel. Локальные и приватные кандидаты всё равно раскрывают информацию о вашей локальной сети, но в режиме по умолчанию это единственный результат.</p>
+
+      <h3>Веб-прокси (эвристика браузера)</h3>
+      <p>JavaScript не может надёжно определить HTTP-прокси сам по себе. Эта строка объединяет доступные странице несоответствия на стороне браузера: публичный WebRTC-адрес, отличающийся от HTTP-адреса (только при включённой опции STUN), и несовпадение часовых поясов браузера и IP. Это намеренно помечено как эвристика.</p>
+
+      <h3>Обнаружение туннеля (двусторонний ping)</h3>
+      <p>Страница отправляет три небольших запроса-пробы к API OrbitNet и измеряет медианное время кругового пути и джиттер. Высокая или нестабильная задержка может сопровождать туннель, но это очень слабый признак: Wi-Fi, мобильные сети и расстояние дают такой же эффект. Сравнение WebRTC — более сильный индикатор.</p>
+
+      <h3>Отпечаток VPN</h3>
+      <p>Эта строка объединяет хостинговый ASN, ключевые слова PTR, несовпадение часовых поясов, результаты WebRTC и открытые VPN-порты в одном резюме. Это эвристический отпечаток, а не отпечаток устройства и не доказательство использования VPN.</p>
+
+      <h3>Оценка и доказательства</h3>
+      <p>Оценка — взвешенная сумма признаков выше, ограниченная 100. <strong>Более высокая оценка означает больше свидетельств использования прокси, VPN, Tor или хостинга, а не лучшую анонимность</strong>. Её лучше читать как «сколько независимых признаков анонимизации видно», а не как откалиброванную вероятность. Один только листинг выходного узла Tor даёт очень высокую оценку, потому что это прямая проверка членства. И наоборот, низкая оценка не доказывает, что прокси не используется.</p>
+
+      <h3>Приватность и безопасность</h3>
+      <p>Пассивные проверки выполняются бэкендом OrbitNet. Список выходных узлов Tor загружается с <a href="https://check.torproject.org/" target="_blank" rel="noopener">check.torproject.org</a> и кэшируется на час. Необязательный тест WebRTC STUN обращается к публичному STUN-серверу (Google), только если вы его включите. Активные проверки портов ограничены IP, с которого сделан запрос, и не могут быть нацелены на другой хост. Как и любой веб-сервис, сервер и обратный прокси могут вести стандартные технические журналы доступа. Сторонняя аналитика и рекламные скрипты не используются.</p>
+    </div>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Открытый код. Без рекламы. Без отслеживания. ©<span id="year"></span></div>
+  <div class="footer-links"><a href="/ru/#tools">Все инструменты</a><a href="/ru/about.html">О проекте</a><a href="/privacy.html#ru">Конфиденциальность</a></div>
+</footer>
+
+<script src="/assets/js/tools/networks/anonymity-check.js?v=1"></script>
+<script src="/assets/js/site.js?v=1"></script>
+</body>
+</html>

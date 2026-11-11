@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Генератор хешей — вычисление хешей MD5, SHA-1, SHA-256, SHA-384 и SHA-512 для текста">
+<meta name="theme-color" content="#16161a">
+<title>Генератор хешей — OrbitNet</title>
+<link rel="canonical" href="https://orbitnet.ru/ru/tools/developer/hash-generator.html">
+<!-- orbitnet:i18n:alternates -->
+<link rel="alternate" hreflang="en" href="https://orbitnet.ru/tools/developer/hash-generator.html">
+<link rel="alternate" hreflang="ru" href="https://orbitnet.ru/ru/tools/developer/hash-generator.html">
+<link rel="alternate" hreflang="x-default" href="https://orbitnet.ru/tools/developer/hash-generator.html">
+<!-- /orbitnet:i18n:alternates -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OrbitNet">
+<meta property="og:title" content="Генератор хешей — OrbitNet">
+<meta property="og:description" content="Генератор хешей — вычисление хешей MD5, SHA-1, SHA-256, SHA-384 и SHA-512 для текста">
+<meta property="og:url" content="https://orbitnet.ru/ru/tools/developer/hash-generator.html">
+<meta property="og:locale" content="ru_RU">
+<meta property="og:image" content="https://orbitnet.ru/assets/og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="OrbitNet — открытые инструменты без шума">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Генератор хешей — OrbitNet">
+<meta name="twitter:description" content="Генератор хешей — вычисление хешей MD5, SHA-1, SHA-256, SHA-384 и SHA-512 для текста">
+<meta name="twitter:image" content="https://orbitnet.ru/assets/og-image.png">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=3">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/favicon-192x192.png?v=3">
+<link rel="icon" type="image/png" sizes="96x96" href="/icons/favicon-96x96.png?v=3">
+<link rel="icon" type="image/png" sizes="48x48" href="/icons/favicon-48x48.png?v=3">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png?v=3">
+<link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png?v=3">
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=3">
+<link rel="manifest" href="/site.webmanifest">
+<style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>
+<link rel="stylesheet" href="/assets/css/style.css?v=7">
+<script type="application/ld+json" data-orbitnet-jsonld="software">{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Генератор хешей",
+  "description": "Генератор хешей — вычисление хешей MD5, SHA-1, SHA-256, SHA-384 и SHA-512 для текста",
+  "url": "https://orbitnet.ru/ru/tools/developer/hash-generator.html",
+  "applicationCategory": "DeveloperApplication",
+  "applicationSubCategory": "developer",
+  "operatingSystem": "Any",
+  "browserRequirements": "Требуется JavaScript и современный браузер.",
+  "isAccessibleForFree": true,
+  "inLanguage": "ru",
+  "publisher": {
+    "@type": "Organization",
+    "name": "OrbitNet",
+    "url": "https://orbitnet.ru/ru/"
+  },
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  }
+}</script>
+<!-- orbitnet:i18n:scripts -->
+<script src="/assets/i18n/ru.js"></script>
+<script src="/assets/i18n/manifest.js"></script>
+<script src="/assets/js/i18n.js?v=1"></script>
+<script src="/assets/js/lang.js?v=1"></script>
+<!-- /orbitnet:i18n:scripts -->
+<meta content="en_US" property="og:locale:alternate"></head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="/ru/">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav">
+    <a href="/ru/#tools">Инструменты</a>
+    <a href="/ru/about.html">О проекте</a>
+  </nav>
+</header>
+
+<main class="wrap tool-page">
+  <div class="tool-header">
+    <div class="breadcrumb">
+      <a href="/ru/">Главная</a> /
+      <a href="/ru/#tools">Инструменты</a> /
+      <span>Генератор хешей</span>
+    </div>
+    <h1>Генератор хешей</h1>
+    <p>Вычислите хеши MD5, SHA-1, SHA-256, SHA-384 и SHA-512 для любого текста. Всё выполняется в вашем браузере.</p>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Ввод</h2>
+    <div class="input-group">
+      <label for="input">Текст</label>
+      <textarea id="input" class="text-textarea" placeholder="Введите или вставьте текст для хеширования..." data-action="run" data-event="input"></textarea>
+    </div>
+    <div class="toolbar">
+      <button class="btn btn-secondary" data-action="clearAll">Очистить</button>
+    </div>
+    <div id="status"></div>
+  </div>
+
+  <div class="tool-panel">
+    <h2>Хеши</h2>
+    <div id="results">
+      <div class="result-sub">Введите текст для вычисления хешей.</div>
+    </div>
+  </div>
+
+  <div class="info-section">
+    <h3>О хешировании</h3>
+    <p>Криптографическая хеш-функция превращает любые данные в отпечаток фиксированной длины. Одинаковые данные всегда дают одинаковый хеш, а даже небольшое изменение приводит к совершенно другому результату. MD5 и SHA-1 считаются ненадёжными для безопасности, но по-прежнему подходят для контрольных сумм; для всего, что связано с безопасностью, используйте SHA-256 или сильнее.</p>
+  </div>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Открытый код. Без рекламы. Без отслеживания. ©<span id="year"></span></div>
+  <div class="footer-links"><a href="/ru/#tools">Все инструменты</a><a href="/ru/about.html">О проекте</a><a href="/privacy.html#ru">Конфиденциальность</a></div>
+</footer>
+
+<script src="/assets/js/tools/developer/hash-generator.js?v=1"></script>
+<script src="/assets/js/site.js?v=1"></script>
+</body>
+</html>

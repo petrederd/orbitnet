@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Форматтер и валидатор JSON — мгновенное форматирование, проверка и улучшение читаемости JSON"><meta name="theme-color" content="#16161a">
+    <title>Форматирование и проверка JSON — OrbitNet</title>
+<link rel="canonical" href="https://orbitnet.ru/ru/tools/developer/json-formatter.html">
+<!-- orbitnet:i18n:alternates -->
+<link rel="alternate" hreflang="en" href="https://orbitnet.ru/tools/developer/json-formatter.html">
+<link rel="alternate" hreflang="ru" href="https://orbitnet.ru/ru/tools/developer/json-formatter.html">
+<link rel="alternate" hreflang="x-default" href="https://orbitnet.ru/tools/developer/json-formatter.html">
+<!-- /orbitnet:i18n:alternates -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OrbitNet">
+<meta property="og:title" content="Форматирование и проверка JSON — OrbitNet">
+<meta property="og:description" content="Форматтер и валидатор JSON — мгновенное форматирование, проверка и улучшение читаемости JSON">
+<meta property="og:url" content="https://orbitnet.ru/ru/tools/developer/json-formatter.html">
+<meta property="og:locale" content="ru_RU">
+<meta property="og:image" content="https://orbitnet.ru/assets/og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="OrbitNet — открытые инструменты без шума">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Форматирование и проверка JSON — OrbitNet">
+<meta name="twitter:description" content="Форматтер и валидатор JSON — мгновенное форматирование, проверка и улучшение читаемости JSON">
+<meta name="twitter:image" content="https://orbitnet.ru/assets/og-image.png">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=3">
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/favicon-192x192.png?v=3">
+    <link rel="icon" type="image/png" sizes="96x96" href="/icons/favicon-96x96.png?v=3">
+    <link rel="icon" type="image/png" sizes="48x48" href="/icons/favicon-48x48.png?v=3">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png?v=3">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png?v=3">
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=3">
+    <link rel="manifest" href="/site.webmanifest">
+    <style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>
+<link rel="stylesheet" href="/assets/css/style.css?v=7">
+  <script type="application/ld+json" data-orbitnet-jsonld="software">{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Форматтер и валидатор JSON",
+  "description": "Форматтер и валидатор JSON — мгновенное форматирование, проверка и улучшение читаемости JSON",
+  "url": "https://orbitnet.ru/ru/tools/developer/json-formatter.html",
+  "applicationCategory": "DeveloperApplication",
+  "applicationSubCategory": "developer",
+  "operatingSystem": "Any",
+  "browserRequirements": "Требуется JavaScript и современный браузер.",
+  "isAccessibleForFree": true,
+  "inLanguage": "ru",
+  "publisher": {
+    "@type": "Organization",
+    "name": "OrbitNet",
+    "url": "https://orbitnet.ru/ru/"
+  },
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  }
+}</script>
+<!-- orbitnet:i18n:scripts -->
+<script src="/assets/i18n/ru.js"></script>
+<script src="/assets/i18n/manifest.js"></script>
+<script src="/assets/js/i18n.js?v=1"></script>
+<script src="/assets/js/lang.js?v=1"></script>
+<!-- /orbitnet:i18n:scripts -->
+<meta content="en_US" property="og:locale:alternate"></head>
+  <body>
+    <header class="wrap topbar">
+      <a class="brand" href="/ru/"><span class="brand-mark" aria-hidden="true"><i></i>
+      <i></i>
+      <i></i>
+      <i></i>
+      </span>
+      <span>orbitnet<span style="font-weight:500">.ru</span>
+      </span>
+      </a>
+      <nav class="nav">
+        <a href="/ru/#tools">Инструменты</a>
+        <a href="/ru/about.html">О проекте</a>
+      </nav>
+    </header>
+    <main class="wrap tool-page">
+      <div class="tool-header">
+        <div class="breadcrumb">
+          <a href="/ru/">Главная</a>
+          /<a href="/ru/#tools">Инструменты</a>
+          /<span>Форматтер и валидатор JSON</span>
+        </div>
+        <h1>Форматтер и валидатор JSON</h1>
+        <p style="color: var(--muted); max-width: 700px;">Форматируйте неаккуратный JSON, проверяйте синтаксис и делайте вложенные данные удобнее для чтения. Вся обработка происходит в браузере — данные не покидают ваше устройство.</p>
+      </div>
+      <div class="tool-layout">
+        <div class="tool-panel">
+          <h2>Ввод JSON</h2>
+          <div class="controls">
+            <label><input type="checkbox" id="autoFormat" checked>Автоформатирование</label>
+          </div>
+          <div class="textarea-wrapper">
+            <textarea class="json-textarea" id="inputJSON" placeholder="Вставьте JSON сюда... например, {&quot;name&quot;:&quot;John&quot;,&quot;age&quot;:30}"></textarea>
+          </div>
+          <div class="toolbar">
+            <button class="btn" data-action="formatJSON">Форматировать и проверить</button>
+            <button class="btn btn-secondary" data-action="minifyJSON">Минифицировать</button>
+            <button class="btn btn-secondary" data-action="clearAll">Очистить</button>
+          </div>
+          <div id="inputStatus">
+          </div>
+        </div>
+        <div class="tool-panel">
+          <h2>Отформатированный вывод</h2>
+          <div class="controls">
+            <label>Отступ: <select id="indentSize" data-action="formatJSON" data-event="change"> <option value="2" selected>2 пробела</option> <option value="4">4 пробела</option> <option value="tab">Табуляция</option> </select></label>
+          </div>
+          <div class="textarea-wrapper">
+            <textarea class="json-textarea" id="outputJSON" placeholder="Отформатированный JSON появится здесь..." readonly></textarea>
+          </div>
+          <div class="toolbar">
+            <button class="btn btn-success" data-action="copyToClipboard">Скопировать в буфер обмена</button>
+            <button class="btn btn-secondary" data-action="downloadJSON">Скачать</button>
+          </div>
+          <div id="outputStats" class="stats">
+          </div>
+          <div id="outputStatus">
+          </div>
+        </div>
+      </div>
+      <div class="info-section">
+        <h3>Как пользоваться инструментом</h3>
+        <p><strong>JSON Formatter &amp; Validator</strong> помогает работать с данными JSON:</p>
+        <ul>
+          <li><strong>Проверка:</strong> проверяйте корректность синтаксиса JSON</li>
+          <li><strong>Форматирование:</strong> красиво печатайте JSON с правильными отступами для читаемости</li>
+          <li><strong>Минификация:</strong> удаляйте пробелы, чтобы уменьшить размер для API и хранения</li>
+          <li><strong>Копирование и скачивание:</strong> используйте отформатированный JSON в своих проектах</li>
+        </ul>
+        <h3 style="margin-top: 20px;">Приватность и безопасность</h3>
+        <p>Вся обработка JSON выполняется полностью в вашем браузере на JavaScript. Данные никогда не отправляются на сервер, не загружаются и не сохраняются. После загрузки инструмент работает полностью офлайн.</p>
+        <h3 style="margin-top: 20px;">Пример JSON</h3>
+        <p>Попробуйте вставить этот пример, чтобы проверить форматтер:</p>
+        <pre style="background: var(--card); padding: 12px; border-radius: 8px; overflow-x: auto; margin: 10px 0;">
+          <code>{"users":[{"id":1,"name":"Alice","email":"alice@example.com","active":true},{"id":2,"name":"Bob","email":"bob@example.com","active":false}],"timestamp":"2026-10-17T12:00:00Z","meta":{"version":"1.0","count":2}}</code>
+        </pre>
+      </div>
+    </main>
+    <footer class="wrap footer">
+      <div>
+        <strong>OrbitNet</strong>
+        <br>Открытый код. Без рекламы. Без отслеживания. ©<span id="year"></span>
+      </div>
+      <div class="footer-links">
+        <a href="/ru/#tools">Все инструменты</a>
+        <a href="/ru/about.html">О проекте</a><a href="/privacy.html#ru">Конфиденциальность</a>
+      </div>
+    </footer>
+<script src="/assets/js/tools/developer/json-formatter.js?v=1"></script>
+<script src="/assets/js/site.js?v=1"></script>
+</body>
+</html>
