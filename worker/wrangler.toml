@@ -2,10 +2,22 @@ name = "orbitnet-site-checker"
 main = "src/index.js"
 compatibility_date = "2026-01-01"
 
+# The Worker is only reachable on the custom domain below. Without this the
+# public <name>.<account>.workers.dev hostname stays enabled for everyone and
+# cannot be protected by WAF rate limiting.
+workers_dev = false
+
+routes = [
+  { pattern = "checker.orbitnet.ru", custom_domain = true }
+]
+
 # The shared secret is NOT stored here. Set it with:
 #   npx wrangler secret put CHECKER_SECRET
 #
-# Optional: serve the worker on your own hostname instead of workers.dev.
-# routes = [
-#   { pattern = "checker.example.com", custom_domain = true }
-# ]
+# Optional extra hardening: allow only the backend server's egress addresses.
+# Accepts a comma-separated list of IPv4/IPv6 values; checked against
+# CF-Connecting-IP before the shared secret.
+#   npx wrangler secret put ALLOWED_IP
+#
+# The backend always fetches redirects over 80/443 only. The Worker enforces
+# the same rule and rejects redirects to any other port.

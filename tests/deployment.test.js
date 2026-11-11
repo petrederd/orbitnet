@@ -54,9 +54,20 @@ test('Dependabot covers compose, Dockerfiles, npm and actions', () => {
   assert.equal(config.version, 2);
   const updates = config.updates.map(item => item['package-ecosystem'] + ':' + item.directory);
   for (const expected of [
-    'docker-compose:/', 'docker:/backend', 'npm:/', 'npm:/backend', 'github-actions:/'
+    'docker-compose:/', 'docker:/backend', 'npm:/', 'npm:/backend', 'npm:/worker', 'github-actions:/'
   ]) {
     assert.ok(updates.includes(expected), 'missing Dependabot update for ' + expected);
   }
   assert.equal(updates.includes('docker:/'), false, 'the root has no Dockerfile for the docker ecosystem');
+});
+
+test('the worker pins wrangler, its lockfile and a custom domain', () => {
+  const pkg = JSON.parse(read('worker/package.json'));
+  assert.match(pkg.devDependencies.wrangler, /^\d+\.\d+\.\d+$/);
+  assert.ok(fs.existsSync(path.join(ROOT, 'worker/package-lock.json')));
+
+  const config = read('worker/wrangler.toml');
+  assert.match(config, /^workers_dev\s*=\s*false$/m);
+  assert.match(config, /pattern\s*=\s*"checker\.orbitnet\.ru"/);
+  assert.match(config, /custom_domain\s*=\s*true/);
 });

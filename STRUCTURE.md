@@ -163,9 +163,10 @@ orbitnet/
 │
 ├── worker/
 │   ├── src/index.js               # Cloudflare Worker: HTTP, DNS, propagation, email, DNSSEC + SSRF-защита
-│   ├── package.json
-│   ├── wrangler.toml
-│   └── README.md                  # деплой и настройка секрета
+│   ├── package.json               # wrangler закреплён точной версией
+│   ├── package-lock.json
+│   ├── wrangler.toml              # custom domain, workers_dev = false
+│   └── README.md                  # деплой, секреты, WAF
 │
 ├── data/
 │   └── geoip/                     # GeoLite2, не коммитится
@@ -368,7 +369,7 @@ IP клиента берётся из `X-Real-IP`, который выставл
 - `orbitnet-unbound` — приватный рекурсивный DNS-резолвер для DNSBL по умолчанию (Spamhaus/SURBL не принимают публичные резолверы).
 - `geoip-updater` — профиль `geoip`, обновляет базы раз в 24 часа; сохраняет `DAC_OVERRIDE`, чтобы писать в `./data/geoip`, даже если каталог принадлежит другому UID.
 - Все сервисы работают с `read_only`, `cap_drop: ALL`, `no-new-privileges`, лимитами памяти/PID и tmpfs с явным `size=64m`.
-- Образы закреплены по digest; `.github/dependabot.yml` еженедельно обновляет `docker-compose.yml` в корне, `Dockerfile` в `backend/`, npm-зависимости в корне и `backend/`, а также GitHub Actions.
+- Образы закреплены по digest; `.github/dependabot.yml` еженедельно обновляет `docker-compose.yml` в корне, `Dockerfile` в `backend/`, npm-зависимости в корне, `backend/` и `worker/`, а также GitHub Actions.
 
 `nginx.conf`:
 

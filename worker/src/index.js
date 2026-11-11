@@ -14,8 +14,8 @@
 //
 // The worker is a fallback for checks that the Russian server cannot complete
 // because of DNS filtering, RKN blocking or an unreachable route. It never
-// receives a URL with credentials and never follows a redirect to a private or
-// otherwise non-public address.
+// receives a URL with credentials and never follows a redirect to a private,
+// non-public or non-standard-port address.
 
 const MAX_REQUEST_BYTES = 16 * 1024;
 const MAX_HTML_BYTES = 200000;
@@ -81,6 +81,13 @@ function constantTimeEqual(left, right) {
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return diff === 0;
+}
+
+function allowedCallerIps(env) {
+  return String(env && env.ALLOWED_IP || "")
+    .split(",")
+    .map(value => value.trim())
+    .filter(Boolean);
 }
 
 function stripDot(value) {
@@ -247,6 +254,12 @@ function isPublicHttpUrl(url) {
     return false;
   }
   if (url.username || url.password) return false;
+
+  // The URL parser drops :80 for http: and :443 for https:, so any remaining
+  // port is a non-standard one. The backend always redirects over 80/443, and
+  // following arbitrary ports would turn the Worker into a port/banner scanner.
+  if (url.port) return false;
+
   const host = url.hostname.replace(/^\[|\]$/g, "");
   if (ipv4ToInt(host) != null || host.includes(":")) return isPublicIp(host);
   return Boolean(normalizeDomain(host, false));
@@ -1266,6 +1279,17 @@ export default {
   async fetch(request, env) {
     if (request.method !== "POST") {
       return json({ error: "POST required" }, 405);
+    }
+
+    // Optional allowlist checked before the shared secret, so that random
+    // callers cannot make the Worker parse bodies or run checks. Cloudflare
+    // sets CF-Connecting-IP at the edge and it cannot be spoofed by clients.
+    const allowedIps = allowedCallerIps(env);
+    if (allowedIps.length) {
+      const caller = request.headers.get("CF-Connecting-IP") || "";
+      if (!allowedIps.some(ip => constantTimeEqual(caller, ip))) {
+        return json({ error: "Forbidden" }, 403);
+      }
     }
 
     const secret = env.CHECKER_SECRET;

@@ -281,6 +281,11 @@ function installFetch(t) {
       return new Response('', { status: 302, headers: { 'Location': 'http://127.0.0.1/' } });
     }
 
+    if (parsed.hostname === 'port.example.com') {
+      if (parsed.port) throw new Error('must not fetch non-standard port ' + parsed.port);
+      return new Response('', { status: 302, headers: { 'Location': 'http://port.example.com:8080/' } });
+    }
+
     if (parsed.hostname === 'plain.example.com') {
       if (parsed.protocol === 'https:') throw new TypeError('TLS failed');
       return new Response('plain', { status: 200, headers: { 'Content-Type': 'text/plain' } });
@@ -347,6 +352,40 @@ test('worker follows redirects and refuses private targets', async (t) => {
   const blocked = await run({ type: 'http', host: 'private.example.com', follow: true });
   assert.equal(blocked.data.ok, false);
   assert.match(blocked.data.error, /not public/i);
+});
+
+test('worker refuses redirects to non-standard ports', async (t) => {
+  installFetch(t);
+  const { data } = await run({ type: 'http', host: 'port.example.com', follow: true });
+  assert.equal(data.ok, false);
+  assert.match(data.error, /not public/i);
+  assert.equal(data.redirects.at(-1).error, 'Redirect target is not public');
+});
+
+test('worker can restrict callers by CF-Connecting-IP', async () => {
+  const worker = await loadWorker();
+  const env = { CHECKER_SECRET: SECRET, ALLOWED_IP: '203.0.113.7, 2001:db8::7' };
+  const makeRequest = (ip) => new Request('https://checker.test/', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + SECRET,
+      'Content-Type': 'application/json',
+      ...(ip ? { 'CF-Connecting-IP': ip } : {})
+    },
+    body: JSON.stringify({ type: 'unsupported' })
+  });
+
+  const blocked = await worker.default.fetch(makeRequest('198.51.100.9'), env);
+  assert.equal(blocked.status, 403);
+
+  const companion = await worker.default.fetch(makeRequest(''), env);
+  assert.equal(companion.status, 403);
+
+  const allowed = await worker.default.fetch(makeRequest('203.0.113.7'), env);
+  assert.equal(allowed.status, 400);
+
+  const allowedV6 = await worker.default.fetch(makeRequest('2001:db8::7'), env);
+  assert.equal(allowedV6.status, 400);
 });
 
 test('worker retries the first hop over HTTP when HTTPS cannot connect', async (t) => {

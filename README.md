@@ -205,7 +205,8 @@ Email-fallback срабатывает на транспортные ошибки
 
 Worker умеет:
 
-- HTTP(S): статус, реальные заголовки, `title`, до 10 редиректов;
+- HTTP(S): статус, реальные заголовки, `title`, до 10 редиректов по портам
+  80/443; редирект на нестандартный порт отклоняется;
 - DNS: A, AAAA, CNAME, MX, TXT, NS, SOA, CAA, PTR через DNS-over-HTTPS;
 - propagation: сравнение Cloudflare, Google и AdGuard DoH;
 - email: MX, SPF, DMARC, DKIM и PTR основного MX;
@@ -223,12 +224,15 @@ raw TCP, которого у Worker нет. Страницы блокировк�
 незамеченной.
 
 1. Задеплойте Worker из `worker/` и задайте секрет — подробно в
-   [worker/README.md](worker/README.md).
+   [worker/README.md](worker/README.md). Worker работает на кастомном домене
+   `checker.orbitnet.ru`, `workers_dev` выключен, а `wrangler` закреплён в
+   `worker/package-lock.json`. Для защиты квоты добавьте WAF Rate Limiting rule
+   на этот домен.
 2. В серверном `.env` (gitignored) укажите (значение секрета — ровно та
    строка, которую ввели в `wrangler secret put`, без `< >` и кавычек):
 
 ```dotenv
-CHECKER_URL=https://orbitnet-site-checker.<account>.workers.dev/
+CHECKER_URL=https://checker.orbitnet.ru/
 CHECKER_SECRET=вставьте-сюда-ту-же-строку-что-и-в-wrangler-secret-put
 # необязательно, миллисекунды; диапазон 1000–20000, по умолчанию 20000
 CHECKER_TIMEOUT=20000

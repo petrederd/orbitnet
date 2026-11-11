@@ -5,7 +5,13 @@
   "type": "module",
   "description": "Cloudflare Worker that performs HTTP, DNS, propagation and email checks for the OrbitNet backend",
   "scripts": {
-    "dev": "npx wrangler dev",
-    "deploy": "npx wrangler deploy"
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "devDependencies": {
+    "wrangler": "4.160.0"
   }
 }

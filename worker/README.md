@@ -72,7 +72,9 @@ HTTP Headers бэкенд передаёт `false`, для Redirect Checker — 
 
 - HTTPS, при ошибке соединения — повтор первого шага по HTTP; весь HTTP-поход ограничен 12 секундами, включая редиректы.
 - При `follow: true` — до 10 редиректов, каждый шаг с статусом, `Location` и
-  временем. Редирект на приватный/непубличный адрес отклоняется.
+  временем. Редирект на приватный/непубличный адрес или на нестандартный порт
+  отклоняется: Worker ходит только на 80/443, как и локальная проверка бэкенда.
+  Это не даёт превратить fallback в сканер портов и баннеров.
 - Отдаются настоящие значения заголовков, а не только факт их наличия.
 - HTML читается не более 200 КБ; чтение прекращается после `</title>`, поэтому обычные страницы не расходуют лимит целиком. Кодировка берётся из `Content-Type` или `<meta charset>`, поэтому windows-1251 не ломает `title`.
 
@@ -221,30 +223,49 @@ CNAME могла уйти в неподписанную зону, которую
 ## Что нужно
 
 - Аккаунт Cloudflare (бесплатного плана достаточно).
-- Node.js и `npx wrangler`.
-- Домен или `*.workers.dev` — главное, чтобы Worker был доступен по HTTPS.
+- Node.js 22.12+ и `wrangler`, закреплённый в `worker/package.json`.
+- Домен `checker.orbitnet.ru` в той же зоне Cloudflare. `workers_dev = false`,
+  поэтому публичный `*.workers.dev` выключен, а Worker доступен только на
+  кастомном домене.
 
 ## Деплой
 
-Все команды выполняются в каталоге `worker/`:
+Все команды выполняются в каталоге `worker/`. Версия `wrangler` зафиксирована
+точно в `devDependencies` и `package-lock.json`, поэтому `npx` не скачивает
+последнюю версию при каждом запуске.
 
 ```bash
 cd worker
 
-# 1. Войти в Cloudflare (или задать CLOUDFLARE_API_TOKEN).
+# 1. Установить закреплённый wrangler (в CI и на сервере — npm ci).
+npm ci
+
+# 2. Войти в Cloudflare (или задать CLOUDFLARE_API_TOKEN).
 npx wrangler login
 
-# 2. Задеплоить Worker. Имя в wrangler.toml — orbitnet-site-checker,
-#    поэтому URL останется прежним, если Worker уже был задеплоен.
-npx wrangler deploy
+# 3. Задеплоить Worker. Custom domain создаётся/обновляется автоматически.
+npm run deploy
 
-# 3. Задать общий секрет. Придумайте длинную случайную строку:
+# 4. Задать общий секрет. Придумайте длинную случайную строку:
 #    openssl rand -hex 32
 npx wrangler secret put CHECKER_SECRET
+
+# 5. Необязательно: разрешить вызовы только с адресов сервера.
+#    Список через запятую, IPv4 и IPv6.
+npx wrangler secret put ALLOWED_IP
 ```
 
-Секрет хранится в Cloudflare как Worker Secret. В `wrangler.toml` его нет, в
-репозиторий и клиентский JavaScript он не попадает.
+Секреты хранятся в Cloudflare как Worker Secrets. В `wrangler.toml` их нет, в
+репозиторий и клиентский JavaScript они не попадают.
+
+### Публичный адрес и лимиты
+
+`workers_dev = false` убирает общий `*.workers.dev`. Дополнительно настройте
+WAF Rate Limiting rule для зоны `orbitnet.ru` на `checker.orbitnet.ru`: например,
+не больше 60 запросов в минуту с одного IP. WAF срабатывает на краю и не
+расходует дневную квоту Worker. `ALLOWED_IP` проверяет `CF-Connecting-IP` до
+секрета и до чтения тела, но сам по себе квоту не защищает — запрос всё равно
+доходит до Worker. Поэтому основной барьер — кастомный домен плюс WAF.
 
 Cloudflare Workers хранит один загруженный скрипт, а не дерево файлов
 репозитория. После `wrangler deploy` в dashboard обновляется содержимое
@@ -256,7 +277,7 @@ Cloudflare Workers хранит один загруженный скрипт, а
 На сервере, в каталоге проекта, откройте `.env` (он в `.gitignore`) и укажите:
 
 ```dotenv
-CHECKER_URL=https://orbitnet-site-checker.<account>.workers.dev/
+CHECKER_URL=https://checker.orbitnet.ru/
 # ровно то, что ввели в wrangler secret put, без < > и кавычек
 CHECKER_SECRET=та-же-строка-что-и-в-wrangler-secret-put
 # необязательно, миллисекунды
@@ -279,7 +300,7 @@ docker compose exec orbitnet-api node -e 'console.log(process.env.CHECKER_URL ? 
 ## Проверка Worker напрямую
 
 ```bash
-CHECKER_URL='https://orbitnet-site-checker.<account>.workers.dev/'
+CHECKER_URL='https://checker.orbitnet.ru/'
 CHECKER_SECRET='...'
 
 curl -sS -X POST "$CHECKER_URL" \
@@ -358,8 +379,9 @@ curl -sS -X POST "$CHECKER_URL" \
   читает бэкенд. Бэкенд пробует несколько адресов параллельно, но если
   недоступны все, TLS-проверка завершится ошибкой соединения.
 - Worker не умеет raw TCP: WHOIS (порт 43) и Port Checker (произвольные порты)
-  остаются локальными. HTTP/HTTPS-порты 80/443 проверяются только косвенно,
-  через обычный `fetch`.
+  остаются локальными. HTTP/HTTPS-проверки и редиректы идут только через порты
+  80/443; `Location` с любым другим портом отклоняется, чтобы Worker нельзя было
+  использовать как сканер портов и баннеров.
 - Для DNS используются публичные DoH-резолверы, а не те же IP, что в локальном
   `/api/propagation`; набор резолверов и их кэш могут отличаться.
 - DNSSEC-проверка показывает результат публичного валидирующего резолвера, а
