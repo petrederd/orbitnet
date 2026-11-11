@@ -87,7 +87,7 @@ test('every page links to the privacy policy', () => {
     const html = fs.readFileSync(file, 'utf8');
     const footer = html.match(/<div class="footer-links">([\s\S]*?)<\/div>/);
     assert.ok(footer, rel + ' has footer links');
-    assert.match(footer[1], /href="[^"]*privacy\.html"/, rel + ' links to privacy policy');
+    assert.match(footer[1], /href="[^"]*privacy\.html(?:[?#][^"]*)?"/, rel + ' links to privacy policy');
   }
 
   const policy = fs.readFileSync(path.join(SITE, 'privacy.html'), 'utf8');

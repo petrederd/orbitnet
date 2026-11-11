@@ -30,24 +30,24 @@ function update() {
 }
 
 function formatTime(words, wpm) {
-  if (!words) return '0s';
+  if (!words) return t('0s');
   const seconds = Math.round(words / wpm * 60);
-  if (seconds < 60) return seconds + 's';
+  if (seconds < 60) return t('{n}s', { n: seconds });
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
-  return m + 'm ' + s + 's';
+  return t('{m}m {s}s', { m, s });
 }
 
 function topKeywords(text) {
   const el = document.getElementById('keywords');
-  if (!text) { el.innerHTML = '<div class="result-sub">No words yet.</div>'; return; }
+  if (!text) { el.innerHTML = '<div class="result-sub">' + t('No words yet.') + '</div>'; return; }
   const counts = {};
   (text.toLowerCase().match(/[\p{L}\p{N}]+(?:['’-][\p{L}\p{N}]+)*/gu) || []).forEach(w => {
     if ([...w].length < 3 || STOP.has(w)) return;
     counts[w] = (counts[w] || 0) + 1;
   });
   const top = Object.entries(counts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 12);
-  if (!top.length) { el.innerHTML = '<div class="result-sub">No significant keywords found.</div>'; return; }
+  if (!top.length) { el.innerHTML = '<div class="result-sub">' + t('No significant keywords found.') + '</div>'; return; }
   el.innerHTML = top.map(([w, n]) =>
     '<span class="pill" style="margin:0 6px 6px 0;display:inline-block;">' + w + ' · ' + n + '</span>'
   ).join('');

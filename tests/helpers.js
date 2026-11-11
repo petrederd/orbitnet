@@ -91,6 +91,8 @@ function createDom(values = {}) {
     Option,
     document: {
       body: createElement('body'),
+      documentElement: { lang: 'en' },
+      readyState: 'complete',
       getElementById: get,
       createElement,
       addEventListener() {},
@@ -123,7 +125,14 @@ function loadTool(file, values = {}, globals = {}) {
     TextDecoder,
     URL,
     Blob,
+    location: { pathname: '/', search: '', hash: '', replace() {} },
+    localStorage: { getItem() { return null; }, setItem() {} },
+    navigator: { languages: ['en'], language: 'en' },
     Option: dom.Option,
+    t: source => String(source == null ? '' : source),
+    formatNumber: value => Number(value).toLocaleString('en-US'),
+    formatDate: value => new Date(value).toLocaleString('en-US'),
+    orbitnetLocale: () => 'en',
     ...globals,
   };
   sandbox.globalThis = sandbox;

@@ -8,3 +8,6 @@ node_modules/
 .env
 .env.*
 !.env.example
+
+# Generated i18n extraction report
+i18n/ru/pages.missing.json

@@ -62,7 +62,7 @@ function calculate() {
   
   // Validate IP
   if (!validateIP(ipAddress)) {
-    showError('Invalid IP address. Please enter a valid IPv4 address (e.g., 192.168.1.1)');
+    showError(t('Invalid IP address. Please enter a valid IPv4 address (e.g., 192.168.1.1)'));
     return;
   }
   
@@ -72,19 +72,19 @@ function calculate() {
   if (subnetType === 'cidr') {
     const cidrRaw = document.getElementById('cidr').value.trim();
     if (!/^\d{1,2}$/.test(cidrRaw)) {
-      showError('CIDR must be an integer between 0 and 32');
+      showError(t('CIDR must be an integer between 0 and 32'));
       return;
     }
     cidr = Number(cidrRaw);
     if (cidr < 0 || cidr > 32) {
-      showError('CIDR must be an integer between 0 and 32');
+      showError(t('CIDR must be an integer between 0 and 32'));
       return;
     }
     subnetMask = cidrToMask(cidr);
   } else {
     subnetMask = document.getElementById('subnetMask').value.trim();
     if (!validateMask(subnetMask)) {
-      showError('Invalid subnet mask. Please enter a valid mask (e.g., 255.255.255.0)');
+      showError(t('Invalid subnet mask. Please enter a valid mask (e.g., 255.255.255.0)'));
       return;
     }
     cidr = maskToCidr(subnetMask);
@@ -108,7 +108,7 @@ function calculate() {
   
   // Display results
   const resultsHTML = `
-    <div class="result-box highlight"><div class="result-label">Network Address</div><div class="result-value large">${networkAddr}/${cidr}</div><div class="result-sub">Network ID for this subnet</div></div><div class="result-box"><div class="result-label">Subnet Mask</div><div class="result-value">${subnetMask}</div><div class="result-sub">Decimal notation</div></div><div class="result-box"><div class="result-label">Broadcast Address</div><div class="result-value">${broadcastAddr}</div><div class="result-sub">Used to send packets to all hosts</div></div><div class="result-box"><div class="result-label">First Usable Host</div><div class="result-value">${firstHost}</div><div class="result-sub">Lowest assignable IP</div></div><div class="result-box"><div class="result-label">Last Usable Host</div><div class="result-value">${lastHost}</div><div class="result-sub">Highest assignable IP</div></div><div class="result-box highlight"><div class="result-label">Total Hosts</div><div class="result-value">${totalHosts.toLocaleString('en-US')}</div><div class="result-sub">Including network and broadcast</div></div><div class="result-box highlight"><div class="result-label">Usable Hosts</div><div class="result-value large">${usableHosts.toLocaleString('en-US')}</div><div class="result-sub">Available for devices</div></div>
+    <div class="result-box highlight"><div class="result-label">${t('Network Address')}</div><div class="result-value large">${networkAddr}/${cidr}</div><div class="result-sub">${t('Network ID for this subnet')}</div></div><div class="result-box"><div class="result-label">${t('Subnet Mask')}</div><div class="result-value">${subnetMask}</div><div class="result-sub">${t('Decimal notation')}</div></div><div class="result-box"><div class="result-label">${t('Broadcast Address')}</div><div class="result-value">${broadcastAddr}</div><div class="result-sub">${t('Used to send packets to all hosts')}</div></div><div class="result-box"><div class="result-label">${t('First Usable Host')}</div><div class="result-value">${firstHost}</div><div class="result-sub">${t('Lowest assignable IP')}</div></div><div class="result-box"><div class="result-label">${t('Last Usable Host')}</div><div class="result-value">${lastHost}</div><div class="result-sub">${t('Highest assignable IP')}</div></div><div class="result-box highlight"><div class="result-label">${t('Total Hosts')}</div><div class="result-value">${formatNumber(totalHosts)}</div><div class="result-sub">${t('Including network and broadcast')}</div></div><div class="result-box highlight"><div class="result-label">${t('Usable Hosts')}</div><div class="result-value large">${formatNumber(usableHosts)}</div><div class="result-sub">${t('Available for devices')}</div></div>
   `;
   
   document.getElementById('results').innerHTML = resultsHTML;
@@ -122,5 +122,5 @@ function reset() {
   document.getElementById('cidrGroup').style.display = 'block';
   document.getElementById('maskGroup').style.display = 'none';
   clearError();
-  document.getElementById('results').innerHTML = '<div style="text-align: center; padding: 40px 20px; color: var(--muted);">Enter an IP address and subnet to see the results</div>';
+  document.getElementById('results').innerHTML = '<div style="text-align: center; padding: 40px 20px; color: var(--muted);">' + t('Enter an IP address and subnet to see the results') + '</div>';
 }

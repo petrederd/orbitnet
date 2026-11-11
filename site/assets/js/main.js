@@ -14,10 +14,18 @@
   try {
     const stored = JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]');
     if (Array.isArray(stored)) {
-      favorites = new Set(stored.filter(item => typeof item === 'string'));
+      favorites = new Set(stored
+        .filter(item => typeof item === 'string')
+        .map(item => favoriteKey(item)));
     }
   } catch (e) {
     // localStorage may be disabled; favorites simply won't persist.
+  }
+
+  function favoriteKey(href) {
+    return String(href || '')
+      .replace(/^\/ru\//, '/')
+      .replace(/^(?!\/)/, '/');
   }
 
   const favoritesCount = document.getElementById('favoritesCount');
@@ -35,12 +43,12 @@
   }
 
   function syncFavButton(btn, href, name) {
-    const active = favorites.has(href);
+    const active = favorites.has(favoriteKey(href));
     btn.textContent = active ? '★' : '☆';
     btn.classList.toggle('active', active);
     btn.setAttribute('aria-pressed', String(active));
-    btn.setAttribute('aria-label', (active ? 'Remove from favorites: ' : 'Add to favorites: ') + name);
-    btn.title = active ? 'Remove from favorites' : 'Add to favorites';
+    btn.setAttribute('aria-label', t(active ? 'Remove from favorites: {name}' : 'Add to favorites: {name}', { name }));
+    btn.title = active ? t('Remove from favorites') : t('Add to favorites');
   }
 
   function addFavoriteButton(card) {
@@ -61,8 +69,8 @@
     btn.addEventListener('click', event => {
       event.preventDefault();
       event.stopPropagation();
-      if (favorites.has(href)) favorites.delete(href);
-      else favorites.add(href);
+      if (favorites.has(favoriteKey(href))) favorites.delete(favoriteKey(href));
+      else favorites.add(favoriteKey(href));
       saveFavorites();
       updateFavoritesCount();
       cards.forEach(item => {
@@ -183,7 +191,8 @@
   const searchIndex = new Map(cards.map(card => {
     const name = card.dataset.name;
     const description = card.querySelector('p')?.textContent || '';
-    const extra = aliases[card.getAttribute('href')] || '';
+    const href = card.getAttribute('href').replace(/^\/ru\//, '').replace(/^\//, '');
+    const extra = aliases[href] || '';
     const nameTokens = tokenize(name);
     const allText = name + ' ' + description + ' ' + card.dataset.category + ' ' + extra;
 
@@ -259,7 +268,7 @@
     cards.forEach(card => {
       const matchesFilter = activeFilter === 'all' ||
         (activeFilter === 'favorites'
-          ? favorites.has(card.getAttribute('href'))
+          ? favorites.has(favoriteKey(card.getAttribute('href')))
           : card.dataset.category === activeFilter);
       const score = queryTokens.length ? matchScore(searchIndex.get(card), queryTokens, phrase) : 1;
       const show = matchesFilter && score > 0;
@@ -281,11 +290,11 @@
     }
 
     if (activeFilter === 'favorites' && !favorites.size && !queryTokens.length) {
-      results.textContent = 'No favorites yet — tap ☆ on any tool card.';
+      results.textContent = t('No favorites yet — tap ☆ on any tool card.');
     } else if (queryTokens.length && visible === 0) {
-      results.textContent = `No tools found for "${rawQuery}"`;
+      results.textContent = t('No tools found for "{query}"', { query: rawQuery });
     } else {
-      results.textContent = `Showing ${visible} of ${cards.length} tools`;
+      results.textContent = t('Showing {visible} of {total} tools', { visible, total: cards.length });
     }
 
     empty.style.display = visible ? 'none' : 'block';
@@ -338,10 +347,10 @@
 
     const rows = [];
     const place = [geo.city, geo.region, geo.country].filter(Boolean).join(', ');
-    if (place) rows.push(['Location', place]);
-    if (geo.timezone) rows.push(['Timezone', geo.timezone]);
+    if (place) rows.push([t('Location'), place]);
+    if (geo.timezone) rows.push([t('Timezone'), geo.timezone]);
     if (geo.asnOrganization) {
-      rows.push(['Provider', geo.asnOrganization + (geo.asn ? ' (AS' + geo.asn + ')' : '')]);
+      rows.push([t('Provider'), geo.asnOrganization + (geo.asn ? ' (AS' + geo.asn + ')' : '')]);
     }
 
     if (!rows.length) {
@@ -364,7 +373,7 @@
       .then(r => r.json())
       .then(data => {
         if (data.error) throw new Error(data.error);
-        valueEl.textContent = data.ip || 'Unknown';
+        valueEl.textContent = data.ip || t('Unknown');
         const parts = [];
         parts.push('IPv' + data.version);
         if (data.hostname) parts.push(data.hostname);
@@ -372,8 +381,8 @@
         renderGeo(data.geo);
       })
       .catch(() => {
-        valueEl.textContent = 'Unable to fetch';
-        metaEl.textContent = 'Try the IP Lookup tool instead.';
+        valueEl.textContent = t('Unable to fetch');
+        metaEl.textContent = t('Try the IP Lookup tool instead.');
         renderGeo(null);
       });
   }

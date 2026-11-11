@@ -2,7 +2,7 @@
 
 > Организация кода, соглашения и точки расширения.
 
-**Обновлено:** 25 октября 2026
+**Обновлено:** 11 ноября 2026
 **Версия:** 0.4.0
 
 ## Общая схема
@@ -42,7 +42,8 @@ orbitnet/
 │   ├── cloudflare-ranges.test.js  # nginx- и Caddy-диапазоны Cloudflare совпадают
 │   ├── frontend-batching.test.js  # батчинг website-health и ip-info
 │   ├── deployment.test.js         # Docker hardening и digest-pinned образы
-│   ├── smoke.test.js              # Playwright: все страницы, CSP, Worker, избранное, axe
+│   ├── smoke.test.js              # Playwright: все страницы, CSP, Worker, избранное, RU-пилот, axe
+│   ├── i18n.test.js               # RU-страницы, hreflang, sitemap, каталоги переводов
 │   ├── csp.test.js                # Нет inline-скриптов/обработчиков, строгий CSP в nginx
 │   ├── health.test.js             # /health + метрики, публичный /api/health
 │   ├── subnet.test.js             # /0, /24, /31, /32 и режим маски
@@ -65,7 +66,8 @@ orbitnet/
 │   ├── privacy.html               # Политика конфиденциальности (RU + EN)
 │   ├── 404.html                   # Кастомная страница «не найдено»
 │   ├── robots.txt                 # Индексация и ссылка на sitemap
-│   ├── sitemap.xml                # 59 URL: главная, about, privacy, 56 инструментов
+│   ├── sitemap.xml                # EN + RU URL с xhtml:link alternates
+│   ├── ru/                        # Сгенерированные русские страницы пилота
 │   │
 │   ├── icons/
 │   │   └── favicon.svg
@@ -75,6 +77,8 @@ orbitnet/
 │   │   │   └── style.css          # Общая тема и UI-компоненты
 │   │   ├── js/
 │   │   │   ├── main.js            # Поиск, фильтры, сортировка, IP-виджет
+│   │   │   ├── i18n.js            # t(), formatNumber(), formatDate()
+│   │   │   ├── lang.js            # Автопереход RU и переключатель языка
 │   │   │   ├── site.js            # Год в подвале + делегированные data-action
 │   │   │   ├── regex-worker.js    # Статический Web Worker для Regex Tester
 │   │   │   └── tools/             # По одному внешнему скрипту на страницу инструмента
@@ -83,6 +87,7 @@ orbitnet/
 │   │   │       ├── math/
 │   │   │       ├── networks/
 │   │   │       └── text/
+│   │   ├── i18n/                  # Сгенерированные manifest.js и ru.js
 │   │   └── og-image.png           # Превью 1200×630 для Open Graph
 │   │
 │   └── tools/
@@ -179,7 +184,14 @@ orbitnet/
 │   ├── Caddyfile.example          # trusted_proxies + перезапись CF-Connecting-IP
 │   ├── cloudflare-trusted-proxies.caddy # Диапазоны Cloudflare для Caddy (автообновление)
 │   └── unbound.conf               # Рекурсивный резолвер для DNSBL (без forward-zone)
+├── i18n/
+│   ├── locales.json               # Языки, base URL и список переведённых страниц
+│   └── ru/
+│       ├── common.json            # Навигация, подвал, категории, инструменты
+│       ├── pages.json             # Переводы конкретных страниц
+│       └── js.json                # Строки, которые выводят скрипты
 ├── scripts/
+│   ├── build-i18n.js              # build/extract: RU-страницы, словари, sitemap
 │   └── update-cloudflare-ips.sh   # Обновление cloudflare-ips.conf и Caddy-сниппета
 ├── docker-compose.yml             # site + api + geoip-updater (profile)
 ├── .env.example                   # Шаблон ключей MaxMind и Worker
@@ -222,9 +234,20 @@ npm run hooks:install
 - `tests/security.test.js` проверяет парсеры HSTS `max-age`, `Set-Cookie`, `security.txt`, mixed content (игнор namespace-URL), отображение score в A–F и сборку отчёта для «хорошего», «плохого» и header-only (Worker) случая.
 - `tests/tls.test.js` проверяет разбор SAN, классификацию шифров, сводку версий TLS, CAA, сроки и график CA/B Forum (только для доверенных цепочек), силу ключа, SCT, OCSP, ALPN/Alt-Svc с лимитом ответа, анализ цепочки (неполная, порядок, информационный лишний корень) и оценку A–F. Тесты поднимают локальный TLS-сервер на `node:tls` и используют сертификаты из `tests/fixtures` (все приватные ключи там тестовые).
 - `tests/seo.test.js` проверяет canonical и OG на каждой странице, уникальность URL, соответствие sitemap, JSON-LD `SoftwareApplication`/`WebSite`/`FAQPage` и размеры `og-image.png`.
+- `tests/i18n.test.js` проверяет наличие RU-страниц, `lang="ru"`, взаимные canonical/hreflang, `xhtml:link` в sitemap, корректность каталогов и подключение `i18n.js`/`lang.js`.
 - `tests/live-check.js` проверяет доступность всех canonical URL и `og-image.png` на опубликованном сайте.
 
 `.githooks/pre-push` запускает `npm test` перед `git push`. Хук включается командой `npm run hooks:install` (устанавливает `core.hooksPath`). CI-workflow ставит root- и backend-зависимости, Chromium, запускает те же локальные тесты до деплоя и `test:live` после него.
+
+## Локализация
+
+- Английский — язык по умолчанию в корне сайта. Русские страницы лежат в `site/ru/` и генерируются командой `npm run i18n:build`.
+- `i18n/locales.json` задаёт `baseUrl`, список локалей и `translatedPages`. Пилот: главная, about, пять категорий, Word Counter и IPv4 Subnet Calculator.
+- Исходники RU-переводов: `i18n/ru/common.json` (общие строки), `i18n/ru/pages.json` (по страницам), `i18n/ru/js.json` (строки из JS). Ключ — нормализованный английский текст или HTML.
+- `scripts/build-i18n.js build` переводит HTML через `linkedom`, переписывает ссылки на `/ru/`, добавляет `hreflang`, генерирует `site/assets/i18n/manifest.js` и `ru.js`, а также `site/sitemap.xml`.
+- `scripts/build-i18n.js extract` пишет `i18n/ru/pages.missing.json` — строки без перевода. Служебные ключи (`OrbitNet`, иконки) можно игнорировать.
+- В рантайме `i18n.js` даёт `t()`, `formatNumber()`, `formatDate()` и `orbitnetLocale()`. `lang.js` делает автопереход на `/ru/` для русскоязычных браузеров (по `localStorage` `orbitnet:lang`) и добавляет переключатель в шапку.
+- `privacy.html` остаётся ручным двуязычным документом: ссылки ведут на `/privacy.html#ru` и `/privacy.html#en`.
 
 ## Frontend
 

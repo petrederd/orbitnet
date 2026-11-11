@@ -161,7 +161,7 @@ test.after(async () => {
 });
 
 async function open(pathname, errors) {
-  const page = await browser.newPage();
+  const page = await browser.newPage({ locale: 'en-US' });
   page.on('console', message => {
     if (message.type() === 'error') errors.push('console: ' + message.text());
   });
@@ -201,6 +201,100 @@ test('every tool page loads without console errors or page exceptions', async t 
   }
 
   assert.equal(failures.length, 0, 'Pages with errors:\n' + failures.join('\n'));
+});
+
+test('Russian browser locale auto-redirects to the Russian version', async t => {
+  if (!browser) return t.skip(browserUnavailable);
+
+  const page = await browser.newPage({ locale: 'ru-RU' });
+  try {
+    await page.goto(base + '/about.html', { waitUntil: 'load' });
+    await page.waitForURL('**/ru/about.html');
+    assert.equal(await page.locator('html').getAttribute('lang'), 'ru');
+  } finally {
+    await page.close();
+  }
+});
+
+test('privacy page redirects Russian browsers once and keeps the EN switch', async t => {
+  if (!browser) return t.skip(browserUnavailable);
+
+  let loads = 0;
+  const page = await browser.newPage({ locale: 'ru-RU' });
+  page.on('load', () => { loads++; });
+  try {
+    await page.goto(base + '/privacy.html', { waitUntil: 'load' });
+    await page.waitForURL('**/privacy.html#ru');
+    await page.waitForTimeout(300);
+    assert.equal(await page.locator('html').getAttribute('lang'), 'en');
+    assert.equal(await page.locator('.lang-switch').getAttribute('href'), '/privacy.html#en');
+    assert.ok(loads < 4, 'privacy redirect should settle');
+
+    await page.goto(base + '/privacy.html#en', { waitUntil: 'load' });
+    await page.waitForTimeout(300);
+    assert.ok(page.url().endsWith('/privacy.html#en'));
+  } finally {
+    await page.close();
+  }
+});
+
+test('Russian pilot pages load and keep the language switch', async t => {
+  if (!browser) return t.skip(browserUnavailable);
+
+  const pages = [
+    '/ru/',
+    '/ru/about.html',
+    '/ru/networks/',
+    '/ru/tools/text/word-counter.html',
+    '/ru/tools/networks/subnet-calculator.html',
+  ];
+  const failures = [];
+
+  for (const pagePath of pages) {
+    const errors = [];
+    let page;
+    try {
+      page = await open(pagePath, errors);
+      assert.equal(await page.locator('html').getAttribute('lang'), 'ru');
+      assert.equal(await page.locator('.lang-switch').count(), 1);
+      assert.match(await page.locator('.lang-switch').getAttribute('href'), /^\//);
+      if (errors.length) failures.push(pagePath + '\n  ' + errors.join('\n  '));
+    } catch (error) {
+      failures.push(pagePath + '\n  ' + error.message);
+    } finally {
+      if (page) await page.close();
+    }
+  }
+
+  assert.deepEqual(failures, []);
+});
+
+test('Russian pilot tools keep localized output', async t => {
+  if (!browser) return t.skip(browserUnavailable);
+
+  let errors = [];
+  let page = await open('/ru/tools/text/word-counter.html', errors);
+  try {
+    await page.fill('#input', 'привет мир');
+    await page.waitForFunction(() => document.querySelector('#words').textContent === '2');
+    assert.match(await page.locator('#readTime').textContent(), /с$/);
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.close();
+  }
+
+  errors = [];
+  page = await open('/ru/tools/networks/subnet-calculator.html', errors);
+  try {
+    await page.fill('#ipAddress', '192.168.1.0');
+    await page.fill('#cidr', '24');
+    await page.click('[data-action="calculate"]');
+    await page.waitForFunction(() => document.querySelector('#results')?.textContent.includes('Адрес сети'));
+    assert.match(await page.locator('#results').textContent(), /Адрес сети/);
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.close();
+  }
 });
 
 test('regex tester starts a real Web Worker under the production CSP', async t => {
@@ -276,6 +370,9 @@ test('home search deep link and favorites work together', async t => {
       document.querySelectorAll('.tool-card:not([hidden])').length === 1
     );
     assert.equal(await page.locator('.tool-card:not([hidden])').count(), 1);
+
+    await page.goto(base + '/ru/', { waitUntil: 'load' });
+    assert.ok(await page.locator('.fav-btn[aria-pressed="true"]').count() >= 1);
     assert.deepEqual(errors, []);
   } finally {
     await page.close();

@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Растущая коллекция бесплатных практичных онлайн-инструментов для сетей, электроники, разработки, математики и повседневных задач.">
+<meta name="theme-color" content="#16161a">
+<title>OrbitNet — открытые инструменты без шума</title>
+<link rel="canonical" href="https://orbitnet.ru/ru/">
+<!-- orbitnet:i18n:alternates -->
+<link rel="alternate" hreflang="en" href="https://orbitnet.ru/">
+<link rel="alternate" hreflang="ru" href="https://orbitnet.ru/ru/">
+<link rel="alternate" hreflang="x-default" href="https://orbitnet.ru/">
+<!-- /orbitnet:i18n:alternates -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OrbitNet">
+<meta property="og:title" content="OrbitNet — открытые инструменты без шума">
+<meta property="og:description" content="Растущая коллекция бесплатных практичных онлайн-инструментов для сетей, электроники, разработки, математики и повседневных задач.">
+<meta property="og:url" content="https://orbitnet.ru/ru/">
+<meta property="og:locale" content="ru_RU">
+<meta property="og:image" content="https://orbitnet.ru/assets/og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="OrbitNet — открытые инструменты без шума">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="OrbitNet — открытые инструменты без шума">
+<meta name="twitter:description" content="Растущая коллекция бесплатных практичных онлайн-инструментов для сетей, электроники, разработки, математики и повседневных задач.">
+<meta name="twitter:image" content="https://orbitnet.ru/assets/og-image.png">
+<style>html{background:#16161a;color-scheme:dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>
+<link rel="stylesheet" href="/assets/css/style.css?v=7">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg?v=3">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/favicon-192x192.png?v=3">
+<link rel="icon" type="image/png" sizes="96x96" href="/icons/favicon-96x96.png?v=3">
+<link rel="icon" type="image/png" sizes="48x48" href="/icons/favicon-48x48.png?v=3">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png?v=3">
+<link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png?v=3">
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=3">
+<link rel="manifest" href="/site.webmanifest">
+<script type="application/ld+json" data-orbitnet-jsonld="website">{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://orbitnet.ru/ru/#website",
+      "url": "https://orbitnet.ru/ru/",
+      "name": "OrbitNet",
+      "description": "Растущая коллекция бесплатных практичных онлайн-инструментов для сетей, электроники, разработки, математики и повседневных задач.",
+      "inLanguage": "ru",
+      "publisher": {
+        "@id": "https://orbitnet.ru/ru/#organization"
+      },
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://orbitnet.ru/ru/?q={search_term_string}"
+        },
+        "query-input": "required name=search_term_string"
+      }
+    },
+    {
+      "@type": "Organization",
+      "@id": "https://orbitnet.ru/ru/#organization",
+      "name": "OrbitNet",
+      "url": "https://orbitnet.ru/ru/",
+      "logo": "https://orbitnet.ru/icons/favicon-192x192.png"
+    },
+    {
+      "@type": "FAQPage",
+      "@id": "https://orbitnet.ru/ru/#faq",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Инструменты бесплатны?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Да. Все инструменты бесплатны, не требуют аккаунта и не имеют ограничений на использование."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Вы храните введённые данные?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Нет. Большинство инструментов работает целиком в вашем браузере. Инструменты, которым нужны сетевые данные — IP, DNS или HTTP-проверки, — отправляют только запрос, необходимый для этой проверки. Результаты не хранятся в базе данных; недолговечные кэши в памяти могут держать их до часа. Подробности — на странице конфиденциальности."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Можно ли развернуть OrbitNet самостоятельно?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Да. Исходный код опубликован на GitHub. Статический сайт можно разместить на любом веб-сервере, а API при необходимости запускается отдельным сервисом."
+          }
+        }
+      ]
+    }
+  ]
+}</script>
+<!-- orbitnet:i18n:scripts -->
+<script src="/assets/i18n/ru.js"></script>
+<script src="/assets/i18n/manifest.js"></script>
+<script src="/assets/js/i18n.js?v=1"></script>
+<script src="/assets/js/lang.js?v=1"></script>
+<!-- /orbitnet:i18n:scripts -->
+<meta content="en_US" property="og:locale:alternate"></head>
+<body>
+<header class="wrap topbar">
+  <a class="brand" href="#" aria-label="Главная OrbitNet">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span>orbitnet<span style="font-weight:500">.ru</span></span>
+  </a>
+  <nav class="nav" aria-label="Основная навигация">
+    <a href="#tools">Инструменты</a>
+    <a class="optional" href="/ru/about.html">О проекте</a>
+    <span class="status">Открытый код · Без рекламы</span>
+  </nav>
+</header>
+
+<main class="wrap">
+  <section class="page-head">
+    <h1>Бесплатные онлайн-инструменты для сетей, разработки и электроники</h1>
+    <p class="tagline"><strong>Открытые инструменты без шума.</strong> Личная коллекция практичных решений с открытым кодом — от сетей и электроники до разработки и математики. Без рекламы, аккаунтов и отслеживания.</p>
+  </section>
+
+  <section class="ip-card" id="ipWidget" aria-label="Информация о вашем IP">
+    <div class="ip-main">
+      <p class="ip-title">Ваш IP-адрес</p>
+      <div class="ip-value" id="ipValue">Загрузка…</div>
+      <p class="ip-meta" id="ipMeta"></p>
+    </div>
+    <dl class="ip-geo" id="ipGeo" hidden></dl>
+  </section>
+
+  <form class="searchbox" id="searchForm" role="search">
+    <span class="magnify" aria-hidden="true">⌕</span>
+    <label class="sr-only" for="searchInput">Поиск инструментов</label>
+    <input id="searchInput" type="search" placeholder="Найдите инструмент… например, «subnet» или «resistor»" autocomplete="off">
+    <span class="key">/</span>
+    <button type="submit">Найти</button>
+  </form>
+
+  <section id="tools">
+    <div class="section-head">
+      <h2>Выберите набор инструментов.</h2>
+      <p>Выбирайте по теме или ищите по всей коллекции.</p>
+      <nav class="category-links" aria-label="Просмотр инструментов по категориям">
+        <a href="/ru/networks/"><span class="filter-icon" aria-hidden="true">⌘</span> Сети</a>
+        <a href="/ru/developer/"><span class="filter-icon" aria-hidden="true">{ }</span> Разработка</a>
+        <a href="/ru/math/"><span class="filter-icon" aria-hidden="true">∑</span> Математика</a>
+        <a href="/ru/text/"><span class="filter-icon" aria-hidden="true">Aa</span> Текст</a>
+        <a href="/ru/electricity/"><span class="filter-icon" aria-hidden="true">ϟ</span> Электроника</a>
+      </nav>
+    </div>
+    <div class="layout">
+      <aside class="filters" aria-label="Фильтр инструментов по категориям">
+        <h3>Наборы инструментов</h3>
+        <div class="filter-list" id="filterList">
+          <button class="filter-btn active" data-filter="all"><span class="filter-icon">◈</span> Все инструменты <span class="filter-count">56</span></button>
+          <button class="filter-btn" data-filter="favorites"><span class="filter-icon">★</span> Избранное <span class="filter-count" id="favoritesCount">0</span></button>
+          <button class="filter-btn" data-filter="networks"><span class="filter-icon">⌘</span> Сети <span class="filter-count">24</span></button>
+          <button class="filter-btn" data-filter="electricity"><span class="filter-icon">ϟ</span> Электроника <span class="filter-count">2</span></button>
+          <button class="filter-btn" data-filter="developer"><span class="filter-icon">{ }</span> Разработка <span class="filter-count">18</span></button>
+          <button class="filter-btn" data-filter="math"><span class="filter-icon">∑</span> Математика <span class="filter-count">7</span></button>
+          <button class="filter-btn" data-filter="text"><span class="filter-icon">Aa</span> Текст <span class="filter-count">5</span></button>
+        </div>
+      </aside>
+
+      <div class="tools-area">
+        <div class="tools-toolbar">
+          <div class="results-count" id="resultsCount" aria-live="polite">Показаны все 56 инструментов</div>
+          <select class="sort" id="sortSelect" aria-label="Сортировка инструментов">
+            <option value="featured">Сортировка: по умолчанию</option>
+            <option value="az">Название: от A до Z</option>
+            <option value="category">Категория</option>
+          </select>
+        </div>
+
+        <div class="tool-grid" id="toolGrid">
+          <a class="tool-card" href="/ru/tools/networks/subnet-calculator.html" data-category="networks" data-name="Калькулятор подсетей IPv4" data-order="1">
+            <div class="tool-top"><span class="tool-icon">⌘</span><span class="pill">Сети</span></div>
+            <h3>Калькулятор подсетей IPv4</h3><p>Рассчитывает адрес сети и широковещательный адрес, диапазон CIDR, доступные хосты и маску подсети.</p>
+          </a>
+          <a class="tool-card" href="/tools/developer/json-formatter.html" data-category="developer" data-name="Форматтер и валидатор JSON" data-order="2">
+            <div class="tool-top"><span class="tool-icon">{ }</span><span class="pill">Разработка</span></div>
+            <h3>Форматтер и валидатор JSON</h3><p>Форматирует неаккуратный JSON, проверяет синтаксис и делает вложенные данные удобнее для чтения.</p>
+          </a>
+          <a class="tool-card" href="/tools/networks/ip-lookup.html" data-category="networks" data-name="Поиск IP" data-order="3">
+            <div class="tool-top"><span class="tool-icon">◎</span><span class="pill">Сети</span></div>
+            <h3>Поиск IP</h3><p>Показывает ваш публичный IP-адрес, примерное местоположение, провайдера и обратную DNS-запись — всё вычисляется на нашем сервере.</p>
+          </a>
+          <a class="tool-card" href="/tools/electricity/ohms-law.html" data-category="electricity" data-name="Калькулятор закона Ома" data-order="4">
+            <div class="tool-top"><span class="tool-icon">ϟ</span><span class="pill">Электроника</span></div>
+            <h3>Калькулятор закона Ома</h3><p>Вычисляет напряжение, ток, сопротивление или мощность по известным значениям.</p>
+          </a>
+          <a class="tool-card" href="/tools/electricity/ne555-calculator.html" data-category="electricity" data-name="Калькулятор таймера NE555" data-order="5">
+            <div class="tool-top"><span class="tool-icon">◷</span><span class="pill">Электроника</span></div>
+            <h3>Калькулятор таймера NE555</h3><p>Рассчитывает значения резисторов и конденсаторов для схем на таймере 555 в автоколебательном и ждущем режимах.</p>
+          </a>
+          <a class="tool-card" href="/tools/developer/base64.html" data-category="developer" data-name="Кодировщик и декодировщик Base64" data-order="6">
+            <div class="tool-top"><span class="tool-icon">⇄</span><span class="pill">Разработка</span></div>
+            <h3>Кодировщик и декодировщик Base64</h3><p>Преобразует текст в Base64 и обратно, проверяет ввод и позволяет скопировать результат.</p>
+          </a>
+          <a class="tool-card" href="/tools/developer/uuid-generator.html" data-category="developer" data-name="Генератор UUID" data-order="7">
+            <div class="tool-top"><span class="tool-icon">✳</span><span class="pill">Разработка</span></div>
+            <h3>Генератор UUID</h3><p>Генерирует уникальные идентификаторы для тестовых данных, разработки и быстрого прототипирования.</p>
+          </a>
+          <a class="tool-card" href="/tools/math/quadratic-solver.html" data-category="math" data-name="Решение квадратных уравнений" data-order="8">
+            <div class="tool-top"><span class="tool-icon">∑</span><span class="pill">Математика</span></div>
+            <h3>Решение квадратных уравнений</h3><p>Решает квадратные уравнения ax² + bx + c = 0 и находит действительные и комплексные корни.</p>
+          </a>
+          <a class="tool-card" href="/tools/math/percentage-calculator.html" data-category="math" data-name="Калькулятор процентов" data-order="9">
+            <div class="tool-top"><span class="tool-icon">%</span><span class="pill">Математика</span></div>
+            <h3>Калькулятор процентов</h3><p>Считает проценты и процентное изменение, помогает решать разные задачи с процентами.</p>
+          </a>
+          <a class="tool-card" href="/tools/math/unit-converter.html" data-category="math" data-name="Конвертер единиц" data-order="10">
+            <div class="tool-top"><span class="tool-icon">⇄</span><span class="pill">Математика</span></div>
+            <h3>Конвертер единиц</h3><p>Переводит единицы длины, массы, температуры, площади, объёма и скорости.</p>
+          </a>
+          <a class="tool-card" href="/tools/networks/dns-lookup.html" data-category="networks" data-name="Поиск DNS-записей" data-order="11">
+            <div class="tool-top"><span class="tool-icon">⌗</span><span class="pill">Сети</span></div>
+            <h3>Поиск DNS-записей</h3><p>Запрашивает записи A, AAAA, MX, TXT, NS, CNAME, SOA и CAA для любого домена.</p>
+          </a>
+          <a class="tool-card" href="/tools/networks/port-checker.html" data-category="networks" data-name="Проверка порта" data-order="12">
+            <div class="tool-top"><span class="tool-icon">⊞</span><span class="pill">Сети</span></div>
+            <h3>Проверка порта</h3><p>Проверяет, открыт ли TCP-порт на хосте, напрямую с нашего сервера.</p>
+          </a>
+          <a class="tool-card" href="/tools/networks/ip-info.html" data-category="networks" data-name="Информация об IP и домене" data-order="13">
+            <div class="tool-top"><span class="tool-icon">⊙</span><span class="pill">Сети</span></div>
+            <h3>Информация об IP и домене</h3><p>Показывает DNS-записи, обратную DNS-запись, данные whois, геолокацию и провайдера для любого IP или домена.</p>
+          </a>
+          <a class="tool-card" href="/tools/networks/site-info.html" data-category="networks" data-name="Информация о сайте" data-order="14">
+            <div class="tool-top"><span class="tool-icon">⌂</span><span class="pill">Сети</span></div>
+            <h3>Информация о сайте</h3><p>Проверяет сайт: IP-адрес, HTTP-статус, сервер, заголовок страницы и время ответа.</p>
+          </a>
+          <a class="tool-card" href="/tools/developer/password-generator.html" data-category="developer" data-name="Генератор паролей" data-order="15">
+            <div class="tool-top"><span class="tool-icon">❖</span><span class="pill">Разработка</span></div>
+            <h3>Генератор паролей</h3><p>Создаёт надёжные случайные пароли и оценивает их устойчивость к перебору.</p>
+          </a>
+          <a class="tool-card" href="/tools/networks/cidr-netmask.html" data-category="networks" data-name="Конвертер CIDR и маски" data-order="16">
+            <div class="tool-top"><span class="tool-icon">⁄</span><span class="pill">Сети</span></div>
+            <h3>Конвертер CIDR и маски</h3><p>Переводит префикс CIDR, маску подсети и wildcard-маску, а также показывает полную таблицу префиксов.</p>
+          </a>
+          <a class="tool-card" href="/tools/networks/ip-binary-converter.html" data-category="networks" data-name="Конвертер IP и двоичного кода" data-order="17">
+            <div class="tool-top"><span class="tool-icon">⇅</span><span class="pill">Сети</span></div>
+            <h3>Конвертер IP и двоичного кода</h3><p>Переводит IPv4-адреса в двоичный, десятичный и шестнадцатеричный вид и обратно.</p>
+          </a>
+          <a class="tool-card" href="/tools/networks/mac-converter.html" data-category="networks" data-name="Конвертер MAC-адресов" data-order="18">
+            <div class="tool-top"><span class="tool-icon">⌸</span><span class="pill">Сети</span></div>
+            <h3>Конвертер MAC-адресов</h3><p>Переводит MAC-адреса между форматами и показывает тип адреса и префикс OUI.</p>
+          </a>
+          <a class="tool-card" href="/tools/networks/reverse-ip.html" data-category="networks" data-name="Обратный поиск IP" data-order="19">
+            <div class="tool-top"><span class="tool-icon">↺</span><span class="pill">Сети</span></div>
+            <h3>Обратный поиск IP</h3><p>Находит PTR-имя хоста по IP-адресу с помощью нашего сервера.</p>
+          </a>
+          <a class="tool-card" href="/tools/text/case-converter.html" data-category="text" data-name="Конвертер регистра" data-order="20">
+            <div class="tool-top"><span class="tool-icon">Aa</span><span class="pill">Текст</span></div>
+            <h3>Конвертер регистра</h3><p>Меняет регистр текста: ВЕРХНИЙ, нижний, Заголовочный, Предложение, camelCase, snake_case и другие.</p>
+          </a>
+          <a class="tool-card" href="/ru/tools/text/word-counter.html" data-category="text" data-name="Счётчик слов" data-order="21">
+            <div class="tool-top"><span class="tool-icon">#</span><span class="pill">Текст</span></div>
+            <h3>Счётчик слов</h3><p>Считает слова, символы, предложения и абзацы, оценивает время чтения и показывает частые слова.</p>
+          </a>
+          <a class="tool-card" href="/tools/text/text-diff-checker.html" data-category="text" data-name="Сравнение текстов" data-order="22">
+            <div class="tool-top"><span class="tool-icon">≠</span><span class="pill">Текст</span></div>
+            <h3>Сравнение текстов</h3><p>Сравнивает два текста построчно и выделяет добавленные и удалённые строки.</p>
+          </a>
+          <a class="tool-card" href="/tools/text/lorem-ipsum-generator.html" data-category="text" data-name="Генератор Lorem Ipsum" data-order="23">
+            <div class="tool-top"><span class="tool-icon">¶</span><span class="pill">Текст</span></div>
+            <h3>Генератор Lorem Ipsum</h3><p>Создаёт текст-заполнитель абзацами, предложениями или заданным числом слов.</p>
+          </a>
+          <a class="tool-card" href="/tools/math/number-base-converter.html" data-category="math" data-name="Конвертер систем счисления" data-order="24">
+            <div class="tool-top"><span class="tool-icon">0x</span><span class="pill">Математика</span></div>
+            <h3>Конвертер систем счисления</h3><p>Переводит большие целые числа между двоичной, восьмеричной, десятичной и шестнадцатеричной системами.</p>
+          </a>
+          <a class="tool-card" href="/tools/math/scientific-notation.html" data-category="math" data-name="Конвертер научной нотации" data-order="25">
+            <div class="tool-top"><span class="tool-icon">ⁿ</span><span class="pill">Математика</span></div>
+            <h3>Конвертер научной нотации</h3><p>Переводит числа в научную и инженерную нотацию и обратно.</p>
+          </a>
+          <a class="tool-card" href="/tools/math/statistics-calculator.html" data-category="math" data-name="Калькулятор статистики" data-order="26">
+            <div class="tool-top"><span class="tool-icon">σ</span><span class="pill">Математика</span></div>
+            <h3>Калькулятор статистики</h3><p>Считает среднее, медиану, моду, дисперсию, стандартное отклонение и квартили по набору данных.</p>
+          </a>
+          <a class="tool-card" href="/tools/math/prime-checker.html" data-category="math" data-name="Проверка простых чисел" data-order="27">
+            <div class="tool-top"><span class="tool-icon">℘</span><span class="pill">Математика</span></div>
+            <h3>Проверка простых чисел</h3><p>Проверяет число на простоту, раскладывает на множители и находит ближайшие простые числа.</p>
+          </a>
+          <a class="tool-card" href="/tools/developer/hash-generator.html" data-category="developer" data-name="Генератор хешей" data-order="28">
+            <div class="tool-top"><span class="tool-icon">♯</span><span class="pill">Разработка</span></div>
+            <h3>Генератор хешей</h3><p>Вычисляет хеши MD5, SHA-1, SHA-256, SHA-384 и SHA-512 для любого текста.</p>
+          </a>
+          <a class="tool-card" href="/tools/developer/timestamp-converter.html" data-category="developer" data-name="Конвертер временных меток" data-order="29">
+            <div class="tool-top"><span class="tool-icon">◴</span><span class="pill">Разработка</span></div>
+            <h3>Конвертер временных меток</h3><p>Переводит между Unix-временем, ISO 8601 и понятными локальными датами и датами UTC.</p>
+          </a>
+          <a class="tool-card" href="/tools/developer/regex-tester.html" data-category="developer" data-name="Тестер регулярных выражений" data-order="30">
+            <div class="tool-top"><span class="tool-icon">.*</span><span class="pill">Разработка</span></div>
+            <h3>Тестер регулярных выражений</h3><p>Проверяет регулярные выражения с флагами, подсветкой совпадений и разбором групп захвата.</p>
+          </a>
+          <a class="tool-card" href="/tools/developer/color-converter.html" data-category="developer" data-name="Конвертер цветов" data-order="31">
+            <div class="tool-top"><span class="tool-icon">◐</span><span class="pill">Разработка</span></div>
+            <h3>Конвертер цветов</h3><p>Переводит цвета между HEX, RGB и HSL, с выбором цвета и предпросмотром.</p>
+          </a>
+          <a class="tool-card" href="/tools/networks/ssl-checker.html" data-category="networks" data-name="Проверка SSL/TLS" data-order="32">
+            <div class="tool-top"><span class="tool-icon">⌘</span><span class="pill">Сети</span></div>
+            <h3>Проверка SSL/TLS</h3><p>Проверяет сертификат, цепочку и SAN, а также версии TLS, шифры, OCSP stapling и записи CAA.</p>
+          </a>
+          <a class="tool-card" href="/tools/networks/http-headers.html" data-category="networks" data-name="Инспектор HTTP-заголовков" data-order="33">
+            <div class="tool-top"><span class="tool-icon">⌘</span><span class="pill">Сети</span></div>
+            <h3>Инспектор HTTP-заголовков</h3><p>Показывает статус и заголовки ответа, включая HSTS, CSP и другие security-заголовки, с предупреждениями.</p>
+          </a>
+          <a class="tool-card" href="/tools/networks/email-dns-checker.html" data-category="networks" data-name="Проверка DNS для почты" data-order="34">
+            <div class="tool-top"><span class="tool-icon">⌘</span><span class="pill">Сети</span></div>
+            <h3>Проверка DNS для почты</h3><p>Проверяет записи MX, SPF, DMARC, DKIM и PTR для домена.</p>
+          </a>
+          <a class="tool-card" href="/tools/networks/dns-propagation.html" data-category="networks" data-name="Проверка распространения DNS" data-order="35">
+            <div class="tool-top"><span class="tool-icon">⌘</span><span class="pill">Сети</span></div>
+            <h3>Проверка распространения DNS</h3><p>Сравнивает ответы нескольких публичных резолверов, чтобы проверить, разошлось ли изменение записи.</p>
+          </a>
+          <a class="tool-card" href="/tools/networks/redirect-checker.html" data-category="networks" data-name="Проверка редиректов" data-order="36">
+            <div class="tool-top"><span class="tool-icon">⌘</span><span class="pill">Сети</span></div>
+            <h3>Проверка редиректов</h3><p>Проходит по цепочке редиректов, показывая все HTTP-статусы и итоговый URL.</p>
+          </a>
+          <a class="tool-card" href="/tools/networks/website-health.html" data-category="networks" data-name="Проверка работоспособности сайта" data-order="37">
+            <div class="tool-top"><span class="tool-icon">⌘</span><span class="pill">Сети</span></div>
+            <h3>Проверка работоспособности сайта</h3><p>Единый отчёт по DNS, TLS, доступности и HTTP security-заголовкам.</p>
+          </a>
+          <a class="tool-card" href="/tools/networks/network-diagnostics.html" data-category="networks" data-name="Диагностика сети" data-order="38">
+            <div class="tool-top"><span class="tool-icon">⌘</span><span class="pill">Сети</span></div>
+            <h3>Диагностика сети</h3><p>Прямая и обратная DNS-проверка плюс проверка TCP-порта на одной странице.</p>
+          </a>
+          <a class="tool-card" href="/tools/networks/email-deliverability.html" data-category="networks" data-name="Проверка доставляемости почты" data-order="39">
+            <div class="tool-top"><span class="tool-icon">⌘</span><span class="pill">Сети</span></div>
+            <h3>Проверка доставляемости почты</h3><p>Анализирует MX, SPF, DMARC и DKIM и объясняет типичные ошибки настройки почты.</p>
+          </a>
+          <a class="tool-card" href="/tools/developer/jwt-decoder.html" data-category="developer" data-name="Декодер JWT" data-order="40">
+            <div class="tool-top"><span class="tool-icon">{ }</span><span class="pill">Разработка</span></div>
+            <h3>Декодер JWT</h3><p>Декодирует заголовок и полезную нагрузку JWT прямо в браузере и показывает его claims.</p>
+          </a>
+          <a class="tool-card" href="/tools/networks/anonymity-check.html" data-category="networks" data-name="Проверка анонимности" data-order="41">
+            <div class="tool-top"><span class="tool-icon">◈</span><span class="pill">Сети</span></div>
+            <h3>Проверка анонимности</h3><p>Проверяет proxy-заголовки, признаки Tor и хостинга, несовпадение часового пояса, утечки WebRTC и при желании порты вашего IP.</p>
+          </a>
+          <a class="tool-card" href="/tools/developer/cron-parser.html" data-category="developer" data-name="Разбор cron-выражений" data-order="42">
+            <div class="tool-top"><span class="tool-icon">◷</span><span class="pill">Разработка</span></div>
+            <h3>Разбор cron-выражений</h3><p>Объясняет cron-выражение из пяти полей простыми словами и показывает ближайшие запуски.</p>
+          </a>
+          <a class="tool-card" href="/tools/developer/url-encoder.html" data-category="developer" data-name="Кодировщик и декодировщик URL" data-order="43">
+            <div class="tool-top"><span class="tool-icon">⇄</span><span class="pill">Разработка</span></div>
+            <h3>Кодировщик и декодировщик URL</h3><p>Кодирует и декодирует компоненты URL и целые URI прямо в браузере.</p>
+          </a>
+          <a class="tool-card" href="/tools/developer/url-parser.html" data-category="developer" data-name="Разбор URL" data-order="44">
+            <div class="tool-top"><span class="tool-icon">⌗</span><span class="pill">Разработка</span></div>
+            <h3>Разбор URL</h3><p>Разбирает URL на протокол, хост, путь, query и фрагмент и показывает таблицу параметров.</p>
+          </a>
+          <a class="tool-card" href="/tools/developer/yaml-json.html" data-category="developer" data-name="Конвертер YAML и JSON" data-order="45">
+            <div class="tool-top"><span class="tool-icon">{ }</span><span class="pill">Разработка</span></div>
+            <h3>Конвертер YAML ↔ JSON</h3><p>Переводит конфигурацию между YAML и JSON локально с помощью парсера js-yaml.</p>
+          </a>
+          <a class="tool-card" href="/tools/developer/json-csv.html" data-category="developer" data-name="Конвертер JSON в CSV" data-order="46">
+            <div class="tool-top"><span class="tool-icon">⊞</span><span class="pill">Разработка</span></div>
+            <h3>Конвертер JSON в CSV</h3><p>Разворачивает вложенные объекты JSON в CSV с настраиваемыми разделителями, заголовками и BOM.</p>
+          </a>
+          <a class="tool-card" href="/tools/developer/json-diff.html" data-category="developer" data-name="Сравнение JSON" data-order="47">
+            <div class="tool-top"><span class="tool-icon">≠</span><span class="pill">Разработка</span></div>
+            <h3>Сравнение JSON</h3><p>Сравнивает два документа JSON по структуре и перечисляет добавленные, удалённые и изменённые значения.</p>
+          </a>
+          <a class="tool-card" href="/tools/developer/redirect-generator.html" data-category="developer" data-name="Генератор редиректов" data-order="48">
+            <div class="tool-top"><span class="tool-icon">↪</span><span class="pill">Разработка</span></div>
+            <h3>Генератор редиректов</h3><p>Создаёт правила редиректов для nginx или Apache .htaccess из простого списка «старый → новый».</p>
+          </a>
+          <a class="tool-card" href="/tools/developer/robots-generator.html" data-category="developer" data-name="Генератор robots.txt" data-order="49">
+            <div class="tool-top"><span class="tool-icon">⌘</span><span class="pill">Разработка</span></div>
+            <h3>Генератор robots.txt</h3><p>Собирает robots.txt с разрешёнными и запрещёнными путями, задержкой обхода и URL карты сайта.</p>
+          </a>
+          <a class="tool-card" href="/tools/developer/security-headers.html" data-category="developer" data-name="Очистка security-заголовков" data-order="50">
+            <div class="tool-top"><span class="tool-icon">◈</span><span class="pill">Разработка</span></div>
+            <h3>Очистка security-заголовков</h3><p>Проверяет HTTP security-заголовки, находит слабые значения и создаёт аккуратный фрагмент конфигурации nginx.</p>
+          </a>
+          <a class="tool-card" href="/tools/networks/ipv6-subnet-calculator.html" data-category="networks" data-name="Калькулятор подсетей IPv6" data-order="51">
+            <div class="tool-top"><span class="tool-icon">⌘</span><span class="pill">Сети</span></div>
+            <h3>Калькулятор подсетей IPv6</h3><p>Рассчитывает диапазон сети IPv6, префикс, число адресов и тип адреса.</p>
+          </a>
+          <a class="tool-card" href="/tools/networks/ipv6-converter.html" data-category="networks" data-name="Конвертер IPv6" data-order="52">
+            <div class="tool-top"><span class="tool-icon">⇄</span><span class="pill">Сети</span></div>
+            <h3>Конвертер IPv6</h3><p>Сжимает, разворачивает и разбирает IPv6-адреса в hex, десятичном, двоичном виде и reverse DNS.</p>
+          </a>
+          <a class="tool-card" href="/tools/text/unicode-inspector.html" data-category="text" data-name="Инспектор Unicode" data-order="53">
+            <div class="tool-top"><span class="tool-icon">Aa</span><span class="pill">Текст</span></div>
+            <h3>Инспектор Unicode</h3><p>Показывает кодовые точки, байты UTF-8, нормализацию и невидимые или двунаправленные символы.</p>
+          </a>
+          <a class="tool-card" href="/tools/networks/spam-blacklist-check.html" data-category="networks" data-name="Проверка спам-листов" data-order="54">
+            <div class="tool-top"><span class="tool-icon">⌘</span><span class="pill">Сети</span></div>
+            <h3>Проверка спам-листов</h3><p>Проверяет IP, домен или email по публичным базам DNSBL и URIBL.</p>
+          </a>
+          <a class="tool-card" href="/tools/networks/security-audit.html" data-category="networks" data-name="Аудит безопасности сайта" data-order="55">
+            <div class="tool-top"><span class="tool-icon">⌘</span><span class="pill">Сети</span></div>
+            <h3>Аудит безопасности сайта</h3><p>Оценивает сайт от A до F по HTTPS, security-заголовкам, HSTS preload, security.txt, флагам cookie и mixed content.</p>
+          </a>
+          <a class="tool-card" href="/tools/networks/dnssec-checker.html" data-category="networks" data-name="Проверка DNSSEC" data-order="56">
+            <div class="tool-top"><span class="tool-icon">⛨</span><span class="pill">Сети</span></div>
+            <h3>Проверка DNSSEC</h3><p>Проверяет записи DS, DNSKEY и RRSIG и относит домен к категориям Secure, Insecure, Bogus или Indeterminate.</p>
+          </a>
+        </div>
+        <div class="empty" id="emptyState"><strong>Инструменты не найдены.</strong>Попробуйте другой запрос или выберите другую категорию.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="below" id="about">
+    <article class="info-card">
+      <div class="info-icon">◌</div><h2>Без рекламы и отслеживания.</h2>
+      <p>Без аккаунтов и платных размещений. Где возможно, инструменты работают прямо в браузере и никуда не отправляют ваши данные.</p>
+    </article>
+    <article class="info-card">
+      <div class="info-icon">✳</div><h2>Открытый код.</h2>
+      <p>OrbitNet — личный проект, открытый для сообщества. Весь исходный код опубликован на GitHub, поэтому любой может его изучить, форкнуть или развернуть у себя.</p>
+    </article>
+  </section>
+
+  <section class="below" id="faq">
+    <article class="info-card">
+      <div class="info-icon">?</div><h2>Частые вопросы</h2>
+      <dl class="faq-list">
+        <dt>Инструменты бесплатны?</dt>
+        <dd>Да. Все инструменты бесплатны, не требуют аккаунта и не имеют ограничений на использование.</dd>
+        <dt>Вы храните введённые данные?</dt>
+        <dd>Нет. Большинство инструментов работает целиком в вашем браузере. Инструменты, которым нужны сетевые данные — IP, DNS или HTTP-проверки, — отправляют только запрос, необходимый для этой проверки. Результаты не хранятся в базе данных; недолговечные кэши в памяти могут держать их до часа. Подробности — на странице <a href="/privacy.html#ru">Конфиденциальность</a>.</dd>
+        <dt>Можно ли развернуть OrbitNet самостоятельно?</dt>
+        <dd>Да. Исходный код опубликован на GitHub. Статический сайт можно разместить на любом веб-сервере, а API при необходимости запускается отдельным сервисом.</dd>
+      </dl>
+    </article>
+  </section>
+</main>
+
+<footer class="wrap footer">
+  <div><strong>OrbitNet</strong><br>Открытый код. Без рекламы. Без отслеживания. ©<span id="year"></span></div>
+  <div class="footer-links"><a href="#tools">Все инструменты</a><a href="/ru/about.html">О проекте</a><a href="/privacy.html#ru">Конфиденциальность</a><a href="https://orbitnet.ru">orbitnet.ru</a></div>
+</footer>
+
+<script src="/assets/js/main.js?v=6"></script>
+<script src="/assets/js/site.js?v=1"></script>
+</body>
+</html>

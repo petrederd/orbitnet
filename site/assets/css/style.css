@@ -60,6 +60,14 @@ button { cursor: pointer; }
 .nav { display: flex; align-items: center; gap: 18px; font-size: .9rem; }
 .nav a { text-decoration: none; color: var(--ink); }
 .nav a:hover { text-decoration: underline; }
+.nav .lang-switch {
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: .82rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
 .status { font-size: .8rem; color: var(--muted); }
 
 /* Page head */

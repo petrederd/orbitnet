@@ -20,6 +20,21 @@ OrbitNet — открытый набор небольших инструмент
 
 > Caddy хранит санитизированный access-лог до 7 дней: путь без query string, статус и время, без IP-адресов и заголовков. nginx access-логи отключены, backend не пишет per-request логи. Cloudflare видит трафик как CDN. Это инфраструктурные логи, а не профилирование пользователей.
 
+## Языки
+
+- Английская версия — основная, живёт в корне сайта (`/`).
+- Русская версия — в `/ru/`, с языковым переключателем в шапке.
+- При первом визите браузер с русским языком автоматически переходит на `/ru/`; выбор запоминается в `localStorage` (`orbitnet:lang`). Обратного редиректа нет.
+- В пилоте переведены главная, «О проекте», пять категорий, Word Counter и IPv4 Subnet Calculator. Остальные инструменты пока доступны на английском.
+- Русские страницы генерируются из английских исходников и каталогов `i18n/ru/*.json`:
+
+```bash
+npm run i18n:build     # собрать site/ru/**, словари и sitemap
+npm run i18n:extract   # показать строки без перевода
+```
+
+Сгенерированные файлы (`site/ru/**`, `site/assets/i18n/*.js`, `site/sitemap.xml`) коммитятся, потому что деплой делает `git pull`.
+
 ## Что уже работает
 
 Сейчас в коллекции 56 инструментов в пяти категориях.
@@ -96,11 +111,15 @@ orbitnet/
 │   ├── about.html
 │   ├── privacy.html               # Политика конфиденциальности (RU + EN)
 │   ├── robots.txt
-│   ├── sitemap.xml
+│   ├── sitemap.xml                # EN + RU URL с hreflang
+│   ├── ru/                        # Сгенерированные русские страницы
 │   ├── icons/favicon.svg
 │   ├── assets/
 │   │   ├── css/style.css
 │   │   ├── js/main.js             # Поиск, фильтры, сортировка, избранное, IP-виджет
+│   │   ├── js/i18n.js             # t(), formatNumber(), formatDate()
+│   │   ├── js/lang.js             # Автопереход и переключатель языка
+│   │   ├── i18n/                  # Сгенерированные словари и манифест
 │   │   └── og-image.png           # Open Graph превью
 │   └── tools/
 │       ├── _template.html         # Шаблон нового инструмента
@@ -119,6 +138,10 @@ orbitnet/
 │   ├── wrangler.toml
 │   └── README.md
 ├── data/geoip/                    # GeoLite2 (не коммитится)
+├── i18n/
+│   ├── locales.json               # Языки и список переведённых страниц
+│   └── ru/                        # Каталоги переводов common/pages/js
+├── scripts/build-i18n.js          # Генерация site/ru/**, словарей и sitemap
 ├── nginx.conf                     # Статика + прокси /api/
 ├── docker-compose.yml
 ├── tests/                         # node:test, Playwright smoke, SEO и health
@@ -167,8 +190,10 @@ node server.js
 ```bash
 npm install                       # Playwright, axe-core и js-yaml
 npx playwright install chromium   # один раз для браузерных smoke-тестов
-npm test                          # unit + SEO + health + smoke + axe
+npm test                          # unit + SEO + i18n + health + smoke + axe
 npm run test:smoke                # только браузерные проверки
+npm run i18n:extract              # проверить недостающие переводы
+npm run i18n:build                # пересобрать русские страницы и sitemap
 ```
 
 Без установленного Chromium smoke-тесты пропускаются. В CI они обязательны:
@@ -226,8 +251,8 @@ raw TCP, которого у Worker нет. Страницы блокировк�
 1. Задеплойте Worker из `worker/` и задайте секрет — подробно в
    [worker/README.md](worker/README.md). Worker работает на кастомном домене
    `checker.orbitnet.ru`, `workers_dev` выключен, а `wrangler` закреплён в
-   `worker/package-lock.json`. Для защиты квоты добавьте WAF Rate Limiting rule
-   на этот домен.
+   `worker/package-lock.json`. Для защиты квоты закройте домен WAF Custom Rule
+   по `http.host` (на Free rate limiting не умеет фильтровать по хосту).
 2. В серверном `.env` (gitignored) укажите (значение секрета — ровно та
    строка, которую ввели в `wrangler secret put`, без `< >` и кавычек):
 
