@@ -45,8 +45,8 @@ function convert() {
   const ip = ipToInt(document.getElementById('ip').value);
   const prefix = parsePrefix(document.getElementById('prefix').value);
 
-  if (ip === null) { errEl.innerHTML = '<div class="error">Invalid IPv4 address.</div>'; resEl.innerHTML = '<div class="result-sub">Check the IP address.</div>'; return; }
-  if (prefix === null) { errEl.innerHTML = '<div class="error">Invalid prefix or netmask (must be 0–32 or a valid dotted mask).</div>'; resEl.innerHTML = '<div class="result-sub">Check the prefix.</div>'; return; }
+  if (ip === null) { errEl.innerHTML = '<div class="error">' + t('Invalid IPv4 address.') + '</div>'; resEl.innerHTML = '<div class="result-sub">' + t('Check the IP address.') + '</div>'; return; }
+  if (prefix === null) { errEl.innerHTML = '<div class="error">' + t('Invalid prefix or netmask (must be 0–32 or a valid dotted mask).') + '</div>'; resEl.innerHTML = '<div class="result-sub">' + t('Check the prefix.') + '</div>'; return; }
 
   const mask = prefixToMask(prefix);
   const wildcard = (~mask) >>> 0;
@@ -59,16 +59,16 @@ function convert() {
 
   resEl.innerHTML =
     '<div class="grid-2">' +
-      '<div class="result-box highlight"><div class="result-label">CIDR</div><div class="result-value large">/' + prefix + '</div></div>' +
-      '<div class="result-box"><div class="result-label">Subnet mask</div><div class="result-value">' + intToIp(mask) + '</div></div>' +
-      '<div class="result-box"><div class="result-label">Wildcard mask</div><div class="result-value">' + intToIp(wildcard) + '</div></div>' +
-      '<div class="result-box"><div class="result-label">Network address</div><div class="result-value">' + intToIp(network) + '</div></div>' +
-      '<div class="result-box"><div class="result-label">Broadcast</div><div class="result-value">' + intToIp(broadcast) + '</div></div>' +
-      '<div class="result-box"><div class="result-label">Total addresses</div><div class="result-value">' + total.toLocaleString('en-US') + '</div></div>' +
-      '<div class="result-box"><div class="result-label">Usable hosts</div><div class="result-value">' + usable.toLocaleString('en-US') + '</div></div>' +
-      '<div class="result-box"><div class="result-label">Host range</div><div class="result-value" style="font-size:.95rem;">' + intToIp(first) + ' – ' + intToIp(last) + '</div></div>' +
+      '<div class="result-box highlight"><div class="result-label">' + t('CIDR') + '</div><div class="result-value large">/' + prefix + '</div></div>' +
+      '<div class="result-box"><div class="result-label">' + t('Subnet mask') + '</div><div class="result-value">' + intToIp(mask) + '</div></div>' +
+      '<div class="result-box"><div class="result-label">' + t('Wildcard mask') + '</div><div class="result-value">' + intToIp(wildcard) + '</div></div>' +
+      '<div class="result-box"><div class="result-label">' + t('Network address') + '</div><div class="result-value">' + intToIp(network) + '</div></div>' +
+      '<div class="result-box"><div class="result-label">' + t('Broadcast') + '</div><div class="result-value">' + intToIp(broadcast) + '</div></div>' +
+      '<div class="result-box"><div class="result-label">' + t('Total addresses') + '</div><div class="result-value">' + formatNumber(total) + '</div></div>' +
+      '<div class="result-box"><div class="result-label">' + t('Usable hosts') + '</div><div class="result-value">' + formatNumber(usable) + '</div></div>' +
+      '<div class="result-box"><div class="result-label">' + t('Host range') + '</div><div class="result-value" style="font-size:.95rem;">' + intToIp(first) + ' – ' + intToIp(last) + '</div></div>' +
     '</div>' +
-    '<div class="result-box"><div class="result-label">Mask in binary</div><div class="result-value" style="font-size:.85rem;font-family:ui-monospace,Menlo,Consolas,monospace;">' +
+    '<div class="result-box"><div class="result-label">' + t('Mask in binary') + '</div><div class="result-value" style="font-size:.85rem;font-family:ui-monospace,Menlo,Consolas,monospace;">' +
       intToIp(mask).split('.').map(o => Number(o).toString(2).padStart(8, '0')).join('.') + '</div></div>';
 
   highlightTableRow(prefix);
@@ -77,14 +77,14 @@ function convert() {
 function buildTable() {
   const el = document.getElementById('table');
   let html = '<table style="width:100%;border-collapse:collapse;">';
-  html += '<tr><th style="text-align:left;padding:4px 8px;color:var(--muted);">CIDR</th><th style="text-align:left;padding:4px 8px;color:var(--muted);">Netmask</th><th style="text-align:left;padding:4px 8px;color:var(--muted);">Hosts</th></tr>';
+  html += '<tr><th style="text-align:left;padding:4px 8px;color:var(--muted);">' + t('CIDR') + '</th><th style="text-align:left;padding:4px 8px;color:var(--muted);">' + t('Netmask') + '</th><th style="text-align:left;padding:4px 8px;color:var(--muted);">' + t('Hosts') + '</th></tr>';
   for (let p = 0; p <= 32; p++) {
     const mask = prefixToMask(p);
     const total = Math.pow(2, 32 - p);
     const usable = p >= 31 ? (p === 32 ? 1 : 2) : total - 2;
     html += '<tr data-prefix="' + p + '"><td style="padding:4px 8px;border-top:1px solid var(--line);">/' + p + '</td>' +
       '<td style="padding:4px 8px;border-top:1px solid var(--line);">' + intToIp(mask) + '</td>' +
-      '<td style="padding:4px 8px;border-top:1px solid var(--line);">' + usable.toLocaleString('en-US') + '</td></tr>';
+      '<td style="padding:4px 8px;border-top:1px solid var(--line);">' + formatNumber(usable) + '</td></tr>';
   }
   html += '</table>';
   el.innerHTML = html;

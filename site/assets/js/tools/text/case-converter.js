@@ -84,13 +84,13 @@ function updateStats(input, out) {
   const w = words(input).length;
   const lines = input ? input.split(/\r?\n/).length : 0;
   document.getElementById('stats').innerHTML =
-    '<span>' + chars + '</span> characters · <span>' + w + '</span> words · <span>' + lines + '</span> lines';
+    '<span>' + formatNumber(chars) + '</span> ' + t('characters') + ' · <span>' + formatNumber(w) + '</span> ' + t('words') + ' · <span>' + formatNumber(lines) + '</span> ' + t('lines');
 }
 
 function copyOutput(btn) {
   const out = document.getElementById('output');
   if (!out.value) return;
-  copyText(out.value).then(copied => flash(btn, copied ? 'Copied' : 'Copy failed'));
+  copyText(out.value).then(copied => flash(btn, copied ? t('Copied') : t('Copy failed')));
 }
 
 function useOutput() {

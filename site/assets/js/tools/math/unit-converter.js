@@ -87,8 +87,8 @@ function populateUnits() {
   const unitList = Object.keys(units[currentCategory]);
   
   unitList.forEach(unit => {
-    fromSelect.add(new Option(unit, unit));
-    toSelect.add(new Option(unit, unit));
+    fromSelect.add(new Option(t(unit), unit));
+    toSelect.add(new Option(t(unit), unit));
   });
   
   if (unitList.length > 1) {
@@ -116,7 +116,7 @@ function convert() {
   errEl.innerHTML = '';
   
   if (isNaN(value)) {
-    document.getElementById('results').innerHTML = '<div style="text-align: center; padding: 40px 20px; color: var(--muted);">Enter a valid number</div>';
+    document.getElementById('results').innerHTML = '<div style="text-align: center; padding: 40px 20px; color: var(--muted);">' + t('Enter a valid number') + '</div>';
     return;
   }
   
@@ -129,8 +129,8 @@ function convert() {
       (fromCode === 'F' && value < -459.67) ||
       (fromCode === 'K' && value < 0);
     if (belowAbsoluteZero) {
-      errEl.innerHTML = '<div class="error">Temperature cannot be below absolute zero (-273.15 °C / -459.67 °F / 0 K).</div>';
-      document.getElementById('results').innerHTML = '<div style="text-align: center; padding: 40px 20px; color: var(--muted);">Enter a valid temperature</div>';
+      errEl.innerHTML = '<div class="error">' + t('Temperature cannot be below absolute zero (-273.15 °C / -459.67 °F / 0 K).') + '</div>';
+      document.getElementById('results').innerHTML = '<div style="text-align: center; padding: 40px 20px; color: var(--muted);">' + t('Enter a valid temperature') + '</div>';
       return;
     }
     result = convertTemperature(value, fromCode, toCode);
@@ -142,7 +142,7 @@ function convert() {
   
   const formatted = formatNumber(result);
   document.getElementById('results').innerHTML = `
-    <div class="result-box highlight"><div class="result-label">Result</div><div class="result-value">${formatted}</div><div class="result-sub">${toUnit}</div></div><div class="result-box"><div class="result-label">Conversion</div><div style="font-size: 1.1rem; font-weight: 600; color: var(--ink);">${value} ${fromUnit}</div><div style="text-align: center; font-size: 1.3rem; color: var(--orange); margin: 8px 0;">→</div><div style="font-size: 1.1rem; font-weight: 600; color: var(--ink);">${formatted} ${toUnit}</div></div>
+    <div class="result-box highlight"><div class="result-label">${t('Result')}</div><div class="result-value">${formatted}</div><div class="result-sub">${toUnit}</div></div><div class="result-box"><div class="result-label">${t('Conversion')}</div><div style="font-size: 1.1rem; font-weight: 600; color: var(--ink);">${value} ${fromUnit}</div><div style="text-align: center; font-size: 1.3rem; color: var(--orange); margin: 8px 0;">→</div><div style="font-size: 1.1rem; font-weight: 600; color: var(--ink);">${formatted} ${toUnit}</div></div>
   `;
 }
 

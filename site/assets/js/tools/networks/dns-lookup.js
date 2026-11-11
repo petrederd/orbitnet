@@ -15,9 +15,9 @@ function lookup() {
   clearError();
   const host = document.getElementById('host').value.trim();
   const type = document.getElementById('type').value;
-  if (!host) { showError('Please enter a domain'); return; }
+  if (!host) { showError(t('Please enter a domain')); return; }
 
-  document.getElementById('results').innerHTML = '<div class="loading">Looking up ' + esc(host) + '...</div>';
+  document.getElementById('results').innerHTML = '<div class="loading">' + t('Looking up {host}...', { host: esc(host) }) + '</div>';
 
   fetch('/api/dns?host=' + encodeURIComponent(host) + '&type=' + encodeURIComponent(type))
     .then(r => r.json())
@@ -27,7 +27,7 @@ function lookup() {
         ? data.records
         : (data.records ? [data.records] : []);
       let html = data.source === 'worker'
-        ? '<div class="status-box info">The local resolver did not answer; the lookup was performed by the external checker.</div>'
+        ? '<div class="status-box info">' + t('The local resolver did not answer; the lookup was performed by the external checker.') + '</div>'
         : '';
       records.forEach(rec => {
         html += '<div class="result-box"><div class="result-label">' + esc(type) +
@@ -35,8 +35,8 @@ function lookup() {
       });
       if (!records.length) {
         html += data.nxdomain
-          ? '<div class="info">Domain does not exist (NXDOMAIN).</div>'
-          : '<div class="info">No records of this type (NODATA).</div>';
+          ? '<div class="info">' + t('Domain does not exist (NXDOMAIN).') + '</div>'
+          : '<div class="info">' + t('No records of this type (NODATA).') + '</div>';
       }
       document.getElementById('results').innerHTML = html;
     })

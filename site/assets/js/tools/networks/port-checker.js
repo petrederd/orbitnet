@@ -38,7 +38,7 @@ function loadCaptcha() {
     })
     .catch(e => {
       captchaId = '';
-      img.alt = 'Captcha unavailable';
+      img.alt = t('Captcha unavailable');
       showError(e.message);
     });
 }
@@ -46,10 +46,10 @@ function loadCaptcha() {
 function showCaptcha(message) {
   document.getElementById('captchaGroup').hidden = false;
   loadCaptcha();
-  showNotice(message || 'This check needs a captcha');
+  showNotice(message || t('This check needs a captcha'));
   document.getElementById('results').innerHTML =
     '<div style="text-align: center; padding: 40px 20px; color: var(--muted);">' +
-    'Enter the captcha code and click Check Port again.</div>';
+    t('Enter the captcha code and click Check Port again.') + '</div>';
 }
 
 function hideCaptcha() {
@@ -65,10 +65,10 @@ function check() {
   const port = parseInt(document.getElementById('port').value, 10);
   const group = document.getElementById('captchaGroup');
   const answer = document.getElementById('captchaAnswer').value.trim();
-  if (!host) { showError('Please enter a host'); return; }
-  if (isNaN(port) || port < 1 || port > 65535) { showError('Port must be 1-65535'); return; }
+  if (!host) { showError(t('Please enter a host')); return; }
+  if (isNaN(port) || port < 1 || port > 65535) { showError(t('Port must be 1-65535')); return; }
   if (!group.hidden && !/^\d{4}$/.test(answer)) {
-    showError('Enter the 4 digits from the captcha');
+    showError(t('Enter the 4 digits from the captcha'));
     return;
   }
 
@@ -78,7 +78,7 @@ function check() {
     payload.answer = answer;
   }
 
-  document.getElementById('results').innerHTML = '<div class="loading">Checking ' + esc(host) + ':' + port + '...</div>';
+  document.getElementById('results').innerHTML = '<div class="loading">' + t('Checking {host}:{port}...', { host: esc(host), port }) + '</div>';
 
   fetch('/api/port', {
     method: 'POST',
@@ -88,27 +88,27 @@ function check() {
     .then(r => r.json())
     .then(data => {
       if (data.captchaRequired) {
-        showCaptcha(data.error || 'This check needs a captcha');
+        showCaptcha(data.error || t('This check needs a captcha'));
         return;
       }
       if (data.error) throw new Error(data.error);
 
       let cls = 'success';
-      let text = 'Port is open';
-      let sub = 'Connection established';
+      let text = t('Port is open');
+      let sub = t('Connection established');
       if (!data.open) {
         if (data.error === 'timeout') {
           cls = 'warning';
-          text = 'Port is closed or filtered';
-          sub = 'No response — a firewall may be dropping packets';
+          text = t('Port is closed or filtered');
+          sub = t('No response — a firewall may be dropping packets');
         } else if (data.error === 'ECONNREFUSED') {
           cls = 'error';
-          text = 'Port is closed';
-          sub = 'Connection refused';
+          text = t('Port is closed');
+          sub = t('Connection refused');
         } else {
           cls = 'error';
-          text = 'Port is closed or unreachable';
-          sub = data.error || 'No response';
+          text = t('Port is closed or unreachable');
+          sub = data.error || t('No response');
         }
       }
 

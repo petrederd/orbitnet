@@ -51,12 +51,12 @@ function calculate() {
   const provided = [V, I, R, P].filter(v => v !== null);
   
   if (provided.length < 2) {
-    showError('Please enter at least TWO values to calculate the rest');
+    showError(t('Please enter at least TWO values to calculate the rest'));
     return;
   }
   
   if (provided.length > 2) {
-    showError('Please enter exactly TWO values. Clear unused fields.');
+    showError(t('Please enter exactly TWO values. Clear unused fields.'));
     return;
   }
   
@@ -72,45 +72,45 @@ function calculate() {
     }
     // I = V ÷ R
     else if (V !== null && R !== null && I === null) {
-      if (R === 0) throw new Error('Resistance cannot be zero');
+      if (R === 0) throw new Error(t('Resistance cannot be zero'));
       calcI = V / R;
       formulas.push('I = V ÷ R');
     }
     // R = V ÷ I
     else if (V !== null && I !== null && R === null) {
-      if (I === 0) throw new Error('Current cannot be zero');
+      if (I === 0) throw new Error(t('Current cannot be zero'));
       calcR = V / I;
       formulas.push('R = V ÷ I');
     }
     // P = V × I, then derive missing value
     else if (V !== null && P !== null) {
-      if (V === 0) throw new Error('Voltage cannot be zero');
+      if (V === 0) throw new Error(t('Voltage cannot be zero'));
       calcI = P / V;
       calcR = V / calcI;
       formulas.push('I = P ÷ V', 'R = V ÷ I');
     }
     // P = I² × R
     else if (I !== null && P !== null) {
-      if (I === 0) throw new Error('Current cannot be zero');
+      if (I === 0) throw new Error(t('Current cannot be zero'));
       calcR = P / (I * I);
       calcV = I * calcR;
       formulas.push('R = P ÷ I²', 'V = I × R');
     }
     // P = V² ÷ R
     else if (V !== null && R !== null) {
-      if (R === 0) throw new Error('Resistance cannot be zero');
+      if (R === 0) throw new Error(t('Resistance cannot be zero'));
       calcI = V / R;
       calcP = V * calcI;
       formulas.push('I = V ÷ R', 'P = V × I');
     }
     else if (R !== null && P !== null) {
-      if (R === 0) throw new Error('Resistance cannot be zero');
+      if (R === 0) throw new Error(t('Resistance cannot be zero'));
       calcI = Math.sqrt(P / R);
       calcV = calcI * R;
       formulas.push('I = √(P ÷ R)', 'V = I × R');
     }
     else {
-      showError('This combination of values cannot be calculated. Try different inputs.');
+      showError(t('This combination of values cannot be calculated. Try different inputs.'));
       return;
     }
     
@@ -121,13 +121,13 @@ function calculate() {
     
     // Validate results
     if (isNaN(calcV) || isNaN(calcI) || isNaN(calcR) || isNaN(calcP)) {
-      throw new Error('Invalid calculation result');
+      throw new Error(t('Invalid calculation result'));
     }
     
     const negative = [['voltage', calcV], ['current', calcI], ['resistance', calcR], ['power', calcP]]
       .find(([, v]) => v < 0);
     if (negative) {
-      throw new Error('Negative values are not allowed (' + negative[0] + ' is negative). Enter zero or a positive value.');
+      throw new Error(t('Negative values are not allowed ({field} is negative). Enter zero or a positive value.', { field: negative[0] }));
     }
     
     displayResults(calcV, calcI, calcR, calcP, formulas);
@@ -144,10 +144,10 @@ function displayResults(V, I, R, P, formulas) {
   const pDisplay = formatValue(P, 'W', [['mW', 0.001], ['W', 1], ['kW', 1000], ['MW', 1000000]]);
   
   const html = `
-    <div class="result-box highlight"><div class="result-label">Voltage</div><div class="result-value large">${vDisplay}</div><div class="result-sub">V = ${V.toExponential(3)}</div></div><div class="result-box highlight"><div class="result-label">Current</div><div class="result-value large">${iDisplay}</div><div class="result-sub">I = ${I.toExponential(3)}</div></div><div class="result-box highlight"><div class="result-label">Resistance</div><div class="result-value large">${rDisplay}</div><div class="result-sub">R = ${R.toExponential(3)}</div></div><div class="result-box highlight"><div class="result-label">Power</div><div class="result-value large">${pDisplay}</div><div class="result-sub">P = ${P.toExponential(3)}</div></div>
+    <div class="result-box highlight"><div class="result-label">${t('Voltage')}</div><div class="result-value large">${vDisplay}</div><div class="result-sub">V = ${V.toExponential(3)}</div></div><div class="result-box highlight"><div class="result-label">${t('Current')}</div><div class="result-value large">${iDisplay}</div><div class="result-sub">I = ${I.toExponential(3)}</div></div><div class="result-box highlight"><div class="result-label">${t('Resistance')}</div><div class="result-value large">${rDisplay}</div><div class="result-sub">R = ${R.toExponential(3)}</div></div><div class="result-box highlight"><div class="result-label">${t('Power')}</div><div class="result-value large">${pDisplay}</div><div class="result-sub">P = ${P.toExponential(3)}</div></div>
     
     ${formulas.length > 0 ? `
-    <div class="result-box"><div class="result-label">Formulas Used</div><div style="font-size: .95rem; color: var(--muted); margin-top: 8px;">
+    <div class="result-box"><div class="result-label">${t('Formulas Used')}</div><div style="font-size: .95rem; color: var(--muted); margin-top: 8px;">
         ${formulas.map(f => `• ${f}`).join('<br>')}
       </div></div>
     ` : ''}
@@ -162,5 +162,5 @@ function reset() {
   document.getElementById('resistance').value = '';
   document.getElementById('power').value = '';
   clearError();
-  document.getElementById('results').innerHTML = '<div style="text-align: center; padding: 40px 20px; color: var(--muted);">Enter any two values to calculate the rest</div>';
+  document.getElementById('results').innerHTML = '<div style="text-align: center; padding: 40px 20px; color: var(--muted);">' + t('Enter any two values to calculate the rest') + '</div>';
 }

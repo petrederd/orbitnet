@@ -14,9 +14,9 @@ function doRun() {
   const resEl = document.getElementById('results');
   errEl.innerHTML = '';
 
-  if (!raw) { resEl.innerHTML = '<div class="result-sub">Enter an IP address or domain.</div>'; return; }
+  if (!raw) { resEl.innerHTML = '<div class="result-sub">' + t('Enter an IP address or domain.') + '</div>'; return; }
 
-  resEl.innerHTML = '<div class="loading">Looking up ' + esc(raw) + '...</div>';
+  resEl.innerHTML = '<div class="loading">' + t('Looking up {host}...', { host: esc(raw) }) + '</div>';
 
   if (isIp(raw)) {
     ptr(raw);
@@ -27,8 +27,8 @@ function doRun() {
         const ips = data.records || [];
         if (!ips.length) {
           const message = data.nxdomain
-            ? 'Domain does not exist (NXDOMAIN)'
-            : 'Could not resolve ' + esc(raw) + ' to an IP address.';
+            ? t('Domain does not exist (NXDOMAIN)')
+            : t('Could not resolve {host} to an IP address.', { host: esc(raw) });
           resEl.innerHTML = '<div class="error">' + message + '</div>';
           return;
         }
@@ -53,7 +53,7 @@ function render(results) {
   const rows = results.map(r => {
     const names = r.hostnames.length
       ? r.hostnames.map(esc).join('<br>')
-      : '<span class="result-sub">No PTR record</span>';
+      : '<span class="result-sub">' + t('No PTR record') + '</span>';
     return '<div class="result-box"><div class="result-label">' + esc(r.ip) + '</div><div class="result-value" style="font-size:1.1rem;">' + names + '</div></div>';
   }).join('');
   document.getElementById('results').innerHTML = rows;
@@ -63,9 +63,9 @@ function renderDomain(domain, results) {
   const rows = results.map(r => {
     const names = r.hostnames.length
       ? r.hostnames.map(esc).join('<br>')
-      : '<span class="result-sub">No PTR record</span>';
+      : '<span class="result-sub">' + t('No PTR record') + '</span>';
     return '<div class="result-box"><div class="result-label">' + esc(r.ip) + '</div><div class="result-value" style="font-size:1.1rem;">' + names + '</div></div>';
   }).join('');
   document.getElementById('results').innerHTML =
-    '<div class="info">' + esc(domain) + ' resolves to ' + results.length + ' address' + (results.length > 1 ? 'es' : '') + '.</div>' + rows;
+    '<div class="info">' + t(results.length > 1 ? '{domain} resolves to {count} addresses.' : '{domain} resolves to {count} address.', { domain: esc(domain), count: results.length }) + '</div>' + rows;
 }

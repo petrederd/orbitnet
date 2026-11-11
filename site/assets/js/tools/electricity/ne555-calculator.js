@@ -19,7 +19,7 @@ function setMode(mode, btn) {
   }
   
   clearError();
-  document.getElementById('results').innerHTML = '<div style="text-align: center; padding: 40px 20px; color: var(--muted);">Enter values and click Calculate</div>';
+  document.getElementById('results').innerHTML = '<div style="text-align: center; padding: 40px 20px; color: var(--muted);">' + t('Enter values and click Calculate') + '</div>';
 }
 
 function toggleCalcMode() {
@@ -44,7 +44,7 @@ function toggleCalcMode() {
   }
   
   clearError();
-  document.getElementById('results').innerHTML = '<div style="text-align: center; padding: 40px 20px; color: var(--muted);">Enter values and click Calculate</div>';
+  document.getElementById('results').innerHTML = '<div style="text-align: center; padding: 40px 20px; color: var(--muted);">' + t('Enter values and click Calculate') + '</div>';
 }
 
 /**
@@ -161,17 +161,17 @@ function calculateAstable() {
   const C = parseFloat(document.getElementById('capacitor').value) * parseFloat(document.getElementById('capUnit').value);
   
   if (isNaN(freq) || freq <= 0) {
-    showError('Please enter a valid frequency');
+    showError(t('Please enter a valid frequency'));
     return;
   }
   
   if (isNaN(duty) || duty <= 50 || duty > 99) {
-    showError('Duty cycle must be greater than 50% and at most 99%. In this astable circuit the HIGH time is always longer than the LOW time, so exactly 50% would require R1 = 0 and is not achievable.');
+    showError(t('Duty cycle must be greater than 50% and at most 99%. In this astable circuit the HIGH time is always longer than the LOW time, so exactly 50% would require R1 = 0 and is not achievable.'));
     return;
   }
   
   if (isNaN(C) || C <= 0) {
-    showError('Please enter a valid capacitor value');
+    showError(t('Please enter a valid capacitor value'));
     return;
   }
   
@@ -196,12 +196,12 @@ function calculateAstable() {
   const R1 = sum - 2 * R2;
   
   if (R1 < 1000 || R2 < 1000) {
-    showError('Calculated resistor values too small. Try a smaller capacitor or lower frequency.');
+    showError(t('Calculated resistor values too small. Try a smaller capacitor or lower frequency.'));
     return;
   }
   
   if (R1 > 10000000 || R2 > 10000000) {
-    showError('Calculated resistor values too large. Try a larger capacitor or higher frequency.');
+    showError(t('Calculated resistor values too large. Try a larger capacitor or higher frequency.'));
     return;
   }
   
@@ -217,17 +217,17 @@ function calculateAstable() {
   const period = 1 / actualFreq;
   
   const html = `
-    <div class="result-box highlight"><div class="result-label">R1 (Resistor 1)</div><div class="result-value large">${formatResistor(R1_std)}</div><div class="result-sub">Calculated: ${formatResistor(R1)}</div></div><div class="result-box highlight"><div class="result-label">R2 (Resistor 2)</div><div class="result-value large">${formatResistor(R2_std)}</div><div class="result-sub">Calculated: ${formatResistor(R2)}</div></div><div class="result-box"><div class="result-label">Actual Frequency</div><div class="result-value">${formatFrequency(actualFreq)}</div><div class="result-sub">Target: ${formatFrequency(freq)}</div></div><div class="result-box"><div class="result-label">Actual Duty Cycle</div><div class="result-value">${actualDuty.toFixed(2)}%</div><div class="result-sub">Target: ${duty}%</div></div><div class="result-box"><div class="result-label">Period</div><div class="result-value">${(period * 1000).toFixed(3)} ms</div><div class="result-sub">Time for one complete cycle</div></div><div class="result-box"><div class="result-label">Time High / Time Low</div><div class="result-value" style="font-size: 1.1rem;">${(tHigh * 1000).toFixed(3)} ms / ${(tLow * 1000).toFixed(3)} ms</div><div class="result-sub">Output pulse timing</div></div><div class="diagram"><strong>555 Astable Circuit</strong><br><br>
-      Vcc ----[R1=${formatResistor(R1_std)}]---+--- Pin 7 (Discharge)<br>
+    <div class="result-box highlight"><div class="result-label">${t('R1 (Resistor 1)')}</div><div class="result-value large">${formatResistor(R1_std)}</div><div class="result-sub">${t('Calculated: {value}', { value: formatResistor(R1) })}</div></div><div class="result-box highlight"><div class="result-label">${t('R2 (Resistor 2)')}</div><div class="result-value large">${formatResistor(R2_std)}</div><div class="result-sub">${t('Calculated: {value}', { value: formatResistor(R2) })}</div></div><div class="result-box"><div class="result-label">${t('Actual Frequency')}</div><div class="result-value">${formatFrequency(actualFreq)}</div><div class="result-sub">${t('Target: {value}', { value: formatFrequency(freq) })}</div></div><div class="result-box"><div class="result-label">${t('Actual Duty Cycle')}</div><div class="result-value">${actualDuty.toFixed(2)}%</div><div class="result-sub">${t('Target: {value}', { value: duty + '%' })}</div></div><div class="result-box"><div class="result-label">${t('Period')}</div><div class="result-value">${(period * 1000).toFixed(3)} ms</div><div class="result-sub">${t('Time for one complete cycle')}</div></div><div class="result-box"><div class="result-label">${t('Time High / Time Low')}</div><div class="result-value" style="font-size: 1.1rem;">${(tHigh * 1000).toFixed(3)} ms / ${(tLow * 1000).toFixed(3)} ms</div><div class="result-sub">${t('Output pulse timing')}</div></div><div class="diagram"><strong>${t('555 Astable Circuit')}</strong><br><br>
+      Vcc ----[R1=${formatResistor(R1_std)}]---+--- ${t('Pin 7 (Discharge)')}<br>
                                   |<br>
                           [R2=${formatResistor(R2_std)}]<br>
                                   |<br>
-      Pin 2,6 (Trig/Thresh) ------+<br>
+      ${t('Pin 2,6 (Trig/Thresh)')} ------+<br>
                                   |<br>
                               [C=${formatCapacitance(C)}]<br>
                                   |<br>
       GND ---------------------+---+<br><br>
-      Output: Pin 3 • Vcc: Pin 8 • GND: Pin 1
+      ${t('Output: Pin 3 • Vcc: Pin 8 • GND: Pin 1')}
     </div>
   `;
   
@@ -240,17 +240,17 @@ function calculateAstableReverse() {
   const C = parseSI(document.getElementById('capacitorRev').value, 'capacitor');
   
   if (isNaN(R1) || R1 <= 0) {
-    showError('Please enter a valid R1 value (e.g., 200 or 4k7)');
+    showError(t('Please enter a valid R1 value (e.g., 200 or 4k7)'));
     return;
   }
   
   if (isNaN(R2) || R2 <= 0) {
-    showError('Please enter a valid R2 value (e.g., 4k7 or 47k)');
+    showError(t('Please enter a valid R2 value (e.g., 4k7 or 47k)'));
     return;
   }
   
   if (isNaN(C) || C <= 0) {
-    showError('Please enter a valid capacitor value (e.g., 0.1u or 100n)');
+    showError(t('Please enter a valid capacitor value (e.g., 0.1u or 100n)'));
     return;
   }
   
@@ -262,17 +262,17 @@ function calculateAstableReverse() {
   const period = 1 / frequency;
   
   const html = `
-    <div class="result-box"><div class="result-label">Using Values</div><div class="result-value" style="font-size: 1.2rem;">R1 = ${formatResistor(R1)} • R2 = ${formatResistor(R2)}</div><div class="result-sub">C = ${formatCapacitance(C)} (parsed from your input)</div></div><div class="result-box highlight"><div class="result-label">Frequency</div><div class="result-value large">${formatFrequency(frequency)}</div><div class="result-sub">Oscillation frequency</div></div><div class="result-box highlight"><div class="result-label">Duty Cycle</div><div class="result-value large">${dutyCycle.toFixed(2)}%</div><div class="result-sub">Percentage of time HIGH</div></div><div class="result-box"><div class="result-label">Period</div><div class="result-value">${formatTime(period)}</div><div class="result-sub">Time for one complete cycle</div></div><div class="result-box"><div class="result-label">Time High / Time Low</div><div class="result-value" style="font-size: 1.1rem;">${formatTime(tHigh)} / ${formatTime(tLow)}</div><div class="result-sub">Output pulse timing</div></div><div class="diagram"><strong>555 Astable Circuit</strong><br><br>
-      Vcc ----[R1=${formatResistor(R1)}]---+--- Pin 7 (Discharge)<br>
+    <div class="result-box"><div class="result-label">${t('Using Values')}</div><div class="result-value" style="font-size: 1.2rem;">R1 = ${formatResistor(R1)} • R2 = ${formatResistor(R2)}</div><div class="result-sub">${t('C = {value} (parsed from your input)', { value: formatCapacitance(C) })}</div></div><div class="result-box highlight"><div class="result-label">${t('Frequency')}</div><div class="result-value large">${formatFrequency(frequency)}</div><div class="result-sub">${t('Oscillation frequency')}</div></div><div class="result-box highlight"><div class="result-label">${t('Duty Cycle')}</div><div class="result-value large">${dutyCycle.toFixed(2)}%</div><div class="result-sub">${t('Percentage of time HIGH')}</div></div><div class="result-box"><div class="result-label">${t('Period')}</div><div class="result-value">${formatTime(period)}</div><div class="result-sub">${t('Time for one complete cycle')}</div></div><div class="result-box"><div class="result-label">${t('Time High / Time Low')}</div><div class="result-value" style="font-size: 1.1rem;">${formatTime(tHigh)} / ${formatTime(tLow)}</div><div class="result-sub">${t('Output pulse timing')}</div></div><div class="diagram"><strong>${t('555 Astable Circuit')}</strong><br><br>
+      Vcc ----[R1=${formatResistor(R1)}]---+--- ${t('Pin 7 (Discharge)')}<br>
                                   |<br>
                           [R2=${formatResistor(R2)}]<br>
                                   |<br>
-      Pin 2,6 (Trig/Thresh) ------+<br>
+      ${t('Pin 2,6 (Trig/Thresh)')} ------+<br>
                                   |<br>
                               [C=${formatCapacitance(C)}]<br>
                                   |<br>
       GND ---------------------+---+<br><br>
-      Output: Pin 3 • Vcc: Pin 8 • GND: Pin 1
+      ${t('Output: Pin 3 • Vcc: Pin 8 • GND: Pin 1')}
     </div>
   `;
   
@@ -284,12 +284,12 @@ function calculateMonostable() {
   const C = parseFloat(document.getElementById('capacitorMono').value) * parseFloat(document.getElementById('capUnitMono').value);
   
   if (isNaN(pulseWidth) || pulseWidth <= 0) {
-    showError('Please enter a valid pulse width');
+    showError(t('Please enter a valid pulse width'));
     return;
   }
   
   if (isNaN(C) || C <= 0) {
-    showError('Please enter a valid capacitor value');
+    showError(t('Please enter a valid capacitor value'));
     return;
   }
   
@@ -297,12 +297,12 @@ function calculateMonostable() {
   const R = pulseWidth / (1.1 * C);
   
   if (R < 1000) {
-    showError('Calculated resistor too small. Try a smaller capacitor.');
+    showError(t('Calculated resistor too small. Try a smaller capacitor.'));
     return;
   }
   
   if (R > 10000000) {
-    showError('Calculated resistor too large. Try a larger capacitor.');
+    showError(t('Calculated resistor too large. Try a larger capacitor.'));
     return;
   }
   
@@ -310,18 +310,18 @@ function calculateMonostable() {
   const actualPulse = 1.1 * R_std * C;
   
   const html = `
-    <div class="result-box highlight"><div class="result-label">R (Timing Resistor)</div><div class="result-value large">${formatResistor(R_std)}</div><div class="result-sub">Calculated: ${formatResistor(R)}</div></div><div class="result-box"><div class="result-label">Actual Pulse Width</div><div class="result-value">${(actualPulse * 1000).toFixed(3)} ms</div><div class="result-sub">Target: ${(pulseWidth * 1000).toFixed(3)} ms</div></div><div class="result-box"><div class="result-label">Trigger Required</div><div class="result-value" style="font-size: 1.1rem;">LOW pulse</div><div class="result-sub">Momentary connection to ground</div></div><div class="diagram"><strong>555 Monostable Circuit</strong><br><br>
-      Vcc -----[R=${formatResistor(R_std)}]---+--- Pin 7 (Discharge)<br>
+    <div class="result-box highlight"><div class="result-label">${t('R (Timing Resistor)')}</div><div class="result-value large">${formatResistor(R_std)}</div><div class="result-sub">${t('Calculated: {value}', { value: formatResistor(R) })}</div></div><div class="result-box"><div class="result-label">${t('Actual Pulse Width')}</div><div class="result-value">${(actualPulse * 1000).toFixed(3)} ms</div><div class="result-sub">${t('Target: {value}', { value: (pulseWidth * 1000).toFixed(3) + ' ms' })}</div></div><div class="result-box"><div class="result-label">${t('Trigger Required')}</div><div class="result-value" style="font-size: 1.1rem;">${t('LOW pulse')}</div><div class="result-sub">${t('Momentary connection to ground')}</div></div><div class="diagram"><strong>${t('555 Monostable Circuit')}</strong><br><br>
+      Vcc -----[R=${formatResistor(R_std)}]---+--- ${t('Pin 7 (Discharge)')}<br>
                                 |<br>
-      Pin 6 (Threshold) --------+<br>
+      ${t('Pin 6 (Threshold)')} --------+<br>
                                 |<br>
                             [C=${formatCapacitance(C)}]<br>
                                 |<br>
       GND -----------------+----+<br>
                           |<br>
-      Trigger (Pin 2) ----o (momentary to GND)<br><br>
-      Output: Pin 3 • Vcc: Pin 8 • GND: Pin 1<br>
-      Pin 2 via 10kΩ to Vcc • Pin 4 to Vcc
+      ${t('Trigger (Pin 2)')} ----o ${t('(momentary to GND)')}<br><br>
+      ${t('Output: Pin 3 • Vcc: Pin 8 • GND: Pin 1')}<br>
+      ${t('Pin 2 via 10kΩ to Vcc • Pin 4 to Vcc')}
     </div>
   `;
   
@@ -334,5 +334,5 @@ function reset() {
     if (el) el.value = '';
   });
   clearError();
-  document.getElementById('results').innerHTML = '<div style="text-align: center; padding: 40px 20px; color: var(--muted);">Enter values and click Calculate</div>';
+  document.getElementById('results').innerHTML = '<div style="text-align: center; padding: 40px 20px; color: var(--muted);">' + t('Enter values and click Calculate') + '</div>';
 }

@@ -42,14 +42,14 @@ function tokenizeJSON(text) {
         if (text[i] === '"') { i++; closed = true; break; }
         i++;
       }
-      if (!closed) throw new Error('Unterminated string');
+      if (!closed) throw new Error(t('Unterminated string'));
       tokens.push({ type: 'string', value: text.slice(start, i) });
       continue;
     }
     if (c === '-' || (c >= '0' && c <= '9')) {
       numberPattern.lastIndex = i;
       const match = numberPattern.exec(text);
-      if (!match) throw new Error('Invalid number at position ' + (i + 1));
+      if (!match) throw new Error(t('Invalid number at position {position}', { position: i + 1 }));
       tokens.push({ type: 'number', value: match[0] });
       i += match[0].length;
       continue;
@@ -65,7 +65,7 @@ function tokenizeJSON(text) {
       i += 5;
       continue;
     }
-    throw new Error('Unexpected character at position ' + (i + 1));
+    throw new Error(t('Unexpected character at position {position}', { position: i + 1 }));
   }
   return tokens;
 }
@@ -129,7 +129,7 @@ function updateStats(text) {
   });
 
   document.getElementById('outputStats').innerHTML = `
-    <div><span>${lines}</span> lines</div><div><span>${chars.toLocaleString('en-US')}</span> characters</div><div><span>${bytes.toLocaleString('en-US')}</span> bytes</div><div><span>${objectCount}</span> objects</div><div><span>${arrayCount}</span> arrays</div>
+    <div><span>${formatNumber(lines)}</span> ${t('lines')}</div><div><span>${formatNumber(chars)}</span> ${t('characters')}</div><div><span>${formatNumber(bytes)}</span> ${t('bytes')}</div><div><span>${formatNumber(objectCount)}</span> ${t('objects')}</div><div><span>${formatNumber(arrayCount)}</span> ${t('arrays')}</div>
   `;
 }
 
@@ -150,12 +150,12 @@ function formatJSON() {
     const formatted = formatTokens(tokenizeJSON(input), getIndent());
     outputTextarea.value = formatted;
 
-    showStatus('inputStatus', 'success', 'Valid JSON');
+    showStatus('inputStatus', 'success', t('Valid JSON'));
     updateStats(formatted);
   } catch (error) {
     outputTextarea.value = '';
     document.getElementById('outputStats').innerHTML = '';
-    showStatus('inputStatus', 'error', 'Invalid JSON', error.message);
+    showStatus('inputStatus', 'error', t('Invalid JSON'), error.message);
   }
 }
 
@@ -166,7 +166,7 @@ function minifyJSON() {
   const input = inputTextarea.value.trim();
   
   if (!input) {
-    showStatus('inputStatus', 'error', 'No input to minify');
+    showStatus('inputStatus', 'error', t('No input to minify'));
     return;
   }
   
@@ -175,12 +175,12 @@ function minifyJSON() {
     const minified = tokenizeJSON(input).map(token => token.value).join('');
     outputTextarea.value = minified;
 
-    showStatus('inputStatus', 'success', 'Valid JSON — minified');
-    showStatus('outputStatus', 'info', `Reduced to ${minified.length} characters`);
+    showStatus('inputStatus', 'success', t('Valid JSON — minified'));
+    showStatus('outputStatus', 'info', t('Reduced to {count} characters', { count: formatNumber(minified.length) }));
     updateStats(minified);
   } catch (error) {
     outputTextarea.value = '';
-    showStatus('inputStatus', 'error', 'Invalid JSON', error.message);
+    showStatus('inputStatus', 'error', t('Invalid JSON'), error.message);
   }
 }
 
@@ -188,12 +188,12 @@ function copyToClipboard() {
   const output = outputTextarea.value;
   
   if (!output) {
-    showStatus('outputStatus', 'error', 'Nothing to copy');
+    showStatus('outputStatus', 'error', t('Nothing to copy'));
     return;
   }
   
   copyText(output).then(copied => {
-    showStatus('outputStatus', copied ? 'success' : 'error', copied ? 'Copied to clipboard!' : 'Failed to copy to clipboard');
+    showStatus('outputStatus', copied ? 'success' : 'error', copied ? t('Copied to clipboard!') : t('Failed to copy to clipboard'));
     if (copied) setTimeout(() => clearStatus('outputStatus'), 3000);
   });
 }
@@ -202,7 +202,7 @@ function downloadJSON() {
   const output = outputTextarea.value;
   
   if (!output) {
-    showStatus('outputStatus', 'error', 'Nothing to download');
+    showStatus('outputStatus', 'error', t('Nothing to download'));
     return;
   }
   
@@ -216,7 +216,7 @@ function downloadJSON() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   
-  showStatus('outputStatus', 'success', 'File downloaded');
+  showStatus('outputStatus', 'success', t('File downloaded'));
   setTimeout(() => clearStatus('outputStatus'), 3000);
 }
 

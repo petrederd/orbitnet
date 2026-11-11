@@ -45,12 +45,12 @@ function convert() {
   const resEl = document.getElementById('results');
   errEl.innerHTML = '';
 
-  if (!raw.trim()) { resEl.innerHTML = '<div class="result-sub">Enter a value to convert.</div>'; return; }
+  if (!raw.trim()) { resEl.innerHTML = '<div class="result-sub">' + t('Enter a value to convert.') + '</div>'; return; }
 
   const n = parseValue(fmt, raw);
   if (n === null) {
-    errEl.innerHTML = '<div class="error">Value does not match the selected input format.</div>';
-    resEl.innerHTML = '<div class="result-sub">Enter a valid value.</div>';
+    errEl.innerHTML = '<div class="error">' + t('Value does not match the selected input format.') + '</div>';
+    resEl.innerHTML = '<div class="result-sub">' + t('Enter a valid value.') + '</div>';
     return;
   }
 
@@ -59,13 +59,13 @@ function convert() {
   const hex = '0x' + n.toString(16).toUpperCase().padStart(8, '0');
 
   resEl.innerHTML =
-    '<div class="result-box highlight"><div class="result-label">IPv4 address</div><div class="result-value large">' + intToIp(n) + '</div></div>' +
-    '<div class="result-box"><div class="result-label">Binary</div><div class="result-value" style="font-size:.95rem;font-family:ui-monospace,Menlo,Consolas,monospace;">' + binStr + '</div></div>' +
-    '<div class="result-box"><div class="result-label">Decimal</div><div class="result-value">' + n + '</div></div>' +
-    '<div class="result-box"><div class="result-label">Hexadecimal</div><div class="result-value">' + hex + '</div></div>' +
+    '<div class="result-box highlight"><div class="result-label">' + t('IPv4 address') + '</div><div class="result-value large">' + intToIp(n) + '</div></div>' +
+    '<div class="result-box"><div class="result-label">' + t('Binary') + '</div><div class="result-value" style="font-size:.95rem;font-family:ui-monospace,Menlo,Consolas,monospace;">' + binStr + '</div></div>' +
+    '<div class="result-box"><div class="result-label">' + t('Decimal') + '</div><div class="result-value">' + n + '</div></div>' +
+    '<div class="result-box"><div class="result-label">' + t('Hexadecimal') + '</div><div class="result-value">' + hex + '</div></div>' +
     '<div class="grid-2">' +
-      '<div class="result-box"><div class="result-label">Octets</div><div class="result-value" style="font-size:1rem;">' + intToIp(n).split('.').join(' · ') + '</div></div>' +
-      '<div class="result-box"><div class="result-label">Octets (binary)</div><div class="result-value" style="font-size:.9rem;">' + bin.join(' ') + '</div></div>' +
+      '<div class="result-box"><div class="result-label">' + t('Octets') + '</div><div class="result-value" style="font-size:1rem;">' + intToIp(n).split('.').join(' · ') + '</div></div>' +
+      '<div class="result-box"><div class="result-label">' + t('Octets (binary)') + '</div><div class="result-value" style="font-size:.9rem;">' + bin.join(' ') + '</div></div>' +
     '</div>';
 }
 

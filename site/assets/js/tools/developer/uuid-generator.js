@@ -46,11 +46,11 @@ function copySingle() {
   
   copyText(uuid).then(copied => {
     if (!copied) {
-      alert('Failed to copy. Please select and copy manually.');
+      alert(t('Failed to copy. Please select and copy manually.'));
       return;
     }
     document.getElementById('singleStatus').innerHTML = 
-      '<div class="status-box success"> UUID copied to clipboard!</div>';
+      '<div class="status-box success"> ' + t('UUID copied to clipboard!') + '</div>';
     setTimeout(() => {
       document.getElementById('singleStatus').innerHTML = '';
     }, 3000);
@@ -63,7 +63,7 @@ function generateBulk() {
   
   if (isNaN(count) || count < 1 || count > 1000) {
     document.getElementById('bulkStatus').innerHTML = 
-      '<div class="status-box" style="background: rgba(255,85,85,.1); border: 1.5px solid #ff5555; color: #ff5555;">Please enter a number between 1 and 1000</div>';
+      '<div class="status-box" style="background: rgba(255,85,85,.1); border: 1.5px solid #ff5555; color: #ff5555;">' + t('Please enter a number between 1 and 1000') + '</div>';
     return;
   }
   
@@ -80,7 +80,7 @@ function generateBulk() {
 
 function displayBulkUUIDs() {
   const listHTML = currentUUIDs.map((uuid, index) => `
-    <div class="uuid-item"><span class="uuid-text">${uuid}</span><button class="uuid-copy" data-action="copyUUID" data-args='[${index},{"$el":true}]'>Copy</button></div>
+    <div class="uuid-item"><span class="uuid-text">${uuid}</span><button class="uuid-copy" data-action="copyUUID" data-args='[${index},{"$el":true}]'>${t('Copy')}</button></div>
   `).join('');
   
   document.getElementById('uuidList').innerHTML = listHTML;
@@ -90,9 +90,9 @@ function displayBulkUUIDs() {
 function copyUUID(index, btn) {
   const uuid = currentUUIDs[index];
   copyText(uuid).then(copied => {
-    btn.textContent = copied ? ' Copied!' : ' Copy failed';
+    btn.textContent = copied ? ' ' + t('Copied!') : ' ' + t('Copy failed');
     setTimeout(() => {
-      btn.textContent = 'Copy';
+      btn.textContent = t('Copy');
     }, 2000);
   });
 }
@@ -100,18 +100,18 @@ function copyUUID(index, btn) {
 function copyAll() {
   if (currentUUIDs.length === 0) {
     document.getElementById('bulkStatus').innerHTML = 
-      '<div class="status-box" style="background: rgba(255,85,85,.1); border: 1.5px solid #ff5555; color: #ff5555;">Generate UUIDs first</div>';
+      '<div class="status-box" style="background: rgba(255,85,85,.1); border: 1.5px solid #ff5555; color: #ff5555;">' + t('Generate UUIDs first') + '</div>';
     return;
   }
   
   const text = currentUUIDs.join('\n');
   copyText(text).then(copied => {
     if (!copied) {
-      alert('Failed to copy. Please select and copy manually.');
+      alert(t('Failed to copy. Please select and copy manually.'));
       return;
     }
     document.getElementById('bulkStatus').innerHTML = 
-      '<div class="status-box success"> All UUIDs copied to clipboard!</div>';
+      '<div class="status-box success"> ' + t('All UUIDs copied to clipboard!') + '</div>';
     setTimeout(() => {
       document.getElementById('bulkStatus').innerHTML = '';
     }, 3000);
@@ -127,7 +127,7 @@ function clearBulk() {
 function downloadUUIDs() {
   if (currentUUIDs.length === 0) {
     document.getElementById('bulkStatus').innerHTML = 
-      '<div class="status-box" style="background: rgba(255,85,85,.1); border: 1.5px solid #ff5555; color: #ff5555;">Generate UUIDs first</div>';
+      '<div class="status-box" style="background: rgba(255,85,85,.1); border: 1.5px solid #ff5555; color: #ff5555;">' + t('Generate UUIDs first') + '</div>';
     return;
   }
   
@@ -143,7 +143,7 @@ function downloadUUIDs() {
   URL.revokeObjectURL(url);
   
   document.getElementById('bulkStatus').innerHTML = 
-    '<div class="status-box success"> File downloaded!</div>';
+    '<div class="status-box success"> ' + t('File downloaded!') + '</div>';
   setTimeout(() => {
     document.getElementById('bulkStatus').innerHTML = '';
   }, 3000);

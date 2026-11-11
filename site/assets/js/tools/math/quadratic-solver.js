@@ -38,12 +38,12 @@ function solve() {
   const c = parseFloat(document.getElementById('coeffC').value);
   
   if (isNaN(a) || isNaN(b) || isNaN(c)) {
-    showError('Please enter all coefficients');
+    showError(t('Please enter all coefficients'));
     return;
   }
   
   if (a === 0) {
-    showError('Coefficient a cannot be zero (this is not a quadratic equation)');
+    showError(t('Coefficient a cannot be zero (this is not a quadratic equation)'));
     return;
   }
   
@@ -55,7 +55,7 @@ function solve() {
   
   const bLabel = b < 0 ? '(' + b + ')' : String(b);
   let html = `
-    <div class="result-box"><div class="result-label">Discriminant (D)</div><div class="result-value">${fmtNumber(discriminant)}</div><div class="result-sub">D = b² - 4ac = ${bLabel}² - 4·${a}·${c}</div></div>
+    <div class="result-box"><div class="result-label">${t('Discriminant (D)')}</div><div class="result-value">${fmtNumber(discriminant)}</div><div class="result-sub">D = b² - 4ac = ${bLabel}² - 4·${a}·${c}</div></div>
   `;
   
   if (discriminant > 0) {
@@ -78,20 +78,20 @@ function solve() {
     }
     
     html += `
-      <div class="result-box highlight"><div class="result-label">Root x₁</div><div class="result-value large">${fmtNumber(x1)}</div><div class="result-sub">x₁ = (-b + √D) / 2a</div></div><div class="result-box highlight"><div class="result-label">Root x₂</div><div class="result-value large">${fmtNumber(x2)}</div><div class="result-sub">x₂ = (-b - √D) / 2a</div></div><div class="result-box"><div class="result-label">Root Type</div><div class="result-value" style="font-size: 1.1rem;">Two distinct real roots</div><div class="result-sub">D > 0</div></div>
+      <div class="result-box highlight"><div class="result-label">${t('Root x₁')}</div><div class="result-value large">${fmtNumber(x1)}</div><div class="result-sub">x₁ = (-b + √D) / 2a</div></div><div class="result-box highlight"><div class="result-label">${t('Root x₂')}</div><div class="result-value large">${fmtNumber(x2)}</div><div class="result-sub">x₂ = (-b - √D) / 2a</div></div><div class="result-box"><div class="result-label">${t('Root Type')}</div><div class="result-value" style="font-size: 1.1rem;">${t('Two distinct real roots')}</div><div class="result-sub">D > 0</div></div>
     `;
   } else if (discriminant === 0) {
     const x = -b / (2 * a);
     
     html += `
-      <div class="result-box highlight"><div class="result-label">Root x</div><div class="result-value large">${fmtNumber(x)}</div><div class="result-sub">x = -b / 2a (double root)</div></div><div class="result-box"><div class="result-label">Root Type</div><div class="result-value" style="font-size: 1.1rem;">One root (multiplicity 2)</div><div class="result-sub">D = 0</div></div>
+      <div class="result-box highlight"><div class="result-label">${t('Root x')}</div><div class="result-value large">${fmtNumber(x)}</div><div class="result-sub">${t('x = -b / 2a (double root)')}</div></div><div class="result-box"><div class="result-label">${t('Root Type')}</div><div class="result-value" style="font-size: 1.1rem;">${t('One root (multiplicity 2)')}</div><div class="result-sub">D = 0</div></div>
     `;
   } else {
     const realPart = -b / (2 * a);
     const imagPart = Math.abs(Math.sqrt(-discriminant) / (2 * a));
     
     html += `
-      <div class="result-box highlight"><div class="result-label">Root x₁</div><div class="result-value large">${fmtNumber(realPart)} + ${fmtNumber(imagPart)}i</div><div class="result-sub">Complex root</div></div><div class="result-box highlight"><div class="result-label">Root x₂</div><div class="result-value large">${fmtNumber(realPart)} - ${fmtNumber(imagPart)}i</div><div class="result-sub">Complex root</div></div><div class="result-box"><div class="result-label">Root Type</div><div class="result-value" style="font-size: 1.1rem;">Complex conjugate pair</div><div class="result-sub">D < 0</div></div>
+      <div class="result-box highlight"><div class="result-label">${t('Root x₁')}</div><div class="result-value large">${fmtNumber(realPart)} + ${fmtNumber(imagPart)}i</div><div class="result-sub">${t('Complex root')}</div></div><div class="result-box highlight"><div class="result-label">${t('Root x₂')}</div><div class="result-value large">${fmtNumber(realPart)} - ${fmtNumber(imagPart)}i</div><div class="result-sub">${t('Complex root')}</div></div><div class="result-box"><div class="result-label">${t('Root Type')}</div><div class="result-value" style="font-size: 1.1rem;">${t('Complex conjugate pair')}</div><div class="result-sub">D < 0</div></div>
     `;
   }
   
@@ -116,7 +116,7 @@ function reset() {
   document.getElementById('coeffC').value = '';
   updatePreview();
   clearError();
-  document.getElementById('results').innerHTML = '<div style="text-align: center; padding: 40px 20px; color: var(--muted);">Enter coefficients and click Solve</div>';
+  document.getElementById('results').innerHTML = '<div style="text-align: center; padding: 40px 20px; color: var(--muted);">' + t('Enter coefficients and click Solve') + '</div>';
 }
 
 updatePreview();

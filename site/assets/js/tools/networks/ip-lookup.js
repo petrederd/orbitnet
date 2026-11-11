@@ -10,15 +10,15 @@ function box(label, value, small) {
 
 function geoHtml(geo) {
   if (!geo) {
-    return '<div class="info">Geolocation data is unavailable for this address (private or reserved address, or the GeoLite2 databases are not loaded).</div>';
+    return '<div class="info">' + t('Geolocation data is unavailable for this address (private or reserved address, or the GeoLite2 databases are not loaded).') + '</div>';
   }
 
-  const place = [geo.city, geo.region, geo.country].filter(Boolean).join(', ') || 'Unknown';
+  const place = [geo.city, geo.region, geo.country].filter(Boolean).join(', ') || t('Unknown');
   const provider = geo.asnOrganization
     ? esc(geo.asnOrganization) + (geo.asn ? ' (AS' + esc(geo.asn) + ')' : '')
     : 'Unknown';
 
-  let coordinates = 'Unknown';
+  let coordinates = t('Unknown');
   if (geo.latitude != null && geo.longitude != null) {
     const lat = Number(geo.latitude).toFixed(4);
     const lon = Number(geo.longitude).toFixed(4);
@@ -26,21 +26,21 @@ function geoHtml(geo) {
       '#map=9/' + lat + '/' + lon + '" target="_blank" rel="noopener">' + lat + ', ' + lon + '</a>';
   }
 
-  const accuracy = geo.accuracyRadius != null ? '± ' + esc(geo.accuracyRadius) + ' km' : 'Unknown';
+  const accuracy = geo.accuracyRadius != null ? '± ' + esc(geo.accuracyRadius) + ' km' : t('Unknown');
 
   return '<div class="grid-2">' +
-    box('Location', esc(place)) +
-    box('Provider', provider) +
-    box('Timezone', esc(geo.timezone || 'Unknown')) +
-    box('Coordinates', coordinates) +
-    box('Accuracy radius', esc(accuracy)) +
-    box('Country code', esc(geo.countryCode || '—')) +
+    box(t('Location'), esc(place)) +
+    box(t('Provider'), provider) +
+    box(t('Timezone'), esc(geo.timezone || t('Unknown'))) +
+    box(t('Coordinates'), coordinates) +
+    box(t('Accuracy radius'), esc(accuracy)) +
+    box(t('Country code'), esc(geo.countryCode || '—')) +
     '</div>';
 }
 
 function loadIPInfo() {
   const loading = document.getElementById('loading');
-  loading.textContent = 'Loading your IP information...';
+  loading.textContent = t('Loading your IP information...');
   loading.style.display = 'block';
   document.getElementById('results').style.display = 'none';
   document.getElementById('error').style.display = 'none';
@@ -51,14 +51,14 @@ function loadIPInfo() {
       if (data.error) throw new Error(data.error);
       const html =
         '<div class="result-box highlight">' +
-          '<div class="result-label">Your IP Address</div>' +
+          '<div class="result-label">' + t('Your IP Address') + '</div>' +
           '<div class="result-value large">' + esc(data.ip) + '</div>' +
           '<div class="result-sub">IPv' + data.version + (data.hostname ? ' · ' + esc(data.hostname) : '') + '</div>' +
         '</div>' +
         geoHtml(data.geo) +
         '<div class="grid-2" style="margin-top:12px;">' +
-          box('IP version', 'IPv' + esc(data.version)) +
-          box('Reverse DNS', esc(data.hostname || 'not set'), true) +
+          box(t('IP version'), 'IPv' + esc(data.version)) +
+          box(t('Reverse DNS'), esc(data.hostname || t('not set')), true) +
         '</div>';
       document.getElementById('results').innerHTML = html;
       document.getElementById('results').style.display = 'block';
