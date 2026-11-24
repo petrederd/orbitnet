@@ -10,6 +10,6 @@
   },
   "dependencies": {
     "maxmind": "^5.0.7",
-    "tldts": "^7.4.19"
+    "tldts": "^7.5.5"
   }
 }
